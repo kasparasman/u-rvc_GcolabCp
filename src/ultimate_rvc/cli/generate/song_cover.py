@@ -5,12 +5,15 @@ cover.
 
 from typing import Annotated
 
+from pathlib import Path
+
 import typer
 from rich import print as rprint
 from rich.panel import Panel
 from rich.table import Table
 
 from ultimate_rvc.core.generate.song_cover import run_pipeline as _run_pipeline
+from ultimate_rvc.core.generate.song_cover import to_wav as _to_wav
 from ultimate_rvc.typing_extra import AudioExt, F0Method
 
 app = typer.Typer(
@@ -77,6 +80,73 @@ def complete_f0_method(incomplete: str) -> list[str]:
 
     """
     return complete_name(incomplete, list(F0Method))
+
+
+@app.command(no_args_is_help=True)
+def to_wav(
+    audio_track: Annotated[
+        Path,
+        typer.Argument(
+            help="The path to the audio track to convert.",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+        ),
+    ],
+    song_dir: Annotated[
+        Path,
+        typer.Argument(
+            help=(
+                "The path to the song directory where the converted audio track will be"
+                " saved."
+            ),
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+        ),
+    ],
+    prefix: Annotated[
+        str,
+        typer.Argument(
+            help="The prefix to use for the name of the converted audio track.",
+        ),
+    ],
+    accepted_format: Annotated[
+        list[AudioExt] | None,
+        typer.Option(
+            case_sensitive=False,
+            autocompletion=complete_audio_ext,
+            help=(
+                "An audio format to accept for conversion. This option can be used"
+                " multiple times to accept multiple formats. If not provided, the"
+                " default accepted formats are mp3, ogg, flac, m4a and aac."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """
+    Convert a given audio track to wav format if its current format
+    is an accepted format. See the --accepted-formats option for more
+    information on accepted formats.
+
+    """
+    rprint()
+    wav_path = _to_wav(
+        audio_track=audio_track,
+        song_dir=song_dir,
+        prefix=prefix,
+        accepted_formats=set(accepted_format) if accepted_format else None,
+    )
+    if wav_path == audio_track:
+        rprint(
+            "[+] Audio track was not converted to WAV format. Presumably, "
+            "its format is not in the given list of accepted formats.",
+        )
+    else:
+        rprint("[+] Audio track succesfully converted to WAV format!")
+        rprint(Panel(f"[green]{wav_path}", title="WAV Audio Track Path"))
 
 
 @app.command(no_args_is_help=True)

@@ -115,7 +115,7 @@ class NotFoundError(OSError):
         proposition = "at:" if is_path else "in"
         entity_cap = entity.capitalize() if not entity.isupper() else entity
         super().__init__(
-            f"{entity_cap} not found {proposition} {location}.",
+            f"{entity_cap} not found {proposition} {location}",
         )
 
 

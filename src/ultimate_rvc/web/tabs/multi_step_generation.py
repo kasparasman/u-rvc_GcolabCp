@@ -219,8 +219,8 @@ def render(
 
         transfer_defaults = [
             ["Step 1: audio"],
-            ["Step 4: instrumentals"],
             ["Step 2: vocals"],
+            ["Step 4: instrumentals"],
             ["Step 3: vocals"],
             ["Step 5: main vocals"],
             ["Step 5: instrumentals"],
@@ -448,6 +448,8 @@ def render(
             vocals_track_input.render()
             with gr.Row():
                 convert_vocals_dir.render()
+                if model_multi.info:
+                    model_multi.info += "<br><br>"
                 model_multi.render()
             gr.Markdown("**Settings**")
             with gr.Row():
@@ -504,6 +506,7 @@ def render(
                     info=(
                         "How much to mimic the loudness (0) of the input vocals or a"
                         " fixed loudness (1)."
+                        "<br><br>"
                     ),
                 )
             with gr.Row():
@@ -516,6 +519,7 @@ def render(
                         "Protection of voiceless consonants and breath sounds. Decrease"
                         " to increase protection at the cost of indexing accuracy. Set"
                         " to 0.5 to disable."
+                        "<br>"
                     ),
                 )
                 f0_method = gr.Dropdown(
@@ -526,6 +530,7 @@ def render(
                         "The method to use for pitch detection. Best option is"
                         " RMVPE (clarity in vocals), then Mangio-CREPE (smoother"
                         " vocals)."
+                        "<br><br>"
                     ),
                 )
                 hop_length = gr.Slider(
@@ -713,6 +718,8 @@ def render(
                     info="The number of semi-tones to pitch-shift the backup vocals by",
                 )
             with gr.Row():
+                if shifted_instrumentals_transfer.info:
+                    shifted_instrumentals_transfer.info += "<br><br>"
                 shifted_instrumentals_transfer.render()
                 shifted_backup_vocals_transfer.render()
 
@@ -760,8 +767,8 @@ def render(
                         pitch_shift,
                         info_msg="Instrumentals pitch-shifted successfully!",
                     ),
-                    progress_bar=PROGRESS_BAR,
                     display_msg="Pitch shifting instrumentals...",
+                    progress_bar=PROGRESS_BAR,
                 ),
                 inputs=[
                     instrumentals_track_input,
@@ -776,8 +783,8 @@ def render(
                         pitch_shift,
                         info_msg="Backup vocals pitch-shifted successfully!",
                     ),
-                    progress_bar=PROGRESS_BAR,
                     display_msg="Pitch shifting backup vocals...",
+                    progress_bar=PROGRESS_BAR,
                 ),
                 inputs=[
                     backup_vocals_track_input,

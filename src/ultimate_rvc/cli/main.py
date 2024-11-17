@@ -5,7 +5,7 @@ project.
 
 import typer
 
-from ultimate_rvc.cli.generate_song_cover import app as song_cover_app
+from ultimate_rvc.cli.generate.song_cover import app as song_cover_app
 
 app = typer.Typer(
     name="urvc-cli",

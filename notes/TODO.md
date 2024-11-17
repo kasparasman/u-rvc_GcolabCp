@@ -1,52 +1,6 @@
 # TODO
 
-* need to make project version (in `pyproject.toml`) dynamic so that it is updated automatically when a new release is made
-* should specify in colab notebook which link in output of last cell should be clicked
-* start logging in modules from the ultimate_rvc project
-  * might not need to log in every module but start doing it for relevant operations such as
-    * when catching errors
-    * when significant events happen
-
 * should rename instances of "models" to "voice models"
-
-* upgrade gradio to version 5
-* use pyinstaller to install app into executable that also includes sox and ffmpeg as dependencies (DLLs)
-
-* make note about having to possibly do refresh (f5) when using colab to make default models appear
-  * should also try to fix this
-* make note about audio component resetting sometimes when hitting press play
-  * should also try to fix this
-  * might be related some error messages on the terminal with broken communication:
-  
-    ``` console
-    2024-11-11 21:02:34 | ERROR | asyncio | Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
-    handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>
-    Traceback (most recent call last):
-      File "C:\Users\Jacki\AppData\Local\Programs\Python\Python312\Lib\asyncio\events.py", line 88, in _run
-        self._context.run(self._callback, *self._args)
-      File "C:\Users\Jacki\AppData\Local\Programs\Python\Python312\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
-        self._sock.shutdown(socket.SHUT_RDWR)
-    ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
-    2024-11-11 21:02:35 | ERROR | asyncio | Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
-    handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>
-    Traceback (most recent call last):
-      File "C:\Users\Jacki\AppData\Local\Programs\Python\Python312\Lib\asyncio\events.py", line 88, in _run
-        self._context.run(self._callback, *self._args)
-      File "C:\Users\Jacki\AppData\Local\Programs\Python\Python312\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
-        self._sock.shutdown(socket.SHUT_RDWR)
-    ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
-    ```
-
-* update stubs
-
-* figure out way of making ./urvc commands execute faster
-  * when ultimate rvc is downloaded as a pypi package the exposed commands are much faster so investigate this
-
-## optimization of package installation
-
-* once diffq-fixed is used by audio-separator we can remove the url dependency on windows
-* we will still need to wait for uv to make it easy to install package with torch dependency
-  * it is still necessary to install pytorch first as it is not on pypi index
 
 ## Project/task management
 
@@ -107,8 +61,9 @@
 
 ### Multi-step generation
 
-* add description describing how to use each accordion and and suggestions for workflows
 * If possible merge two consecutive event listeners using `update_cached_songs` in the song retrieval accordion.
+* add description describing how to use each accordion and suggestions for workflows
+
 * add option for adding more input tracks to the mix song step
   * new components should be created dynamically based on a textfield with names and a button for creating new component
   * when creating a new component a new transfer button and dropdown should also be created
@@ -125,63 +80,74 @@
   * this would just be the same pop up confirmation box as before but in addition to yes and cancel options it will also have a "transfer to new input track" option.
   * we need custom javasctip for this.
 
-* Fix hashes of identical files being different for one-click and multi-step generation (DIFFICULT TO IMPLEMENT)
-  * Seems to work except for when first running one click generation and then multi-step generation
-    * What happens is that when transferring an output track in multi-step generation the transferred output track is re-encoded (or possibly just re-saved) on disk which causes the hash to be different after transfering
-    * This happens only when transfering from the output of step 0 (song retrieval) and step 4 (vocal postprocessing)
-    * curiously, these steps were also the ones causing problems with loading output tracks before when we were auto transfering output tracks.
-      * Hence the problem with hashing seems to be related to the gradio bug where loading into audio components does not work after a while when using too many consecutive event listeners.
-    * Also, it should be noted that transfering a manually uploaded file from step 0 does not result in reencoding (and hence a new hash)
-      * perhaps this is because a manually uplaoded audio file is already in the correct wav format while a downloaded song might be in a wrong wav format?
-
 ### Common
 
+* fix problem with typing of block.launch()
+  * problem stems from doing from gradio import routes
+  * so instead should import from gradio.routes directly
+  * open a pr with changes
 * save default values for options for song generation in an `SongCoverOptionDefault` enum.
   * then reference this enum across the two tabs
   * and also use `list[SongCoverOptionDefault]` as input to reset settings click event listener in single click generation tab.
-* use `Block.queue` with parameter `max_size` set to a non-null value and `default_concurrency_limit` increased in order to improve user responsiveness
-* use `Block.launch()` with `max_file_size` to prevent too large uploads
-* experiment with `show_error` parameters on `Block.launch()`
 * Persist state of app (currently selected settings etc.) across re-renders
   * This includes:
     * refreshing a browser windows
     * Opening app in new browser window
     * Maybe it should also include when app is started anew?
   * Possible solutions
+    * use gr.browserstate to allow state to be preserved acrross page loads.
     * Save any changes to components to a session dictionary and load from it upon refresh
       * See [here](https://github.com/gradio-app/gradio/issues/3106#issuecomment-1694704623)
       * Problem is that this solution might not work with accordions or other types of blocks
+            * should use .expand() and .collapse() event listeners on accordions to programmatically reset the state of accordions to what they were before after user has refreshed the page
     * Use localstorage
       * see [here](https://huggingface.co/spaces/YiXinCoding/gradio-chat-history/blob/main/app.py) and [here](https://huggingface.co/spaces/radames/gradio_window_localStorage/blob/main/app.py)
 
     * Whenever the state of a component is changed save the new state to a custom JSON file.
       * Then whenever the app is refreshed load the current state of components from the JSON file
       * This solution should probably work for Block types that are not components
+* need to fix the `INFO: Could not find files for the given pattern(s)` on startup of web application on windows (DIFFICULT TO IMPLEMENT)
+  * this is an error that gradio needs to fix
+* Remove reset button on slider components (DIFFICULT TO IMPLEMENT)
+  * this is a gradio feature that needs to be removed.
 * Fix that gradio removes special symbols from audio paths when loaded into audio components (DIFFICULT TO IMPLEMENT)
   * includes parenthesis, question marks, etc.
   * its a gradio bug so report?
-* Fix Problem with gradio reload mode not working (DIFFICULT TO IMPLEMENT)
-  * Has been reported to gradio here [here](https://github.com/gradio-app/gradio/issues/8917)
 * Add button for cancelling any currently running jobs (DIFFICULT TO IMPLEMENT)
   * Not supported by Gradio natively
   * Also difficult to implement manually as Gradio seems to be running called backend functions in thread environments
 * dont show error upon missing confirmation (DIFFICULT TO IMPLEMENT)
   * can return `gr.update()`instead of raising an error in relevant event listener function
   * but problem is that subsequent steps will still be executed in this case
+* clearing temporary files with the `delete_cache` parameter only seems to work if all windows are closed before closing the app process (DIFFICULT TO IMPLEMENT)
+  * this is a gradio bug so report?
 
-### temporary gradio files
+## Online hosting optimization
 
-* clearing temporary files can be candled with the `delete_cache` parameter
-  * Only seems to work if all windows are closed before closing the app process
-* When hosting online:
-  * clearing of temporary files should happen after a user logs in and out
+* make concurrency_id and concurrency limit on components be dependent on whether gpu is used or not
+  * if only cpu then there should be no limit
+* increase value of `default_concurrency_limit` in `Block.queue` so that the same event listener
+  * can be called multiple times concurrently
+* use `Block.launch()` with `max_file_size` to prevent too large uploads
+* define as many functions with async as possible to increase responsiveness of app
+  * and then use `Block.launch()` with `max_threads`set to an appropriate value representing the number of concurrent threads that can be run on the server (default is 40)
+* Persist state of app (currently selected settings etc.) across re-renders
+* consider setting `max_size` in `Block.queue()` to explicitly limit the number of people that can be in the queue at the same time
+* clearing of temporary files should happen after a user logs in and out
   * and in this case it should only be temporary files for the active user that are cleared
     * Is that even possible to control?
+* enable server side rendering (requires installing node and setting ssr_mode = true in .launch) (DIFFICULT TO IMPLEMENT)
+  * Also needs to set GRADIO_NODE_PATH to point to the node executable
+  * problem is that on windows there is a ERR_UNSUPPORTED_ESM_URL_SCHEME which needs to be fixed by gradio
+    * see here https://github.com/nodejs/node/issues/31710
+  * on linux it works but it is not possible to shutdown server using CTRL+ C
+
 
 ## Back end
 
 ### `generate_song_cover.py`
 
+* intermediate file prefixes should be made into enums 
 * find framework for caching intermediate results rather than relying on your homemade system
 
   * Joblib: <https://medium.com/@yuxuzi/unlocking-efficiency-in-machine-learning-projects-with-joblib-a-python-pipeline-powerhouse-feb0ebfdf4df>
@@ -212,19 +178,6 @@
 
 ## CLI
 
-### Potentially implement audio conversion
-
-* When using CLI input files might not be .wave format. This is a problem because
-  * `pedalboard.io` does not support `aac` and `adts` (`m4a`)
-    * workaround: accept that these two formats are not supported?
-  * `pydub.AudioSegment.from_wav` will not work
-    * workaround: use `pydub.AudioSegment.from_file()`?
-  * `soundfile` does not support `mp3`,`aac` or `adts`
-    * workaround: use `librosa` instead?
-* Global solution
-  * Implement pre-processing step that saves input file in `.wav` format if necessary before doing anything else and then using that saved audio file for further professing
-  * Simpler solution: Always do pre-processing and do not save to file but instead save to a stream that can be used for later processing
-
 ### Add remaining CLI interfaces
 
 * Interface for `core.manage_models`
@@ -233,6 +186,12 @@
 
 ## python package management
 
+* need to make project version (in `pyproject.toml`) dynamic so that it is updated automatically when a new release is made
+* once diffq-fixed is used by audio-separator we can remove the url dependency on windows
+  * we will still need to wait for uv to make it easy to install package with torch dependency
+  * also it is still necessary to install pytorch first as it is not on pypi index
+* figure out way of making ./urvc commands execute faster
+  * when ultimate rvc is downloaded as a pypi package the exposed commands are much faster so investigate this
 * update dependencies in pyproject.toml
   * use latest compatible version of all packages
   * remove commented out code, unless strictly necessary
@@ -284,18 +243,27 @@
 
 * linting with Ruff
 * typechecking with Pyright
-*or use pre-commit?
+* running all tests
+* automatic building and publishing of project to pypi
+  * includes automatic update of project version number
+* or use pre-commit?
 
 ### README
 
 * Fill out TBA sections in README
 * Add note about not using with VPN?
+* Add different emblems/badges in header
+  * like test coverage, build status, etc. (look at other projects for inspiration)
+* spice up text with emojis (look at tiango's projects for inspiration)
 
 ### Releases
 
 * Make regular releases like done for Applio
   * Will be an `.exe` file that when run unzips contents into application folder, where `./urvc run` can then be executed.
   * Could it be possible to have `.exe` file just start webapp when clicked?
+* Could also include pypi package as a release?
+
+* use pyinstaller to install app into executable that also includes sox and ffmpeg as dependencies (DLLs)
 
 ### Other
 
@@ -390,6 +358,12 @@
   * Could have delete buttons both at the level of song_directory, step, and for each song?
   * Also consider splitting intermediate audio tracks for each step in to subfolder (0,1,2,3...)
 
+## Other settings
+
+* rework other settings tab
+  * this should also contain other settings such as the ability to change the theme of the app
+  * there should be a button to apply settings which will reload the app with the new settings
+
 ## Audio post-processing
 
 * Support more effects from the `pedalboard` pakcage.
@@ -425,6 +399,7 @@
 ## Custom UI
 
 * Experiment with new themes including [Building new ones](https://www.gradio.app/guides/theming-guid)
+  * first of all make new theme that is like the default gradio 4 theme in terms of using semi transparent orange as the main color and semi-transparent grey for secondary color. The new gradio 5 theme is good apart from using solid colors so maybe use that as base theme.
   * Support both dark and light theme in app?
   * Add Support for changing theme in app?
   * Use Applio theme as inspiration for default theme?

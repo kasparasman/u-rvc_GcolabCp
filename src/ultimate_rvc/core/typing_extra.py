@@ -134,14 +134,14 @@ class FileMetaData(BaseModel):
     hash_id: str
 
 
-class StereoizedAudioMetaData(BaseModel):
+class WaveifiedAudioMetaData(BaseModel):
     """
-    Metadata for a stereoized audio track.
+    Metadata for a waveified audio track.
 
     Attributes
     ----------
     audio_track : FileMetaData
-        Metadata for the audio track that was stereoized.
+        Metadata for the audio track that was waveified.
 
     """
 

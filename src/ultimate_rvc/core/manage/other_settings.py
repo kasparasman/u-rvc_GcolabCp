@@ -24,6 +24,6 @@ def delete_temp_files(
         The percentage to display in the progress bar.
 
     """
-    display_progress("Deleting all temporary files...", percentage, progress_bar)
+    display_progress("[~] Deleting all temporary files...", percentage, progress_bar)
     if TEMP_DIR.is_dir():
         shutil.rmtree(TEMP_DIR)

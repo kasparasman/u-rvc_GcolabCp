@@ -4,13 +4,13 @@ using RVC.
 """
 
 import gc
+import logging
 import operator
 import shutil
 from collections.abc import Sequence
 from contextlib import suppress
 from functools import reduce
 from itertools import starmap
-from logging import WARNING
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -39,6 +39,7 @@ from ultimate_rvc.core.common import (
     get_file_hash,
     get_hash,
     json_dump,
+    json_dumps,
     json_load,
     validate_url,
 )
@@ -62,7 +63,7 @@ from ultimate_rvc.core.typing_extra import (
     SeparatedAudioMetaData,
     SourceType,
     StagedAudioMetaData,
-    StereoizedAudioMetaData,
+    WaveifiedAudioMetaData,
 )
 from ultimate_rvc.typing_extra import (
     AudioExt,
@@ -74,106 +75,69 @@ from ultimate_rvc.typing_extra import (
 )
 from ultimate_rvc.vc.rvc import Config, get_vc, load_hubert, rvc_infer
 
-AUDIO_SEPARATOR = Separator(
-    log_level=WARNING,
-    model_file_dir=SEPARATOR_MODELS_DIR,
-    output_dir=INTERMEDIATE_AUDIO_BASE_DIR,
-    mdx_params={
-        "hop_length": 1024,
-        "segment_size": 256,
-        "overlap": 0.001,
-        "batch_size": 1,
-        "enable_denoise": False,
-    },
-    mdxc_params={"segment_size": 256, "batch_size": 1, "overlap": 2},
-)
+logger = logging.getLogger(__name__)
 
 
-def _validate_exists(
-    identifier: StrPath,
-    entity: Entity,
-) -> Path:
+def _get_audio_separator(
+    output_dir: StrPath = INTERMEDIATE_AUDIO_BASE_DIR,
+    output_format: str = AudioExt.WAV,
+    segment_size: int = SegmentSize.SEG_256,
+    sample_rate: int = 44100,
+) -> Separator:
     """
-    Validate that the provided identifier is not none and that it
-    identifies an existing entity, which can be either a voice model,
-    a song directory or an audio track.
+    Get an audio separator.
 
     Parameters
     ----------
-    identifier : StrPath
-        The identifier to validate.
-    entity : Entity
-        The entity that the identifier should identify.
+    output_dir : StrPath, default=INTERMEDIATE_AUDIO_BASE_DIR
+        The directory to save the separated audio to.
+    output_format : str, default=AudioExt.WAV
+        The format to save the separated audio in.
+    segment_size : int, default=SegmentSize.SEG_256
+        The segment size to use for separation.
+    sample_rate : int, default=44100
+        The sample rate to use for separation.
 
     Returns
     -------
-    Path
-        The path to the identified entity.
-
-    Raises
-    ------
-    NotProvidedError
-        If the identifier is None.
-    NotFoundError
-        If the identifier does not identify an existing entity.
-    VoiceModelNotFoundError
-        If the identifier does not identify an existing voice model.
-    NotImplementedError
-        If the provided entity is not supported.
+    Separator
+        An audio separator.
 
     """
-    match entity:
-        case Entity.MODEL_NAME:
-            if not identifier:
-                raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_VOICE_MODEL)
-            path = RVC_MODELS_DIR / identifier
-            if not path.is_dir():
-                raise VoiceModelNotFoundError(str(identifier))
-        case Entity.SONG_DIR:
-            if not identifier:
-                raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_SONG_DIR)
-            path = Path(identifier)
-            if not path.is_dir():
-                raise NotFoundError(entity=entity, location=path)
-        case (
-            Entity.SONG
-            | Entity.AUDIO_TRACK
-            | Entity.VOCALS_TRACK
-            | Entity.INSTRUMENTALS_TRACK
-            | Entity.MAIN_VOCALS_TRACK
-            | Entity.BACKUP_VOCALS_TRACK
-        ):
-            if not identifier:
-                raise NotProvidedError(entity=entity)
-            path = Path(identifier)
-            if not path.is_file():
-                raise NotFoundError(entity=entity, location=path)
-        case _:
-            error_msg = f"Entity {entity} not supported."
-            raise NotImplementedError(error_msg)
-    return path
+    return Separator(
+        model_file_dir=SEPARATOR_MODELS_DIR,
+        output_dir=output_dir,
+        output_format=output_format,
+        sample_rate=sample_rate,
+        mdx_params={
+            "hop_length": 1024,
+            "segment_size": segment_size,
+            "overlap": 0.001,
+            "batch_size": 1,
+            "enable_denoise": False,
+        },
+    )
 
 
-def _validate_all_exist(
-    identifier_entity_pairs: Sequence[tuple[StrPath, Entity]],
-) -> list[Path]:
+def initialize_audio_separator(progress_bar: gr.Progress | None = None) -> None:
     """
-    Validate that all provided identifiers are not none and that they
-    identify existing entities, which can be either voice models, song
-    directories or audio tracks.
+    Initialize the audio separator by downloading the models it uses.
 
     Parameters
     ----------
-    identifier_entity_pairs : Sequence[tuple[StrPath, Entity]]
-        The pairs of identifiers and entities to validate.
-
-    Returns
-    -------
-    list[Path]
-        The paths to the identified entities.
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
 
     """
-    return list(starmap(_validate_exists, identifier_entity_pairs))
+    audio_separator = _get_audio_separator()
+    for i, separator_model in enumerate(SeparationModel):
+        if not Path(SEPARATOR_MODELS_DIR / separator_model).is_file():
+            display_progress(
+                f"Downloading {separator_model}...",
+                i / len(SeparationModel),
+                progress_bar,
+            )
+            audio_separator.download_model_files(separator_model)
 
 
 def _get_input_audio_path(directory: StrPath) -> Path | None:
@@ -216,8 +180,8 @@ def _get_input_audio_path(directory: StrPath) -> Path | None:
             path=dir_path,
         )
     # NOTE directory should never contain more than one element which
-    # matches the pattern "0_*"
-    return next(dir_path.glob("0_*"), None)
+    # matches the pattern "00_*"
+    return next(dir_path.glob("00_*"), None)
 
 
 def _get_input_audio_paths() -> list[Path]:
@@ -234,302 +198,31 @@ def _get_input_audio_paths() -> list[Path]:
     """
     # NOTE if we later add .json file for input then
     # we need to exclude those here
-    return list(INTERMEDIATE_AUDIO_BASE_DIR.glob("*/0_*"))
+    return list(INTERMEDIATE_AUDIO_BASE_DIR.glob("*/00_*"))
 
 
-def _get_youtube_id(url: str, ignore_playlist: bool = True) -> str:
+def get_named_song_dirs() -> list[tuple[str, str]]:
     """
-    Get the id of a YouTube video or playlist.
-
-    Parameters
-    ----------
-    url : str
-        URL which points to a YouTube video or playlist.
-    ignore_playlist : bool, default=True
-        Whether to get the id of the first video in a playlist or the
-        playlist id itself.
+    Get the names of all saved songs and the paths to the
+    directories where they are stored.
 
     Returns
     -------
-    str
-        The id of a YouTube video or playlist.
-
-    Raises
-    ------
-    YoutubeUrlError
-        If the provided URL does not point to a YouTube video
-        or playlist.
+    list[tuple[str, Path]]
+        A list of tuples containing the name of each saved song
+        and the path to the directory where it is stored.
 
     """
-    yt_id = None
-    validate_url(url)
-    query = urlparse(url)
-    if query.hostname == "youtu.be":
-        yt_id = query.query[2:] if query.path[1:] == "watch" else query.path[1:]
-
-    elif query.hostname in {"www.youtube.com", "youtube.com", "music.youtube.com"}:
-        if not ignore_playlist:
-            with suppress(KeyError):
-                yt_id = parse_qs(query.query)["list"][0]
-        elif query.path == "/watch":
-            yt_id = parse_qs(query.query)["v"][0]
-        elif query.path[:7] == "/watch/":
-            yt_id = query.path.split("/")[1]
-        elif query.path[:7] == "/embed/" or query.path[:3] == "/v/":
-            yt_id = query.path.split("/")[2]
-    if yt_id is None:
-        raise YoutubeUrlError(url=url, playlist=True)
-
-    return yt_id
-
-
-def _get_youtube_audio(url: str, directory: StrPath) -> Path:
-    """
-    Download audio from a YouTube video.
-
-    Parameters
-    ----------
-    url : str
-        URL which points to a YouTube video.
-    directory : StrPath
-        The directory to save the downloaded audio file to.
-
-    Returns
-    -------
-    Path
-        The path to the downloaded audio file.
-
-    Raises
-    ------
-    YoutubeUrlError
-        If the provided URL does not point to a YouTube video.
-
-    """
-    validate_url(url)
-    outtmpl = str(Path(directory, "0_%(title)s"))
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "format": "bestaudio",
-        "outtmpl": outtmpl,
-        "ignoreerrors": True,
-        "nocheckcertificate": True,
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "wav",
-                "preferredquality": 0,
-            },
-        ],
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        result = ydl.extract_info(url, download=True)
-        if not result:
-            raise YoutubeUrlError(url, playlist=False)
-        file = ydl.prepare_filename(result, outtmpl=f"{outtmpl}.wav")
-
-    return Path(file)
-
-
-def _get_rvc_files(model_name: str) -> tuple[Path, Path | None]:
-    """
-    Get the RVC model file and potential index file of a voice model.
-
-    Parameters
-    ----------
-    model_name : str
-        The name of the voice model to get the RVC files of.
-
-    Returns
-    -------
-    model_file : Path
-        The path to the RVC model file.
-    index_file : Path | None
-        The path to the RVC index file, if it exists.
-
-    Raises
-    ------
-    NotFoundError
-        If no model file exists in the voice model directory.
-
-
-    """
-    model_dir_path = _validate_exists(model_name, Entity.MODEL_NAME)
-    file_path_map = {
-        ext: path
-        for path in model_dir_path.iterdir()
-        for ext in [".pth", ".index"]
-        if ext == path.suffix
-    }
-
-    if ".pth" not in file_path_map:
-        raise NotFoundError(
-            entity=Entity.MODEL_FILE,
-            location=model_dir_path,
-            is_path=False,
-        )
-
-    model_file = model_dir_path / file_path_map[".pth"]
-    index_file = (
-        model_dir_path / file_path_map[".index"] if ".index" in file_path_map else None
-    )
-
-    return model_file, index_file
-
-
-def _convert(
-    voice_track: StrPath,
-    output_file: StrPath,
-    model_name: str,
-    n_semitones: int = 0,
-    f0_method: F0Method = F0Method.RMVPE,
-    index_rate: float = 0.5,
-    filter_radius: int = 3,
-    rms_mix_rate: float = 0.25,
-    protect: float = 0.33,
-    hop_length: int = 128,
-    output_sr: int = 44100,
-) -> None:
-    """
-    Convert a voice track using a voice model and save the result to a
-    an output file.
-
-    Parameters
-    ----------
-    voice_track : StrPath
-        The path to the voice track to convert.
-    output_file : StrPath
-        The path to the file to save the converted voice track to.
-    model_name : str
-        The name of the model to use for voice conversion.
-    n_semitones : int, default=0
-        The number of semitones to pitch-shift the converted voice by.
-    f0_method : F0Method, default=F0Method.RMVPE
-        The method to use for pitch detection.
-    index_rate : float, default=0.5
-        The influence of the index file on the voice conversion.
-    filter_radius : int, default=3
-        The filter radius to use for the voice conversion.
-    rms_mix_rate : float, default=0.25
-        The blending rate of the volume envelope of the converted voice.
-    protect : float, default=0.33
-        The protection rate for consonants and breathing sounds.
-    hop_length : int, default=128
-        The hop length to use for crepe-based pitch detection.
-    output_sr : int, default=44100
-        The sample rate of the output audio file.
-
-    """
-    rvc_model_path, rvc_index_path = _get_rvc_files(model_name)
-    device = "cuda:0"
-    config = Config(device, is_half=True)
-    hubert_model = load_hubert(
-        device,
-        str(RVC_MODELS_DIR / "hubert_base.pt"),
-        is_half=config.is_half,
-    )
-    cpt, version, net_g, tgt_sr, vc = get_vc(
-        device,
-        config,
-        str(rvc_model_path),
-        is_half=config.is_half,
-    )
-
-    # convert main vocals
-    rvc_infer(
-        str(rvc_index_path) if rvc_index_path else "",
-        index_rate,
-        str(voice_track),
-        str(output_file),
-        n_semitones,
-        f0_method,
-        cpt,
-        version,
-        net_g,
-        filter_radius,
-        tgt_sr,
-        rms_mix_rate,
-        protect,
-        hop_length,
-        vc,
-        hubert_model,
-        output_sr,
-    )
-    del hubert_model, cpt
-    gc.collect()
-
-
-def _add_effects(
-    audio_track: StrPath,
-    output_file: StrPath,
-    room_size: float = 0.15,
-    wet_level: float = 0.2,
-    dry_level: float = 0.8,
-    damping: float = 0.7,
-) -> None:
-    """
-    Add high-pass filter, compressor and reverb effects to an audio
-    track.
-
-    Parameters
-    ----------
-    audio_track : StrPath
-        The path to the audio track to add effects to.
-    output_file : StrPath
-        The path to the file to save the effected audio track to.
-    room_size : float, default=0.15
-        The room size of the reverb effect.
-    wet_level : float, default=0.2
-        The wetness level of the reverb effect.
-    dry_level : float, default=0.8
-        The dryness level of the reverb effect.
-    damping : float, default=0.7
-        The damping of the reverb effect.
-
-    """
-    board = Pedalboard(
+    return sorted(
         [
-            HighpassFilter(),
-            Compressor(ratio=4, threshold_db=-15),
-            Reverb(
-                room_size=room_size,
-                dry_level=dry_level,
-                wet_level=wet_level,
-                damping=damping,
-            ),
+            (
+                path.stem.removeprefix("00_"),
+                str(path.parent),
+            )
+            for path in _get_input_audio_paths()
         ],
+        key=operator.itemgetter(0),
     )
-
-    with (
-        AudioFile(str(audio_track)) as f,
-        AudioFile(str(output_file), "w", f.samplerate, f.num_channels) as o,
-    ):
-        # Read one second of audio at a time, until the file is empty:
-        while f.tell() < f.frames:
-            chunk = f.read(int(f.samplerate))
-            effected = board(chunk, f.samplerate, reset=False)
-            o.write(effected)
-
-
-def _pitch_shift(audio_track: StrPath, output_file: StrPath, n_semi_tones: int) -> None:
-    """
-    Pitch-shift an audio track.
-
-    Parameters
-    ----------
-    audio_track : StrPath
-        The path to the audio track to pitch-shift.
-    output_file : StrPath
-        The path to the file to save the pitch-shifted audio track to.
-    n_semi_tones : int
-        The number of semi-tones to pitch-shift the audio track by.
-
-    """
-    y, sr = sf.read(audio_track)
-    tfm = sox.Transformer()
-    tfm.pitch(n_semi_tones)
-    y_shifted = tfm.build_array(input_array=y, sample_rate_in=sr)
-    sf.write(output_file, y_shifted, sr)
 
 
 def _get_model_name(
@@ -588,108 +281,88 @@ def _get_model_name(
     return converted_vocals_metadata.model_name
 
 
-def _to_internal(audio_ext: AudioExt) -> AudioExtInternal:
+def get_song_cover_name(
+    effected_vocals_track: StrPath | None = None,
+    song_dir: StrPath | None = None,
+    model_name: str | None = None,
+) -> str:
     """
-    Map an audio extension to an internally recognized format.
+    Generate a suitable name for a cover of a song based on the name
+    of that song and the voice model used for vocal conversion.
+
+    If the path of an existing song directory is provided, the name
+    of the song is inferred from that directory. If a voice model is not
+    provided but the path of an existing song directory and the path of
+    an effected vocals track in that directory are provided, then the
+    voice model is inferred from the effected vocals track.
 
     Parameters
     ----------
-    audio_ext : AudioExt
-        The audio extension to map.
+    effected_vocals_track : StrPath, optional
+        The path to an effected vocals track.
+    song_dir : StrPath, optional
+        The path to a song directory.
+    model_name : str, optional
+        The name of a voice model.
 
     Returns
     -------
-    AudioExtInternal
-        The internal audio extension.
+    str
+        The song cover name
 
     """
-    match audio_ext:
-        case AudioExt.M4A:
-            return AudioExtInternal.IPOD
-        case AudioExt.AAC:
-            return AudioExtInternal.ADTS
-        case _:
-            return AudioExtInternal(audio_ext)
+    song_name = "Unknown"
+    if song_dir and (song_path := _get_input_audio_path(song_dir)):
+        song_name = song_path.stem.removeprefix("00_")
+    model_name = model_name or _get_model_name(effected_vocals_track, song_dir)
+
+    return f"{song_name} ({model_name} Ver)"
 
 
-def _mix_song(
-    audio_track_gain_pairs: Sequence[tuple[StrPath, int]],
-    output_file: StrPath,
-    output_sr: int = 44100,
-    output_format: AudioExt = AudioExt.MP3,
-) -> None:
+def _get_youtube_id(url: str, ignore_playlist: bool = True) -> str:
     """
-    Mix multiple audio tracks to create a song.
+    Get the id of a YouTube video or playlist.
 
     Parameters
     ----------
-    audio_track_gain_pairs : Sequence[tuple[StrPath, int]]
-        A sequence of pairs each containing the path to an audio track
-        and the gain to apply to it.
-    output_file : StrPath
-        The path to the file to save the mixed song to.
-    output_sr : int, default=44100
-        The sample rate of the mixed song.
-    output_format : AudioExt, default=AudioExt.MP3
-        The audio format of the mixed song.
-
-    """
-    mixed_audio = reduce(
-        lambda a1, a2: a1.overlay(a2),
-        [
-            AudioSegment.from_wav(audio_track) + gain
-            for audio_track, gain in audio_track_gain_pairs
-        ],
-    )
-    mixed_audio_resampled = mixed_audio.set_frame_rate(output_sr)
-    mixed_audio_resampled.export(
-        output_file,
-        format=_to_internal(output_format),
-    )
-
-
-def get_named_song_dirs() -> list[tuple[str, str]]:
-    """
-    Get the names of all saved songs and the paths to the
-    directories where they are stored.
+    url : str
+        URL which points to a YouTube video or playlist.
+    ignore_playlist : bool, default=True
+        Whether to get the id of the first video in a playlist or the
+        playlist id itself.
 
     Returns
     -------
-    list[tuple[str, Path]]
-        A list of tuples containing the name of each saved song
-        and the path to the directory where it is stored.
+    str
+        The id of a YouTube video or playlist.
+
+    Raises
+    ------
+    YoutubeUrlError
+        If the provided URL does not point to a YouTube video
+        or playlist.
 
     """
-    return sorted(
-        [
-            (
-                path.stem.removeprefix("0_"),
-                str(path.parent),
-            )
-            for path in _get_input_audio_paths()
-        ],
-        key=operator.itemgetter(0),
-    )
+    yt_id = None
+    validate_url(url)
+    query = urlparse(url)
+    if query.hostname == "youtu.be":
+        yt_id = query.query[2:] if query.path[1:] == "watch" else query.path[1:]
 
+    elif query.hostname in {"www.youtube.com", "youtube.com", "music.youtube.com"}:
+        if not ignore_playlist:
+            with suppress(KeyError):
+                yt_id = parse_qs(query.query)["list"][0]
+        elif query.path == "/watch":
+            yt_id = parse_qs(query.query)["v"][0]
+        elif query.path[:7] == "/watch/":
+            yt_id = query.path.split("/")[1]
+        elif query.path[:7] == "/embed/" or query.path[:3] == "/v/":
+            yt_id = query.path.split("/")[2]
+    if yt_id is None:
+        raise YoutubeUrlError(url=url, playlist=True)
 
-def initialize_audio_separator(progress_bar: gr.Progress | None = None) -> None:
-    """
-    Initialize the audio separator by downloading the models it uses.
-
-    Parameters
-    ----------
-    progress_bar : gr.Progress, optional
-        Gradio progress bar to update.
-
-    """
-    for i, separator_model in enumerate(SeparationModel):
-        if not Path(SEPARATOR_MODELS_DIR / separator_model).is_file():
-            display_progress(
-                f"Downloading {separator_model}...",
-                i / len(SeparationModel),
-                progress_bar,
-            )
-            AUDIO_SEPARATOR.download_model_files(separator_model)
+    return yt_id
 
 
 def init_song_dir(
@@ -840,78 +513,52 @@ def get_unique_base_path(
             return base_path
 
 
-# NOTE this function perhaps should be renamed to waveify and then just
-# to conversion to .wav format, possibly with a parameter ac to specify
-# the number of audio channels
-def stereoize(
-    song: StrPath,
-    song_dir: StrPath,
-    progress_bar: gr.Progress | None = None,
-    percentage: float = 0.5,
-) -> Path:
+def _get_youtube_audio(url: str, directory: StrPath) -> Path:
     """
-    Convert a song to stereo.
-
-    If the song is already in stereo format, it will not be converted.
+    Download audio from a YouTube video.
 
     Parameters
     ----------
-    song : StrPath
-        The path to the song to convert.
-    song_dir : StrPath
-        The path to the song directory where the converted song will
-        be saved.
-    progress_bar : gr.Progress, optional
-        Gradio progress bar to update.
-    percentage : float, default=0.5
-        Percentage to display in the progress bar.
+    url : str
+        URL which points to a YouTube video.
+    directory : StrPath
+        The directory to save the downloaded audio file to.
 
     Returns
     -------
     Path
-        The path to the song in stereo format.
+        The path to the downloaded audio file.
+
+    Raises
+    ------
+    YoutubeUrlError
+        If the provided URL does not point to a YouTube video.
 
     """
-    song_path, song_dir_path = _validate_all_exist(
-        [(song, Entity.SONG), (song_dir, Entity.SONG_DIR)],
-    )
+    validate_url(url)
+    outtmpl = str(Path(directory, "00_%(title)s"))
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "format": "bestaudio",
+        "outtmpl": outtmpl,
+        "ignoreerrors": True,
+        "nocheckcertificate": True,
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "wav",
+                "preferredquality": 0,
+            },
+        ],
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        result = ydl.extract_info(url, download=True)
+        if not result:
+            raise YoutubeUrlError(url, playlist=False)
+        file = ydl.prepare_filename(result, outtmpl=f"{outtmpl}.wav")
 
-    stereo_path = song_path
-
-    song_info = pydub_utils.mediainfo(str(song_path))
-    if song_info["channels"] == "1":
-        args_dict = StereoizedAudioMetaData(
-            audio_track=FileMetaData(
-                name=song_path.name,
-                hash_id=get_file_hash(song_path),
-            ),
-        ).model_dump()
-
-        paths = [
-            get_unique_base_path(
-                song_dir_path,
-                "0_Stereo",
-                args_dict,
-                progress_bar=progress_bar,
-                percentage=percentage,
-            ).with_suffix(suffix)
-            for suffix in [".wav", ".json"]
-        ]
-        stereo_path, stereo_json_path = paths
-        if not all(path.exists() for path in paths):
-            display_progress(
-                "[~] Converting song to stereo format...",
-                percentage,
-                progress_bar,
-            )
-
-            ffmpeg.input(song_path).output(filename=stereo_path, f="wav", ac=2).run(
-                overwrite_output=True,
-                quiet=True,
-            )
-            json_dump(args_dict, stereo_json_path)
-
-    return stereo_path
+    return Path(file)
 
 
 def retrieve_song(
@@ -961,11 +608,98 @@ def retrieve_song(
         else:
             display_progress("[~] Copying song...", percentage, progress_bar)
             source_path = Path(source)
-            song_name = f"0_{source_path.name}"
+            song_name = f"00_{source_path.name}"
             song_path = song_dir_path / song_name
             shutil.copyfile(source_path, song_path)
 
     return song_path, song_dir_path
+
+
+def _validate_exists(
+    identifier: StrPath,
+    entity: Entity,
+) -> Path:
+    """
+    Validate that the provided identifier is not none and that it
+    identifies an existing entity, which can be either a voice model,
+    a song directory or an audio track.
+
+    Parameters
+    ----------
+    identifier : StrPath
+        The identifier to validate.
+    entity : Entity
+        The entity that the identifier should identify.
+
+    Returns
+    -------
+    Path
+        The path to the identified entity.
+
+    Raises
+    ------
+    NotProvidedError
+        If the identifier is None.
+    NotFoundError
+        If the identifier does not identify an existing entity.
+    VoiceModelNotFoundError
+        If the identifier does not identify an existing voice model.
+    NotImplementedError
+        If the provided entity is not supported.
+
+    """
+    match entity:
+        case Entity.MODEL_NAME:
+            if not identifier:
+                raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_VOICE_MODEL)
+            path = RVC_MODELS_DIR / identifier
+            if not path.is_dir():
+                raise VoiceModelNotFoundError(str(identifier))
+        case Entity.SONG_DIR:
+            if not identifier:
+                raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_SONG_DIR)
+            path = Path(identifier)
+            if not path.is_dir():
+                raise NotFoundError(entity=entity, location=path)
+        case (
+            Entity.SONG
+            | Entity.AUDIO_TRACK
+            | Entity.VOCALS_TRACK
+            | Entity.INSTRUMENTALS_TRACK
+            | Entity.MAIN_VOCALS_TRACK
+            | Entity.BACKUP_VOCALS_TRACK
+        ):
+            if not identifier:
+                raise NotProvidedError(entity=entity)
+            path = Path(identifier)
+            if not path.is_file():
+                raise NotFoundError(entity=entity, location=path)
+        case _:
+            error_msg = f"Entity {entity} not supported."
+            raise NotImplementedError(error_msg)
+    return path
+
+
+def _validate_all_exist(
+    identifier_entity_pairs: Sequence[tuple[StrPath, Entity]],
+) -> list[Path]:
+    """
+    Validate that all provided identifiers are not none and that they
+    identify existing entities, which can be either voice models, song
+    directories or audio tracks.
+
+    Parameters
+    ----------
+    identifier_entity_pairs : Sequence[tuple[StrPath, Entity]]
+        The pairs of identifiers and entities to validate.
+
+    Returns
+    -------
+    list[Path]
+        The paths to the identified entities.
+
+    """
+    return list(starmap(_validate_exists, identifier_entity_pairs))
 
 
 def separate_audio(
@@ -973,8 +707,6 @@ def separate_audio(
     song_dir: StrPath,
     model_name: SeparationModel,
     segment_size: int,
-    primary_prefix: str = "1_Stem_Primary",
-    secondary_prefix: str = "1_Stem_Secondary",
     display_msg: str = "[~] Separating audio...",
     progress_bar: gr.Progress | None = None,
     percentage: float = 0.5,
@@ -993,10 +725,6 @@ def separate_audio(
         The name of the model to use for audio separation.
     segment_size : int
         The segment size to use for audio separation.
-    primary_prefix : str
-        The prefix to use for the name of the primary stem.
-    secondary_prefix : str
-        The prefix to use for the name of the secondary stem.
     display_msg : str
         The message to display when separating the audio track.
     progress_bar : gr.Progress, optional
@@ -1033,7 +761,7 @@ def separate_audio(
             progress_bar=progress_bar,
             percentage=percentage,
         ).with_suffix(suffix)
-        for prefix in [primary_prefix, secondary_prefix]
+        for prefix in ["11_Stem_Primary", "11_Stem_Secondary"]
         for suffix in [".wav", ".json"]
     ]
 
@@ -1046,19 +774,148 @@ def separate_audio(
 
     if not all(path.exists() for path in paths):
         display_progress(display_msg, percentage, progress_bar)
-        AUDIO_SEPARATOR.arch_specific_params["MDX"]["segment_size"] = segment_size
-        AUDIO_SEPARATOR.load_model(model_name)
-        primary_temp_name, secondary_temp_name = AUDIO_SEPARATOR.separate(
-            str(audio_path),
+        audio_separator = _get_audio_separator(
+            output_dir=song_dir_path,
+            segment_size=segment_size,
         )
-        primary_temp_path = INTERMEDIATE_AUDIO_BASE_DIR / primary_temp_name
-        secondary_temp_path = INTERMEDIATE_AUDIO_BASE_DIR / secondary_temp_name
-        primary_temp_path.rename(primary_path)
-        secondary_temp_path.rename(secondary_path)
+        audio_separator.load_model(model_name)
+        audio_separator.separate(
+            str(audio_path),
+            primary_output_name=primary_path.stem,
+            secondary_output_name=secondary_path.stem,
+        )
         json_dump(args_dict, primary_json_path)
         json_dump(args_dict, secondary_json_path)
 
     return primary_path, secondary_path
+
+
+def _get_rvc_files(model_name: str) -> tuple[Path, Path | None]:
+    """
+    Get the RVC model file and potential index file of a voice model.
+
+    Parameters
+    ----------
+    model_name : str
+        The name of the voice model to get the RVC files of.
+
+    Returns
+    -------
+    model_file : Path
+        The path to the RVC model file.
+    index_file : Path | None
+        The path to the RVC index file, if it exists.
+
+    Raises
+    ------
+    NotFoundError
+        If no model file exists in the voice model directory.
+
+
+    """
+    model_dir_path = _validate_exists(model_name, Entity.MODEL_NAME)
+    file_path_map = {
+        ext: path
+        for path in model_dir_path.iterdir()
+        for ext in [".pth", ".index"]
+        if ext == path.suffix
+    }
+
+    if ".pth" not in file_path_map:
+        raise NotFoundError(
+            entity=Entity.MODEL_FILE,
+            location=model_dir_path,
+            is_path=False,
+        )
+
+    model_file = model_dir_path / file_path_map[".pth"]
+    index_file = (
+        model_dir_path / file_path_map[".index"] if ".index" in file_path_map else None
+    )
+
+    return model_file, index_file
+
+
+def _convert(
+    voice_track: StrPath,
+    output_file: StrPath,
+    model_name: str,
+    n_semitones: int = 0,
+    f0_method: F0Method = F0Method.RMVPE,
+    index_rate: float = 0.5,
+    filter_radius: int = 3,
+    rms_mix_rate: float = 0.25,
+    protect: float = 0.33,
+    hop_length: int = 128,
+    output_sr: int = 44100,
+) -> None:
+    """
+    Convert a voice track using a voice model and save the result to a
+    an output file.
+
+    Parameters
+    ----------
+    voice_track : StrPath
+        The path to the voice track to convert.
+    output_file : StrPath
+        The path to the file to save the converted voice track to.
+    model_name : str
+        The name of the model to use for voice conversion.
+    n_semitones : int, default=0
+        The number of semitones to pitch-shift the converted voice by.
+    f0_method : F0Method, default=F0Method.RMVPE
+        The method to use for pitch detection.
+    index_rate : float, default=0.5
+        The influence of the index file on the voice conversion.
+    filter_radius : int, default=3
+        The filter radius to use for the voice conversion.
+    rms_mix_rate : float, default=0.25
+        The blending rate of the volume envelope of the converted voice.
+    protect : float, default=0.33
+        The protection rate for consonants and breathing sounds.
+    hop_length : int, default=128
+        The hop length to use for crepe-based pitch detection.
+    output_sr : int, default=44100
+        The sample rate of the output audio file.
+
+    """
+    rvc_model_path, rvc_index_path = _get_rvc_files(model_name)
+    device = "cuda:0"
+    config = Config(device, is_half=True)
+    hubert_model = load_hubert(
+        device,
+        str(RVC_MODELS_DIR / "hubert_base.pt"),
+        is_half=config.is_half,
+    )
+    cpt, version, net_g, tgt_sr, vc = get_vc(
+        device,
+        config,
+        str(rvc_model_path),
+        is_half=config.is_half,
+    )
+
+    # convert main vocals
+    rvc_infer(
+        str(rvc_index_path) if rvc_index_path else "",
+        index_rate,
+        str(voice_track),
+        str(output_file),
+        n_semitones,
+        f0_method,
+        cpt,
+        version,
+        net_g,
+        filter_radius,
+        tgt_sr,
+        rms_mix_rate,
+        protect,
+        hop_length,
+        vc,
+        hubert_model,
+        output_sr,
+    )
+    del hubert_model, cpt
+    gc.collect()
 
 
 def convert(
@@ -1144,7 +1001,7 @@ def convert(
     paths = [
         get_unique_base_path(
             song_dir_path,
-            "4_Vocals_Converted",
+            "21_Vocals_Converted",
             args_dict,
             progress_bar=progress_bar,
             percentage=percentage,
@@ -1171,6 +1028,150 @@ def convert(
         )
         json_dump(args_dict, converted_vocals_json_path)
     return converted_vocals_path
+
+
+def to_wav(
+    audio_track: StrPath,
+    song_dir: StrPath,
+    prefix: str,
+    accepted_formats: set[AudioExt] | None = None,
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> Path:
+    """
+    Convert a given audio track to wav format if its current format is
+    one of the given accepted formats.
+
+    Parameters
+    ----------
+    audio_track : StrPath
+        The path to the audio track to convert.
+    song_dir : StrPath
+        The path to the song directory where the converted audio track
+        will be saved.
+    prefix : str
+        The prefix to use for the name of the converted audio track.
+    accepted_formats : set[AudioExt], optional
+        The audio formats to accept for conversion. If None, the
+        accepted formats are mp3, ogg, flac, m4a and aac.
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    Returns
+    -------
+    Path
+        The path to the audio track in wav format or the original audio
+        track if it is not in one of the accepted formats.
+
+    """
+    if accepted_formats is None:
+        accepted_formats = set(AudioExt) - {AudioExt.WAV}
+
+    audio_path, song_dir_path = _validate_all_exist(
+        [(audio_track, Entity.AUDIO_TRACK), (song_dir, Entity.SONG_DIR)],
+    )
+
+    wav_path = audio_path
+
+    song_info = pydub_utils.mediainfo(str(audio_path))
+    logger.info("Song Info:\n%s", json_dumps(song_info))
+    if any(
+        accepted_format in song_info["format_name"]
+        if accepted_format == AudioExt.M4A
+        else accepted_format == song_info["format_name"]
+        for accepted_format in accepted_formats
+    ):
+        args_dict = WaveifiedAudioMetaData(
+            audio_track=FileMetaData(
+                name=audio_path.name,
+                hash_id=get_file_hash(audio_path),
+            ),
+        ).model_dump()
+
+        paths = [
+            get_unique_base_path(
+                song_dir_path,
+                prefix,
+                args_dict,
+                progress_bar=progress_bar,
+                percentage=percentage,
+            ).with_suffix(suffix)
+            for suffix in [".wav", ".json"]
+        ]
+        wav_path, wav_json_path = paths
+        if not all(path.exists() for path in paths):
+            display_progress(
+                "[~] Converting audio track to wav format...",
+                percentage,
+                progress_bar,
+            )
+
+            _, stderr = (
+                ffmpeg.input(audio_path)
+                .output(filename=wav_path, f="wav")
+                .run(
+                    overwrite_output=True,
+                    quiet=True,
+                )
+            )
+            logger.info("FFmpeg stderr:\n%s", stderr.decode("utf-8"))
+            json_dump(args_dict, wav_json_path)
+
+    return wav_path
+
+
+def _add_effects(
+    audio_track: StrPath,
+    output_file: StrPath,
+    room_size: float = 0.15,
+    wet_level: float = 0.2,
+    dry_level: float = 0.8,
+    damping: float = 0.7,
+) -> None:
+    """
+    Add high-pass filter, compressor and reverb effects to an audio
+    track.
+
+    Parameters
+    ----------
+    audio_track : StrPath
+        The path to the audio track to add effects to.
+    output_file : StrPath
+        The path to the file to save the effected audio track to.
+    room_size : float, default=0.15
+        The room size of the reverb effect.
+    wet_level : float, default=0.2
+        The wetness level of the reverb effect.
+    dry_level : float, default=0.8
+        The dryness level of the reverb effect.
+    damping : float, default=0.7
+        The damping of the reverb effect.
+
+    """
+    board = Pedalboard(
+        [
+            HighpassFilter(),
+            Compressor(ratio=4, threshold_db=-15),
+            Reverb(
+                room_size=room_size,
+                dry_level=dry_level,
+                wet_level=wet_level,
+                damping=damping,
+            ),
+        ],
+    )
+
+    with (
+        AudioFile(str(audio_track)) as f,
+        AudioFile(str(output_file), "w", f.samplerate, f.num_channels) as o,
+    ):
+        # Read one second of audio at a time, until the file is empty:
+        while f.tell() < f.frames:
+            chunk = f.read(int(f.samplerate))
+            effected = board(chunk, f.samplerate, reset=False)
+            o.write(effected)
 
 
 def postprocess(
@@ -1217,6 +1218,15 @@ def postprocess(
         [(vocals_track, Entity.VOCALS_TRACK), (song_dir, Entity.SONG_DIR)],
     )
 
+    vocals_path = to_wav(
+        vocals_path,
+        song_dir_path,
+        "30_Input",
+        accepted_formats={AudioExt.M4A, AudioExt.AAC},
+        progress_bar=progress_bar,
+        percentage=percentage,
+    )
+
     args_dict = EffectedVocalsMetaData(
         vocals_track=FileMetaData(
             name=vocals_path.name,
@@ -1231,7 +1241,7 @@ def postprocess(
     paths = [
         get_unique_base_path(
             song_dir_path,
-            "5_Vocals_Effected",
+            "31_Vocals_Effected",
             args_dict,
             progress_bar=progress_bar,
             percentage=percentage,
@@ -1259,11 +1269,31 @@ def postprocess(
     return effected_vocals_path
 
 
+def _pitch_shift(audio_track: StrPath, output_file: StrPath, n_semi_tones: int) -> None:
+    """
+    Pitch-shift an audio track.
+
+    Parameters
+    ----------
+    audio_track : StrPath
+        The path to the audio track to pitch-shift.
+    output_file : StrPath
+        The path to the file to save the pitch-shifted audio track to.
+    n_semi_tones : int
+        The number of semi-tones to pitch-shift the audio track by.
+
+    """
+    y, sr = sf.read(audio_track)
+    tfm = sox.Transformer()
+    tfm.pitch(n_semi_tones)
+    y_shifted = tfm.build_array(input_array=y, sample_rate_in=sr)
+    sf.write(output_file, y_shifted, sr)
+
+
 def pitch_shift(
     audio_track: StrPath,
     song_dir: StrPath,
     n_semitones: int,
-    prefix: str = "6_Audio_Shifted",
     display_msg: str = "[~] Pitch-shifting audio...",
     progress_bar: gr.Progress | None = None,
     percentage: float = 0.5,
@@ -1280,8 +1310,6 @@ def pitch_shift(
         track will be saved.
     n_semitones : int
         The number of semi-tones to pitch-shift the audio track by.
-    prefix : str
-        The prefix to use for the name of the pitch-shifted audio track.
     display_msg : str
         The message to display when pitch-shifting the audio track.
     progress_bar : gr.Progress, optional
@@ -1299,6 +1327,15 @@ def pitch_shift(
         [(audio_track, Entity.AUDIO_TRACK), (song_dir, Entity.SONG_DIR)],
     )
 
+    audio_path = to_wav(
+        audio_path,
+        song_dir_path,
+        "40_Input",
+        accepted_formats={AudioExt.M4A, AudioExt.AAC},
+        progress_bar=progress_bar,
+        percentage=percentage,
+    )
+
     shifted_audio_path = audio_path
 
     if n_semitones != 0:
@@ -1313,7 +1350,7 @@ def pitch_shift(
         paths = [
             get_unique_base_path(
                 song_dir_path,
-                prefix,
+                "41_Audio_Shifted",
                 args_dict,
                 progress_bar=progress_bar,
                 percentage=percentage,
@@ -1331,50 +1368,64 @@ def pitch_shift(
     return shifted_audio_path
 
 
-def get_song_cover_name(
-    effected_vocals_track: StrPath | None = None,
-    song_dir: StrPath | None = None,
-    model_name: str | None = None,
-    progress_bar: gr.Progress | None = None,
-    percentage: float = 0.5,
-) -> str:
+def _to_internal(audio_ext: AudioExt) -> AudioExtInternal:
     """
-    Generate a suitable name for a cover of a song based on the name
-    of that song and the voice model used for vocal conversion.
-
-    If the path of an existing song directory is provided, the name
-    of the song is inferred from that directory. If a voice model is not
-    provided but the path of an existing song directory and the path of
-    an effected vocals track in that directory are provided, then the
-    voice model is inferred from the effected vocals track.
+    Map an audio extension to an internally recognized format.
 
     Parameters
     ----------
-    effected_vocals_track : StrPath, optional
-        The path to an effected vocals track.
-    song_dir : StrPath, optional
-        The path to a song directory.
-    model_name : str, optional
-        The name of a voice model.
-    progress_bar : gr.Progress, optional
-        Gradio progress bar to update.
-    percentage : float, default=0.5
-        Percentage to display in the progress bar.
+    audio_ext : AudioExt
+        The audio extension to map.
 
     Returns
     -------
-    str
-        The song cover name
+    AudioExtInternal
+        The internal audio extension.
 
     """
-    display_progress("[~] Getting song cover name...", percentage, progress_bar)
+    match audio_ext:
+        case AudioExt.M4A:
+            return AudioExtInternal.IPOD
+        case AudioExt.AAC:
+            return AudioExtInternal.ADTS
+        case _:
+            return AudioExtInternal(audio_ext)
 
-    song_name = "Unknown"
-    if song_dir and (song_path := _get_input_audio_path(song_dir)):
-        song_name = song_path.stem.removeprefix("0_")
-    model_name = model_name or _get_model_name(effected_vocals_track, song_dir)
 
-    return f"{song_name} ({model_name} Ver)"
+def _mix_song(
+    audio_track_gain_pairs: Sequence[tuple[StrPath, int]],
+    output_file: StrPath,
+    output_sr: int = 44100,
+    output_format: AudioExt = AudioExt.MP3,
+) -> None:
+    """
+    Mix multiple audio tracks to create a song.
+
+    Parameters
+    ----------
+    audio_track_gain_pairs : Sequence[tuple[StrPath, int]]
+        A sequence of pairs each containing the path to an audio track
+        and the gain to apply to it.
+    output_file : StrPath
+        The path to the file to save the mixed song to.
+    output_sr : int, default=44100
+        The sample rate of the mixed song.
+    output_format : AudioExt, default=AudioExt.MP3
+        The audio format of the mixed song.
+
+    """
+    mixed_audio = reduce(
+        lambda a1, a2: a1.overlay(a2),
+        [
+            AudioSegment.from_wav(audio_track) + gain
+            for audio_track, gain in audio_track_gain_pairs
+        ],
+    )
+    mixed_audio_resampled = mixed_audio.set_frame_rate(output_sr)
+    mixed_audio_resampled.export(
+        output_file,
+        format=_to_internal(output_format),
+    )
 
 
 def mix_song(
@@ -1428,7 +1479,16 @@ def mix_song(
         )
 
     audio_path_gain_pairs = [
-        (_validate_exists(audio_track, Entity.AUDIO_TRACK), gain)
+        (
+            to_wav(
+                _validate_exists(audio_track, Entity.AUDIO_TRACK),
+                song_dir,
+                "50_Input",
+                progress_bar=progress_bar,
+                percentage=percentage,
+            ),
+            gain,
+        )
         for audio_track, gain in audio_track_gain_pairs
     ]
     song_dir_path = _validate_exists(song_dir, Entity.SONG_DIR)
@@ -1450,7 +1510,7 @@ def mix_song(
     paths = [
         get_unique_base_path(
             song_dir_path,
-            "7_Mix",
+            "51_Mix",
             args_dict,
             progress_bar=progress_bar,
             percentage=percentage,
@@ -1469,8 +1529,6 @@ def mix_song(
         audio_path_gain_pairs[0][0],
         song_dir_path,
         None,
-        progress_bar,
-        percentage,
     )
     song_path = OUTPUT_AUDIO_DIR / f"{output_name}.{output_format}"
     return copy_file_safe(mix_path, song_path)
@@ -1569,7 +1627,7 @@ def run_pipeline(
         progress_bar=progress_bar,
         percentage=0 / 9,
     )
-    instrumentals_track, vocals_track = separate_audio(
+    vocals_track, instrumentals_track = separate_audio(
         song,
         song_dir,
         SeparationModel.UVR_MDX_NET_VOC_FT,
@@ -1578,7 +1636,7 @@ def run_pipeline(
         progress_bar=progress_bar,
         percentage=1 / 9,
     )
-    main_vocals_track, backup_vocals_track = separate_audio(
+    backup_vocals_track, main_vocals_track = separate_audio(
         vocals_track,
         song_dir,
         SeparationModel.UVR_MDX_NET_KARA_2,
@@ -1588,7 +1646,7 @@ def run_pipeline(
         percentage=2 / 9,
     )
 
-    vocals_dereverb_track, reverb_track = separate_audio(
+    reverb_track, vocals_dereverb_track = separate_audio(
         main_vocals_track,
         song_dir,
         SeparationModel.REVERB_HQ_BY_FOXJOY,
