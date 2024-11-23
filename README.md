@@ -211,10 +211,10 @@ pip install ultimate-rvc
 
 ### Usage
 
-The `ultimate-rvc` package exposes two commands:
+The `ultimate-rvc` package can be used as a python library but is primarily intended to be used as a command line tool. The package exposes two top-level commands:
 
+* `urvc` which lets the user generate song covers directly from their terminal
 * `urvc-web` which starts a local instance of the Ultimate RVC web application
-* `urvc` which exposes a traditional CLI application allowing the user to generate song covers directly from their terminal.
 
 For more information on either command supply the option `--help`.
 
