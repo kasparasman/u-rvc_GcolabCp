@@ -28,8 +28,10 @@ class DemucsParams(TypedDict):
 
 class MDXCParams(TypedDict):
     segment_size: int
+    override_model_segment_size: bool
     batch_size: int
     overlap: int
+    pitch_shift: int
 
 class ArchSpecificParams(TypedDict):
     MDX: MDXParams
@@ -76,8 +78,10 @@ class Separator:
         },
         mdxc_params: MDXCParams = {
             "segment_size": 256,
+            "override_model_segment_size": False,
             "batch_size": 1,
             "overlap": 8,
+            "pitch_shift": 0,
         },
     ) -> None: ...
     def download_model_files(
@@ -88,4 +92,9 @@ class Separator:
         self,
         model_filename: str = "model_mel_band_roformer_ep_3005_sdr_11.4360.ckpt",
     ) -> None: ...
-    def separate(self, audio_file_path: str) -> list[str]: ...
+    def separate(
+        self,
+        audio_file_path: str,
+        primary_output_name: str | None = None,
+        secondary_output_name: str | None = None,
+    ) -> list[str]: ...

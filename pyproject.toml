@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ultimate-rvc"
-version = "0.1.23"
+version = "0.1.24"
 description = "Ultimate RVC"
 readme = "README.md"
 requires-python = "==3.12.*"
@@ -21,6 +21,7 @@ dependencies = [
     # Networking
     "requests==2.32.3",
     "yt_dlp==2024.11.4",
+    "nodejs-wheel-binaries==22.11.0",
     # TODO add these later
     # "deemix",
     # "wget",
@@ -33,14 +34,17 @@ dependencies = [
     "scipy==1.14.1",
     "matplotlib==3.9.2",
     "tqdm==4.66.6",
-    "gradio==4.44.1",
+    "gradio==5.6.0",
     
     # Machine learning
-    "torch==2.4.1+cu124",
-    "torchaudio==2.4.1+cu124",
+    "torch==2.5.1+cu124",
+    "torchaudio==2.5.1+cu124",
     "torchcrepe==0.0.23",
     "fairseq-fixed==0.12.3.1",
     "faiss-cpu==1.9.0",
+    # Version of onnxruntime-gpu needs to align with what 
+    # version audio-separator package uses.
+    "onnxruntime-gpu==1.19.2", 
     "tensorboardX==2.6.2.2",
     # TODO add these later
     # "tensorboard",

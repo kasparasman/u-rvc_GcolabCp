@@ -10,14 +10,17 @@
 # Currently only supports Ubuntu 22.04 and Ubuntu 24.04.
 
 UV_PATH=$(pwd)/uv
+VENV_PATH=$UV_PATH/.venv
 
 export UV_UNMANAGED_INSTALL=$UV_PATH
 export UV_PYTHON_INSTALL_DIR="$UV_PATH/python"
 export UV_PYTHON_BIN_DIR="$UV_PATH/python/bin"
+export VIRTUAL_ENV=$VENV_PATH
+export UV_PROJECT_ENVIRONMENT=$VENV_PATH
 export UV_TOOL_DIR="$UV_PATH/tools"
 export UV_TOOL_BIN_DIR="$UV_PATH/tools/bin"
+export GRADIO_NODE_PATH="$VENV_PATH/lib/python3.12/site-packages/nodejs_wheel/bin/node"
 export PATH="$UV_PATH:$PATH"
-
 
 main() {
     command=$1
@@ -114,6 +117,7 @@ install_distro_specifics() {
                     sudo apt update
                     ;;
                 22.04)
+                    sudo apt install clang -y
                     ;;
                 *)
                     echo "Unsupported Ubuntu version"
@@ -132,8 +136,8 @@ install_cuda_124() {
     echo "Installing CUDA 12.4"
     wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
     sudo dpkg -i cuda-keyring_1.1-1_all.deb
-    sudo apt-get update
-    sudo apt-get -y install cuda-toolkit-12-4
+    sudo apt update
+    sudo apt -y install cuda-toolkit-12-4
     rm -rf cuda-keyring_1.1-1_all.deb
     echo "CUDA 12.4 has been installed successfully"
 }

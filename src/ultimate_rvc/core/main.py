@@ -8,7 +8,7 @@ from pathlib import Path
 from rich import print as rprint
 
 from ultimate_rvc.common import RVC_MODELS_DIR
-from ultimate_rvc.core.common import download_base_models
+from ultimate_rvc.core.common import FLAG_FILE, download_base_models
 from ultimate_rvc.core.generate.song_cover import initialize_audio_separator
 from ultimate_rvc.core.manage.models import download_model
 
@@ -38,7 +38,9 @@ def download_sample_models() -> None:
 def initialize() -> None:
     """Initialize the Ultimate RVC project."""
     download_base_models()
-    download_sample_models()
+    if not FLAG_FILE.is_file():
+        download_sample_models()
+        FLAG_FILE.touch()
     initialize_audio_separator()
 
 

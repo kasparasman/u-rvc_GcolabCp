@@ -1,18 +1,10 @@
-# General
-uv
+# Ultimate RVC project
 audio
+models
 temp
+uv
 uv.lock
 
-# Audio separation models
-models/audio_separator
-
-# RVC Models
-models/rvc/*/*.pth
-models/rvc/*/*.index
-models/rvc/*/*.npy
-models/rvc/hubert_base.pt
-models/rvc/rmvpe.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

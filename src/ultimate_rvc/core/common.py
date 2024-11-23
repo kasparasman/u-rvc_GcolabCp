@@ -21,6 +21,7 @@ from ultimate_rvc.typing_extra import Json, StrPath
 RVC_DOWNLOAD_URL = "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/"
 INTERMEDIATE_AUDIO_BASE_DIR = AUDIO_DIR / "intermediate"
 OUTPUT_AUDIO_DIR = AUDIO_DIR / "output"
+FLAG_FILE = RVC_MODELS_DIR / ".initialized"
 
 
 def display_progress(
@@ -254,7 +255,7 @@ def validate_url(url: str) -> None:
 
 def _download_base_model(url: str, name: str, directory: StrPath) -> None:
     """
-    Download a base model and save it to a directory.
+    Download a base model and save it to an existing directory.
 
     Parameters
     ----------
@@ -267,7 +268,6 @@ def _download_base_model(url: str, name: str, directory: StrPath) -> None:
 
     """
     dir_path = Path(directory)
-    dir_path.mkdir(parents=True, exist_ok=True)
     with requests.get(f"{url}{name}", timeout=10) as r:
         r.raise_for_status()
         with (dir_path / name).open("wb") as f:
@@ -277,6 +277,7 @@ def _download_base_model(url: str, name: str, directory: StrPath) -> None:
 
 def download_base_models() -> None:
     """Download base models."""
+    RVC_MODELS_DIR.mkdir(parents=True, exist_ok=True)
     base_model_names = ["hubert_base.pt", "rmvpe.pt"]
     for base_model_name in base_model_names:
         if not Path(RVC_MODELS_DIR / base_model_name).is_file():
