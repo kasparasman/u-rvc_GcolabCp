@@ -194,7 +194,7 @@ The Ultimate RVC project is also available as a [distributable package](https://
 The package can be installed with pip in a **Python 3.12**-based environment. To do so requires first installing PyTorch with Cuda support:
 
 ```console
-pip install torch==2.4.1+cu124 torchaudio==2.4.1+cu124 --index-url https://download.pytorch.org/whl/cu124
+pip install torch==2.5.1+cu124 torchaudio==2.5.1+cu124 --index-url https://download.pytorch.org/whl/cu124
 ```
 
 Additionally, on Windows the `diffq` package must be installed manually as follows:
@@ -218,9 +218,9 @@ The `ultimate-rvc` package exposes two commands:
 
 For more information on either command supply the option `--help`.
 
-### Environment Variables
+## Environment Variables
 
-The behaviour of the Ultimate RVC package can be customized via a number of environment variables. Currently these environment variables control only logging behaviour. They are as follows:
+The behaviour of the Ultimate RVC project can be customized via a number of environment variables. Currently these environment variables control only logging behaviour. They are as follows:
 
 * `URVC_CONSOLE_LOG_LEVEL`: The log level for console logging. If not set, defaults to `ERROR`.
 * `URVC_FILE_LOG_LEVEL`: The log level for file logging. If not set, defaults to `INFO`.
