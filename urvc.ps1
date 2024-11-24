@@ -60,15 +60,18 @@ param (
     [string[]]$Arguments
 )
 
-$UvPath = "$(Get-location)\uv"
-$env:UV_UNMANAGED_INSTALL = $UvPath
-$env:UV_PYTHON_INSTALL_DIR = "$UvPath\python"
-$env:UV_PYTHON_BIN_DIR = "$UV_PATH\python\bin"
-$env:VIRTUAL_ENV = "$UvPath\.venv"
-$env:UV_PROJECT_ENVIRONMENT = "$UvPath\.venv"
-$env:UV_TOOL_DIR = "$UvPath\tools"
-$env:UV_TOOL_BIN_DIR = "$UvPath\tools\bin"
-$env:PATH = "$UvPath;$env:PATH"
+$uvPath = "$(Get-location)\uv"
+$venvPath="$uvPath\.venv"
+
+$env:UV_UNMANAGED_INSTALL = $uvPath
+$env:UV_PYTHON_INSTALL_DIR = "$uvPath\python"
+$env:UV_PYTHON_BIN_DIR = "$uvPath\python\bin"
+$env:VIRTUAL_ENV = $venvPath
+$env:UV_PROJECT_ENVIRONMENT = $venvPath
+$env:UV_TOOL_DIR = "$uvPath\tools"
+$env:UV_TOOL_BIN_DIR = "$uvPath\tools\bin"
+$env:GRADIO_NODE_PATH = "$venvPath\Lib\site-packages\nodejs_wheel\node.exe"
+$env:PATH = "$uvPath;$env:PATH"
 
 function Main {
     param (
@@ -85,9 +88,9 @@ function Main {
             git pull
         }
         "uninstall" {
-            $confirmation_msg = "Are you sure you want to uninstall?`n" `
+            $confirmationMsg = "Are you sure you want to uninstall?`n" `
                 + "This will delete all dependencies and user generated data [Y/n]"
-            $confirmation = Read-Host -Prompt $confirmation_msg
+            $confirmation = Read-Host -Prompt $confirmationMsg
             if ($confirmation -in @("", "Y", "y")) {
                 git clean -dfX
                 Write-Host "Uninstallation complete."
@@ -124,9 +127,9 @@ function Main {
             Get-Help $PSCommandPath -Detailed
         }
         default {
-            $error_msg = "Invalid command.`n" `
+            $errorMsg = "Invalid command.`n" `
                 + "To see a list of valid commands, use the 'help' command."
-            Write-Host $error_msg
+            Write-Host $errorMsg
             Exit 1
         }
     }
@@ -134,7 +137,7 @@ function Main {
 
 function Assert-Dependencies {
 
-    if (-Not (Test-Path -Path $UvPath)) {
+    if (-Not (Test-Path -Path $uvPath)) {
         Write-Host "Dependencies not found. Please run './urvc install' first."
         Exit 1
     }

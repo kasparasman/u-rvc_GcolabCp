@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ultimate-rvc"
-version = "0.1.24"
+version = "0.1.26"
 description = "Ultimate RVC"
 readme = "README.md"
 requires-python = "==3.12.*"
@@ -16,15 +16,15 @@ dependencies = [
     "pydantic==2.9.2",
 
     # CLI
-    "typer==0.12.5",
+    "typer==0.14.0",
     
     # Networking
     "requests==2.32.3",
     "yt_dlp==2024.11.4",
     "nodejs-wheel-binaries==22.11.0",
-    # TODO add these later
+    "wget",
+    # TODO potentially add these later
     # "deemix",
-    # "wget",
     # "flask",
     # "beautifulsoup4",
     # "pypresence",
@@ -34,27 +34,26 @@ dependencies = [
     "scipy==1.14.1",
     "matplotlib==3.9.2",
     "tqdm==4.66.6",
-    "gradio==5.6.0",
+    "gradio==5.7.1",
     
     # Machine learning
     "torch==2.5.1+cu124",
     "torchaudio==2.5.1+cu124",
     "torchcrepe==0.0.23",
-    "fairseq-fixed==0.12.3.1",
     "faiss-cpu==1.9.0",
     # Version of onnxruntime-gpu needs to align with what 
     # version audio-separator package uses.
     "onnxruntime-gpu==1.19.2", 
+    "local-attention",
+    "einops",
+    "transformers",
+    "diffq==0.2.4",
     "tensorboardX==2.6.2.2",
-    # TODO add these later
+    # TODO potentially add these later
     # "tensorboard",
     # "torchfcpe",
-    # "local-attention",
     # "libf0",
-    # "einops",
-    # "numba; sys_platform == 'linux'",
-    # "numba==0.57.0; sys_platform == 'darwin' or sys_platform == 'win32'",
-    
+
     # Audio
     "static-ffmpeg==2.7",
     "static-sox==1.0.1",
@@ -66,15 +65,16 @@ dependencies = [
     "pydub-stubs==0.25.1.2",
     "pedalboard==0.9.16",
     "audio-separator[gpu]==0.24.1",
-    "praat-parselmouth==0.4.5",
-    "pyworld-fixed==0.3.8",
-    "diffq==0.2.4"
-    # TODO add the later
-    # "noisereduce",
-    # "audio_upscaler==0.1.4",
+    "noisereduce",
+    # TODO potentially add these later
     # "edge-tts==6.1.9",
-    # "ffmpeg-python>=0.2.0",
-    # "ffmpy==0.3.1"
+    # below package outcommented until we use dio,pm and harvest
+    #"pyworld-fixed==0.3.8",
+    # below package outcommented until we use praat 
+    # (for example for formant shifting with "change gender command")
+    #"praat-parselmouth==0.4.5",
+    #"versatile-audio-upscaler-fixed==0.0.4",
+    #"stftpitchshift",
 ]
 
 [project.scripts]
@@ -192,15 +192,14 @@ section-order = [
 "machine-learning" = [
     "torch",
     "torchaudio",
+    "transformers",
     "torchcrepe",
-    "fairseq",
     "faiss",
     "tensorboard",
     "torchfcpe",
     "local_attention",
     "libf0",
     "einops",
-    "numba",
 ]
 "audio" = [
     "static_ffmpeg",
@@ -217,7 +216,6 @@ section-order = [
     "noisereduce",
     "audio_upscaler",
     "edge_tts",
-    "ffmpy",
 ]
 "cli" = ["typer", "rich"]
 "ultimate_rvc" = ["ultimate_rvc"]

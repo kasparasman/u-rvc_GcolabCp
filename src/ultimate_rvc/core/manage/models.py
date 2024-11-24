@@ -1,17 +1,17 @@
 """Module which defines functions to manage voice models."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import re
 import shutil
 import urllib.request
 import zipfile
-from _collections_abc import Sequence
 from pathlib import Path
 
-import gradio as gr
-
-from ultimate_rvc.common import RVC_MODELS_DIR
+from ultimate_rvc.common import VOICE_MODELS_DIR
 from ultimate_rvc.core.common import (
-    FLAG_FILE,
     copy_files_to_new_dir,
     display_progress,
     json_load,
@@ -35,7 +35,13 @@ from ultimate_rvc.core.typing_extra import (
     ModelMetaDataTable,
     ModelTagName,
 )
-from ultimate_rvc.typing_extra import StrPath
+
+if TYPE_CHECKING:
+    from _collections_abc import Sequence
+
+    import gradio as gr
+
+    from ultimate_rvc.typing_extra import StrPath
 
 PUBLIC_MODELS_JSON = json_load(Path(__file__).parent / "public_models.json")
 PUBLIC_MODELS_TABLE = ModelMetaDataTable.model_validate(PUBLIC_MODELS_JSON)
@@ -51,13 +57,12 @@ def get_saved_model_names() -> list[str]:
         A list of names of all saved voice models.
 
     """
-    model_paths = RVC_MODELS_DIR.iterdir()
-    names_to_remove = ["hubert_base.pt", "rmvpe.pt", FLAG_FILE.name]
-    return sorted([
-        model_path.name
-        for model_path in model_paths
-        if model_path.name not in names_to_remove
-    ])
+    if VOICE_MODELS_DIR.is_dir():
+        model_paths = VOICE_MODELS_DIR.iterdir()
+        return sorted(
+            [model_path.name for model_path in model_paths],
+        )
+    return []
 
 
 def load_public_models_table(
@@ -255,7 +260,7 @@ def download_model(
         raise NotProvidedError(entity=Entity.URL)
     if not name:
         raise NotProvidedError(entity=Entity.MODEL_NAME)
-    extraction_path = RVC_MODELS_DIR / name
+    extraction_path = VOICE_MODELS_DIR / name
     if extraction_path.exists():
         raise VoiceModelExistsError(name)
 
@@ -322,7 +327,7 @@ def upload_model(
         raise NotProvidedError(entity=Entity.FILES, ui_msg=UIMessage.NO_UPLOADED_FILES)
     if not name:
         raise NotProvidedError(entity=Entity.MODEL_NAME)
-    model_dir_path = RVC_MODELS_DIR / name
+    model_dir_path = VOICE_MODELS_DIR / name
     if model_dir_path.exists():
         raise VoiceModelExistsError(name)
     sorted_file_paths = sorted([Path(f) for f in files], key=lambda f: f.suffix)
@@ -395,7 +400,7 @@ def delete_models(
         progress_bar,
     )
     for name in names:
-        model_dir_path = RVC_MODELS_DIR / name
+        model_dir_path = VOICE_MODELS_DIR / name
         if not model_dir_path.is_dir():
             raise VoiceModelNotFoundError(name)
         shutil.rmtree(model_dir_path)
@@ -416,9 +421,5 @@ def delete_all_models(
         Percentage to display in the progress bar.
 
     """
-    all_model_names = get_saved_model_names()
     display_progress("[~] Deleting all voice models ...", percentage, progress_bar)
-    for model_name in all_model_names:
-        model_dir_path = RVC_MODELS_DIR / model_name
-        if model_dir_path.is_dir():
-            shutil.rmtree(model_dir_path)
+    shutil.rmtree(VOICE_MODELS_DIR)

@@ -1,5 +1,7 @@
 """Extra typing for the Ultimate RVC project."""
 
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 from enum import IntEnum, StrEnum
 from os import PathLike
@@ -28,11 +30,23 @@ class SegmentSize(IntEnum):
     SEG_2048 = 2048
 
 
+class EmbedderModel(StrEnum):
+    """The model to use for audio embedding."""
+
+    CONTENTVEC = "contentvec"
+    CHINESE_HUBERT_BASE = "chinese-hubert-base"
+    JAPANESE_HUBERT_BASE = "japanese-hubert-base"
+    KOREAN_HUBERT_BASE = "korean-hubert-base"
+    CUSTOM = "custom"
+
+
 class F0Method(StrEnum):
     """The method to use for pitch detection."""
 
     RMVPE = "rmvpe"
-    MANGIO_CREPE = "mangio-crepe"
+    CREPE = "crepe"
+    CREPE_TINY = "crepe-tiny"
+    FCPE = "fcpe"
 
 
 class SampleRate(IntEnum):

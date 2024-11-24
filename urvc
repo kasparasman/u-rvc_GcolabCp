@@ -27,9 +27,9 @@ main() {
     shift
     case $command in
         install)
-            sudo apt install -y python3-dev unzip
+            sudo apt install -y python3-dev build-essential unzip
             install_distro_specifics
-            install_cuda_124
+            install_cuda_125
             curl -LsSf https://astral.sh/uv/0.5.0/install.sh | sh
             uv run ./src/ultimate_rvc/core/main.py
             ;;
@@ -96,28 +96,11 @@ install_distro_specifics() {
         Ubuntu)
             case $DISTRIB_RELEASE in
                 24.04)
-                    # Add Ubuntu 23.10 repository to sources.list so that we can install cuda 12.1 toolkit
-
-                    # first define the text to append to the file. 
-                    # For this we use a heredoc with removal of leading tabs
-                    TEXT=$(
-                        cat <<- EOF
-						
-						## Added by Ultimate RVC installer
-						Types: deb
-						URIs: http://archive.ubuntu.com/ubuntu/
-						Suites: lunar
-						Components: universe
-						Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-						EOF
-                    )
-                    FILE=/etc/apt/sources.list.d/ubuntu.sources
-                    # Append to file if not already present
-                    grep -qxF "## Added by Ultimate RVC installer" $FILE || echo "$TEXT" | sudo tee -a $FILE
-                    sudo apt update
+                    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
                     ;;
                 22.04)
                     sudo apt install clang -y
+                    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
                     ;;
                 *)
                     echo "Unsupported Ubuntu version"
@@ -132,14 +115,13 @@ install_distro_specifics() {
     esac
 }
 
-install_cuda_124() {
-    echo "Installing CUDA 12.4"
-    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+install_cuda_125() {
+    echo "Installing CUDA 12.5"
     sudo dpkg -i cuda-keyring_1.1-1_all.deb
     sudo apt update
-    sudo apt -y install cuda-toolkit-12-4
+    sudo apt -y install cuda-toolkit-12-5
     rm -rf cuda-keyring_1.1-1_all.deb
-    echo "CUDA 12.4 has been installed successfully"
+    echo "CUDA 12.5 has been installed successfully"
 }
 
 check_dependencies() {

@@ -1,10 +1,16 @@
 """Common variables used in the Ultimate RVC project."""
 
+from __future__ import annotations
+
+import os
 from pathlib import Path
 
 BASE_DIR = Path.cwd()
-MODELS_DIR = BASE_DIR / "models"
+MODELS_DIR = Path(os.getenv("URVC_MODELS_DIR") or BASE_DIR / "models")
 RVC_MODELS_DIR = MODELS_DIR / "rvc"
+VOICE_MODELS_DIR = Path(
+    os.getenv("URVC_VOICE_MODELS_DIR") or RVC_MODELS_DIR / "voice_models",
+)
 SEPARATOR_MODELS_DIR = MODELS_DIR / "audio_separator"
-AUDIO_DIR = BASE_DIR / "audio"
-TEMP_DIR = BASE_DIR / "temp"
+AUDIO_DIR = Path(os.getenv("URVC_AUDIO_DIR") or BASE_DIR / "audio")
+TEMP_DIR = Path(os.getenv("URVC_TEMP_DIR") or BASE_DIR / "temp")

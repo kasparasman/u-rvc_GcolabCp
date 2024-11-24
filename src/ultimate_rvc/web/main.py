@@ -7,6 +7,8 @@ tabs are passed as arguments to the render functions in the respective
 modules.
 """
 
+from __future__ import annotations
+
 from typing import Annotated
 
 import os

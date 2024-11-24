@@ -1,13 +1,15 @@
 """Module which defines functions to manage audio files."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import operator
 import shutil
-from collections.abc import Sequence
 from pathlib import Path
 
-import gradio as gr
-
 from ultimate_rvc.core.common import (
+    AUDIO_DIR,
     INTERMEDIATE_AUDIO_BASE_DIR,
     OUTPUT_AUDIO_DIR,
     display_progress,
@@ -20,7 +22,13 @@ from ultimate_rvc.core.exceptions import (
     NotProvidedError,
     UIMessage,
 )
-from ultimate_rvc.typing_extra import StrPath
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import gradio as gr
+
+    from ultimate_rvc.typing_extra import StrPath
 
 
 def get_saved_output_audio() -> list[tuple[str, str]]:
@@ -208,7 +216,5 @@ def delete_all_audio(
 
     """
     display_progress("[~] Deleting all audio files...", percentage, progress_bar)
-    if INTERMEDIATE_AUDIO_BASE_DIR.is_dir():
-        shutil.rmtree(INTERMEDIATE_AUDIO_BASE_DIR)
-    if OUTPUT_AUDIO_DIR.is_dir():
-        shutil.rmtree(OUTPUT_AUDIO_DIR)
+    if AUDIO_DIR.is_dir():
+        shutil.rmtree(AUDIO_DIR)

@@ -1,11 +1,11 @@
 import torch
 from typing import Optional
 
-from rvc.lib.algorithm.nsf import GeneratorNSF
-from rvc.lib.algorithm.generators import Generator
-from rvc.lib.algorithm.commons import slice_segments, rand_slice_segments
-from rvc.lib.algorithm.residuals import ResidualCouplingBlock
-from rvc.lib.algorithm.encoders import TextEncoder, PosteriorEncoder
+from ultimate_rvc.rvc.lib.algorithm.nsf import GeneratorNSF
+from ultimate_rvc.rvc.lib.algorithm.generators import Generator
+from ultimate_rvc.rvc.lib.algorithm.commons import slice_segments, rand_slice_segments
+from ultimate_rvc.rvc.lib.algorithm.residuals import ResidualCouplingBlock
+from ultimate_rvc.rvc.lib.algorithm.encoders import TextEncoder, PosteriorEncoder
 
 
 class Synthesizer(torch.nn.Module):

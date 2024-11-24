@@ -2,6 +2,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 import requests
+from ultimate_rvc.common import RVC_MODELS_DIR
 
 url_base = "https://huggingface.co/IAHispano/Applio/resolve/main/Resources"
 
@@ -44,17 +45,31 @@ pretraineds_v2_list = [
     )
 ]
 models_list = [("predictors/", ["rmvpe.pt", "fcpe.pt"])]
-embedders_list = [("embedders/contentvec/", ["pytorch_model.bin", "config.json"])]
+embedders_list = [
+    ("embedders/contentvec/", ["pytorch_model.bin", "config.json"]),
+    ("embedders/chinese_hubert_base/", ["pytorch_model.bin", "config.json"]),
+    ("embedders/japanese_hubert_base/", ["pytorch_model.bin", "config.json"]),
+    ("embedders/korean_hubert_base/", ["pytorch_model.bin", "config.json"]),
+]
 executables_list = [
     ("", ["ffmpeg.exe", "ffprobe.exe"]),
 ]
 
 folder_mapping_list = {
-    "pretrained_v1/": "rvc/models/pretraineds/pretrained_v1/",
-    "pretrained_v2/": "rvc/models/pretraineds/pretrained_v2/",
-    "embedders/contentvec/": "rvc/models/embedders/contentvec/",
-    "predictors/": "rvc/models/predictors/",
-    "formant/": "rvc/models/formant/",
+    "pretrained_v1/": str(RVC_MODELS_DIR / "pretraineds/pretrained_v1/"),
+    "pretrained_v2/": str(RVC_MODELS_DIR / "pretraineds/pretrained_v2/"),
+    "embedders/contentvec/": str(RVC_MODELS_DIR / "embedders/contentvec/"),
+    "embedders/chinese_hubert_base/": str(
+        RVC_MODELS_DIR / "embedders/chinese_hubert_base/",
+    ),
+    "embedders/japanese_hubert_base/": str(
+        RVC_MODELS_DIR / "embedders/japanese_hubert_base/",
+    ),
+    "embedders/korean_hubert_base/": str(
+        RVC_MODELS_DIR / "embedders/korean_hubert_base/",
+    ),
+    "predictors/": str(RVC_MODELS_DIR / "predictors/"),
+    "formant/": str(RVC_MODELS_DIR / "formant/"),
 }
 
 
@@ -159,13 +174,13 @@ def calculate_total_size(
 
 
 def prequisites_download_pipeline(
-    pretraineds_v1_f0,
-    pretraineds_v1_nof0,
-    pretraineds_v2_f0,
-    pretraineds_v2_nof0,
-    models,
-    exe,
-):
+    pretraineds_v1_f0: bool = True,
+    pretraineds_v1_nof0: bool = False,
+    pretraineds_v2_f0: bool = True,
+    pretraineds_v2_nof0: bool = False,
+    models: bool = True,
+    exe: bool = True,
+) -> None:
     """
     Manage the download pipeline for different categories of files.
     """

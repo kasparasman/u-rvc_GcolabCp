@@ -1,7 +1,7 @@
 import os
 import shutil
 from random import shuffle
-from rvc.configs.config import Config
+from ultimate_rvc.rvc.configs.config import Config
 import json
 
 config = Config()

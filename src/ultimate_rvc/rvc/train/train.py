@@ -25,9 +25,9 @@ now_dir = os.getcwd()
 sys.path.append(os.path.join(now_dir))
 
 # Zluda hijack
-import rvc.lib.zluda
+import ultimate_rvc.rvc.lib.zluda
 
-from utils import (
+from ultimate_rvc.rvc.train.utils import (
     HParams,
     plot_spectrogram_to_numpy,
     summarize,
@@ -37,26 +37,26 @@ from utils import (
     load_wav_to_torch,
 )
 
-from data_utils import (
+from ultimate_rvc.rvc.train.data_utils import (
     DistributedBucketSampler,
     TextAudioCollateMultiNSFsid,
     TextAudioLoaderMultiNSFsid,
 )
 
-from losses import (
+from ultimate_rvc.rvc.train.losses import (
     discriminator_loss,
     feature_loss,
     generator_loss,
     kl_loss,
 )
-from mel_processing import mel_spectrogram_torch, spec_to_mel_torch
+from ultimate_rvc.rvc.train.mel_processing import mel_spectrogram_torch, spec_to_mel_torch
 
-from rvc.train.process.extract_model import extract_model
+from ultimate_rvc.rvc.train.process.extract_model import extract_model
 
-from rvc.lib.algorithm import commons
-from rvc.lib.algorithm.discriminators import MultiPeriodDiscriminator
-from rvc.lib.algorithm.discriminators import MultiPeriodDiscriminatorV2
-from rvc.lib.algorithm.synthesizers import Synthesizer
+from ultimate_rvc.rvc.lib.algorithm import commons
+from ultimate_rvc.rvc.lib.algorithm.discriminators import MultiPeriodDiscriminator
+from ultimate_rvc.rvc.lib.algorithm.discriminators import MultiPeriodDiscriminatorV2
+from ultimate_rvc.rvc.lib.algorithm.synthesizers import Synthesizer
 
 # Parse command line arguments
 model_name = sys.argv[1]

@@ -1,5 +1,7 @@
 """Module which defines the code for the "Other settings" tab."""
 
+from __future__ import annotations
+
 from functools import partial
 
 import gradio as gr
