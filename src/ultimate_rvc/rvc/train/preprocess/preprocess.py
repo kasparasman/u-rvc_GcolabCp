@@ -15,8 +15,8 @@ import noisereduce as nr
 now_directory = os.getcwd()
 sys.path.append(now_directory)
 
-from rvc.lib.utils import load_audio
-from rvc.train.preprocess.slicer import Slicer
+from ultimate_rvc.rvc.lib.utils import load_audio
+from ultimate_rvc.rvc.train.preprocess.slicer import Slicer
 
 # Remove colab logs
 import logging

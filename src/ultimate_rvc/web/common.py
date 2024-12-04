@@ -3,9 +3,9 @@ Module defining common utility functions and classes for the
 web application of the Ultimate RVC project.
 """
 
-from typing import Any, Concatenate
+from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any, Concatenate
 
 import gradio as gr
 
@@ -15,13 +15,17 @@ from ultimate_rvc.core.generate.song_cover import (
     get_song_cover_name,
 )
 from ultimate_rvc.core.manage.audio import get_saved_output_audio
-from ultimate_rvc.web.typing_extra import (
-    ComponentVisibilityKwArgs,
-    DropdownChoices,
-    DropdownValue,
-    TextBoxKwArgs,
-    UpdateDropdownKwArgs,
-)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+    from ultimate_rvc.web.typing_extra import (
+        ComponentVisibilityKwArgs,
+        DropdownChoices,
+        DropdownValue,
+        TextBoxKwArgs,
+        UpdateDropdownKwArgs,
+    )
 
 PROGRESS_BAR = gr.Progress()
 
@@ -62,7 +66,7 @@ def exception_harness[T, **P](
             raise gr.Error(str(e)) from e
         else:
             if info_msg:
-                gr.Info(info_msg, duration=0.5)
+                gr.Info(info_msg, duration=1)
             return res
 
     return _wrapped_fn
@@ -170,6 +174,27 @@ def update_value(x: str) -> dict[str, Any]:
 
     """
     return gr.update(value=x)
+
+
+def toggle_visibility[T](value: T, target: T) -> dict[str, Any]:
+    """
+    Toggle the visibility of a component based on equality of
+    a value and a target.
+
+    Parameters
+    ----------
+    value : T
+        The value to compare against the target.
+    target : T
+        The target to compare the value against.
+
+    Returns
+    -------
+    dict[str, Any]
+        Dictionary which updates the visibility of the component.
+
+    """
+    return gr.update(visible=value == target)
 
 
 def update_dropdowns[**P](

@@ -1,8 +1,9 @@
 """Module which defines the code for the "Multi-step generation" tab."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
-from collections.abc import Sequence
 from functools import partial
 
 import gradio as gr
@@ -17,6 +18,7 @@ from ultimate_rvc.core.generate.song_cover import (
 )
 from ultimate_rvc.typing_extra import (
     AudioExt,
+    EmbedderModel,
     F0Method,
     SampleRate,
     SegmentSize,
@@ -25,6 +27,7 @@ from ultimate_rvc.typing_extra import (
 from ultimate_rvc.web.common import (
     PROGRESS_BAR,
     exception_harness,
+    toggle_visibility,
     toggle_visible_component,
     update_cached_songs,
     update_output_audio,
@@ -34,6 +37,8 @@ from ultimate_rvc.web.common import (
 from ultimate_rvc.web.typing_extra import ConcurrencyId, SourceType
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from ultimate_rvc.web.typing_extra import UpdateAudioKwArgs
 
 
@@ -475,77 +480,165 @@ def render(
                         " by. Altering this slightly reduces sound quality."
                     ),
                 )
-            with gr.Row():
-                index_rate = gr.Slider(
-                    0,
-                    1,
-                    value=0.5,
-                    label="Index rate",
-                    info=(
-                        "How much of the accent in the voice model to keep in the"
-                        " converted vocals. Increase to bias the conversion towards the"
-                        " accent of the voice model."
-                    ),
+            with gr.Accordion("Voice synthesis settings", open=False):
+                with gr.Row():
+                    f0_methods = gr.Dropdown(
+                        list(F0Method),
+                        value=F0Method.RMVPE,
+                        label="Pitch extraction method(s)",
+                        info=(
+                            "If more than one method is selected, then the median of"
+                            " the pitch values extracted by each method is used. RMVPE"
+                            " is recommended for most cases and is the default when no"
+                            " method is selected."
+                        ),
+                        multiselect=True,
+                    )
+                    index_rate = gr.Slider(
+                        0,
+                        1,
+                        value=0.5,
+                        label="Index rate",
+                        info=(
+                            "Increase to bias the conversion towards the accent of the"
+                            " voice model. Decrease to potentially reduce artifacts"
+                            " coming from the voice model.<br><br>"
+                        ),
+                    )
+                    filter_radius = gr.Slider(
+                        0,
+                        7,
+                        value=3,
+                        step=1,
+                        label="Filter radius",
+                        info=(
+                            "If >=3: apply median filtering to extracted pitch values."
+                            " Can help reduce breathiness in the converted"
+                            " vocals.<br><br>"
+                        ),
+                    )
+                with gr.Row():
+                    rms_mix_rate = gr.Slider(
+                        0,
+                        1,
+                        value=0.25,
+                        label="RMS mix rate",
+                        info=(
+                            "How much to mimic the loudness (0) of the input vocals or"
+                            " a fixed loudness (1).<br><br><br>"
+                        ),
+                    )
+                    protect_rate = gr.Slider(
+                        0,
+                        0.5,
+                        value=0.33,
+                        label="Protect rate",
+                        info=(
+                            "Controls the extent to which consonants and breathing"
+                            " sounds are protected from artifacts. A higher value"
+                            " offers more protection but may worsen the indexing"
+                            " effect.<br><br>"
+                        ),
+                    )
+                    hop_length = gr.Slider(
+                        1,
+                        512,
+                        value=128,
+                        step=1,
+                        label="Hop length",
+                        info=(
+                            "How often the CREPE-based pitch extraction method checks"
+                            " for pitch changes measured in milliseconds. Lower values"
+                            " lead to longer conversion times and a higher risk of"
+                            " voice cracks, but better pitch accuracy."
+                        ),
+                    )
+            with gr.Accordion("Vocal enrichment settings", open=False), gr.Row():
+                with gr.Column():
+                    split_vocals = gr.Checkbox(
+                        label="Split vocal track",
+                        info=(
+                            "Whether to split the vocals track into smaller segments"
+                            " before converting it. This can improve output quality for"
+                            " longer vocal tracks."
+                        ),
+                    )
+                with gr.Column():
+                    autotune_vocals = gr.Checkbox(
+                        label="Autotune converted vocals",
+                        info=(
+                            "Whether to apply autotune to the converted vocals.<br><br>"
+                        ),
+                    )
+                    autotune_strength = gr.Slider(
+                        0,
+                        1,
+                        value=1.0,
+                        label="Autotune intensity",
+                        info=(
+                            "Higher values result in stronger snapping to the chromatic"
+                            " grid and artifacting."
+                        ),
+                        visible=False,
+                    )
+                with gr.Column():
+                    clean_vocals = gr.Checkbox(
+                        label="Clean converted vocals",
+                        info=(
+                            "Whether to clean the converted vocals using noise"
+                            " reduction algorithms.<br><br>"
+                        ),
+                    )
+                    clean_strength = gr.Slider(
+                        0,
+                        1,
+                        value=0.7,
+                        label="Cleaning intensity",
+                        info=(
+                            "Higher values result in stronger cleaning, but may lead to"
+                            " a more compressed sound."
+                        ),
+                        visible=False,
+                    )
+            autotune_vocals.change(
+                partial(toggle_visibility, target=True),
+                inputs=autotune_vocals,
+                outputs=autotune_strength,
+                show_progress="hidden",
+            )
+            clean_vocals.change(
+                partial(toggle_visibility, target=True),
+                inputs=clean_vocals,
+                outputs=clean_strength,
+                show_progress="hidden",
+            )
+            with gr.Accordion("Speaker embeddings settings", open=False), gr.Row():
+                with gr.Column():
+                    embedder_model = gr.Dropdown(
+                        list(EmbedderModel),
+                        value=EmbedderModel.CONTENTVEC,
+                        label="Embedder model",
+                        info="The model to use for generating speaker embeddings.",
+                    )
+                    embedder_model_custom = gr.Textbox(
+                        label="Custom embedder model",
+                        info=(
+                            "The path to a directory with a custom model to use for"
+                            " generating speaker embeddings."
+                        ),
+                        visible=False,
+                    )
+                sid = gr.Number(
+                    label="Speaker ID",
+                    info="Speaker ID for multi-speaker-models.",
+                    precision=0,
                 )
-                filter_radius = gr.Slider(
-                    0,
-                    7,
-                    value=3,
-                    step=1,
-                    label="Filter radius",
-                    info=(
-                        "If >=3: apply median filtering to harvested pitch results."
-                        " Can help reduce breathiness in the converted vocals."
-                    ),
-                )
-                rms_mix_rate = gr.Slider(
-                    0,
-                    1,
-                    value=0.25,
-                    label="RMS mix rate",
-                    info=(
-                        "How much to mimic the loudness (0) of the input vocals or a"
-                        " fixed loudness (1)."
-                        "<br><br>"
-                    ),
-                )
-            with gr.Row():
-                protect = gr.Slider(
-                    0,
-                    0.5,
-                    value=0.33,
-                    label="Protect rate",
-                    info=(
-                        "Protection of voiceless consonants and breath sounds. Decrease"
-                        " to increase protection at the cost of indexing accuracy. Set"
-                        " to 0.5 to disable."
-                        "<br>"
-                    ),
-                )
-                f0_method = gr.Dropdown(
-                    list(F0Method),
-                    value=F0Method.RMVPE,
-                    label="Pitch detection algorithm",
-                    info=(
-                        "The method to use for pitch detection. Best option is"
-                        " RMVPE (clarity in vocals), then Mangio-CREPE (smoother"
-                        " vocals)."
-                        "<br><br>"
-                    ),
-                )
-                hop_length = gr.Slider(
-                    32,
-                    320,
-                    value=128,
-                    step=1,
-                    label="Hop length",
-                    info=(
-                        "How often the CREPE-based pitch detection algorithm checks"
-                        " for pitch changes. Measured in milliseconds. Lower values"
-                        " lead to longer conversion times and a higher risk of"
-                        " voice cracks, but better pitch accuracy."
-                    ),
-                )
+            embedder_model.change(
+                partial(toggle_visibility, target=EmbedderModel.CUSTOM),
+                inputs=embedder_model,
+                outputs=embedder_model_custom,
+                show_progress="hidden",
+            )
 
             converted_vocals_transfer.render()
             gr.Markdown("**Outputs**")
@@ -559,23 +652,39 @@ def render(
                 lambda: [
                     0,
                     0,
+                    F0Method.RMVPE,
                     0.5,
                     3,
                     0.25,
                     0.33,
-                    F0Method.RMVPE,
                     128,
+                    False,
+                    False,
+                    1.0,
+                    False,
+                    0.7,
+                    EmbedderModel.CONTENTVEC,
+                    None,
+                    0,
                     gr.Dropdown(value=converted_vocals_transfer_default),
                 ],
                 outputs=[
                     n_octaves,
                     n_semitones,
+                    f0_methods,
                     index_rate,
                     filter_radius,
                     rms_mix_rate,
-                    protect,
-                    f0_method,
+                    protect_rate,
                     hop_length,
+                    split_vocals,
+                    autotune_vocals,
+                    autotune_strength,
+                    clean_vocals,
+                    clean_strength,
+                    embedder_model,
+                    embedder_model_custom,
+                    sid,
                     converted_vocals_transfer,
                 ],
                 show_progress="hidden",
@@ -594,12 +703,20 @@ def render(
                     model_multi,
                     n_octaves,
                     n_semitones,
-                    f0_method,
+                    f0_methods,
                     index_rate,
                     filter_radius,
                     rms_mix_rate,
-                    protect,
+                    protect_rate,
                     hop_length,
+                    split_vocals,
+                    autotune_vocals,
+                    autotune_strength,
+                    clean_vocals,
+                    clean_strength,
+                    embedder_model,
+                    embedder_model_custom,
+                    sid,
                 ],
                 outputs=converted_vocals_track_output,
                 concurrency_id=ConcurrencyId.GPU,
@@ -718,8 +835,6 @@ def render(
                     info="The number of semi-tones to pitch-shift the backup vocals by",
                 )
             with gr.Row():
-                if shifted_instrumentals_transfer.info:
-                    shifted_instrumentals_transfer.info += "<br><br>"
                 shifted_instrumentals_transfer.render()
                 shifted_backup_vocals_transfer.render()
 

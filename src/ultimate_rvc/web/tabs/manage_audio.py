@@ -1,6 +1,9 @@
 """Module which defines the code for the "Manage audio" tab."""
 
-from collections.abc import Sequence
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from functools import partial
 
 import gradio as gr
@@ -20,6 +23,9 @@ from ultimate_rvc.web.common import (
     update_cached_songs,
     update_output_audio,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def render(

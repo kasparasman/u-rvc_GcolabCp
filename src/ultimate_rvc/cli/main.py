@@ -3,6 +3,8 @@ Module which defines the command-line interface for the Ultimate RVC
 project.
 """
 
+from __future__ import annotations
+
 import typer
 
 from ultimate_rvc.cli.generate.song_cover import app as song_cover_app

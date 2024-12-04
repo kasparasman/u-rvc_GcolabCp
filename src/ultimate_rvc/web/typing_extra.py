@@ -3,6 +3,8 @@ Module which defines extra types for the web application of the Ultimate
 RVC project.
 """
 
+from __future__ import annotations
+
 from typing import Any, TypedDict
 
 from collections.abc import Callable, Sequence

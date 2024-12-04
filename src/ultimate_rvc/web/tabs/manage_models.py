@@ -1,10 +1,17 @@
 """Module which defines the code for the "Manage models" tab."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from collections.abc import Sequence
 from functools import partial
 
 import gradio as gr
-import pandas as pd
+
+# NOTE gradio is using pandas under the hood so it must be
+# imported at runtime.
+import pandas as pd  # noqa: TC002
 
 from ultimate_rvc.core.manage.models import (
     delete_all_models,
@@ -23,7 +30,10 @@ from ultimate_rvc.web.common import (
     render_msg,
     update_dropdowns,
 )
-from ultimate_rvc.web.typing_extra import DropdownValue
+
+if TYPE_CHECKING:
+
+    from ultimate_rvc.web.typing_extra import DropdownValue
 
 
 def _update_models(

@@ -16,16 +16,16 @@ now_dir = os.getcwd()
 sys.path.append(os.path.join(now_dir))
 
 # Zluda hijack
-import rvc.lib.zluda
+import ultimate_rvc.rvc.lib.zluda
 
-from rvc.lib.utils import load_audio, load_embedding
-from rvc.train.extract.preparing_files import generate_config, generate_filelist
-from rvc.lib.predictors.RMVPE import RMVPE0Predictor
-from rvc.configs.config import Config
+from ultimate_rvc.rvc.lib.utils import load_audio, load_embedding
+from ultimate_rvc.rvc.train.extract.preparing_files import generate_config, generate_filelist
+from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
+from ultimate_rvc.rvc.configs.config import Config
+from ultimate_rvc.common import RVC_MODELS_DIR
 
 # Load config
 config = Config()
-
 mp.set_start_method("spawn", force=True)
 
 
@@ -116,7 +116,7 @@ class FeatureInput:
         self.device = device
         if f0_method == "rmvpe":
             self.model_rmvpe = RMVPE0Predictor(
-                os.path.join("rvc", "models", "predictors", "rmvpe.pt"),
+                os.path.join(str(RVC_MODELS_DIR), "predictors", "rmvpe.pt"),
                 is_half=False,
                 device=device,
             )

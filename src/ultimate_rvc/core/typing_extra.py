@@ -3,12 +3,16 @@ Module which defines extra types for the core of the Ultimate RVC
 project.
 """
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from enum import StrEnum, auto
 
 from pydantic import BaseModel, ConfigDict
 
-from ultimate_rvc.typing_extra import AudioExt, F0Method
+# NOTE these types are used at runtime by pydantic so cannot be
+# relegated to a IF TYPE_CHECKING block
+from ultimate_rvc.typing_extra import AudioExt, EmbedderModel, F0Method  # noqa: TC002
 
 # Voice model management
 
@@ -117,6 +121,23 @@ class AudioExtInternal(StrEnum):
     ADTS = "adts"
 
 
+class DirectoryMetaData(BaseModel):
+    """
+    Metadata for a directory.
+
+    Attributes
+    ----------
+    name : str
+        The name of the directory.
+    path : str
+        The path of the directory.
+
+    """
+
+    name: str
+    path: str
+
+
 class FileMetaData(BaseModel):
     """
     Metadata for a file.
@@ -183,30 +204,59 @@ class ConvertedVocalsMetaData(BaseModel):
     n_semitones : int
         The number of semitones the converted vocals were pitch-shifted
         by.
-    f0_method : F0Method
-        The method used for pitch detection.
+    f0_methods : list[F0Method]
+        The methods used for pitch extraction.
     index_rate : float
         The influence of the index file on the vocal conversion.
     filter_radius : int
         The filter radius used for the vocal conversion.
     rms_mix_rate : float
-        The blending of the volume envelope of the converted vocals.
-    protect : float
-        The protection rate used for consonants and breathing sounds.
+        The blending rate of the volume envelope of the converted
+        vocals.
+    protect_rate : float
+        The protection rate for consonants and breathing sounds used
+        for the vocal conversion.
     hop_length : int
-        The hop length used for crepe-based pitch detection.
+        The hop length used for CREPE-based pitch detection.
+    split_vocals : bool
+        Whether the vocals track was split before it was converted.
+    autotune_vocals : bool
+        Whether autotune was applied to the converted vocals.
+    autotune_strength : float
+        The strength of the autotune effect applied to the converted
+        vocals.
+    clean_vocals : bool
+        Whether the converted vocals were cleaned.
+    clean_strength : float
+        The intensity of the cleaning that was applied to the converted
+        vocals.
+    embedder_model : EmbedderModel
+        The model used for generating speaker embeddings.
+    embedder_model_custom : DirectoryMetaData | None
+        The path to a custom model used for generating speaker
+        embeddings.
+    sid : int
+        The speaker id used for multi-speaker conversion.
 
     """
 
     vocals_track: FileMetaData
     model_name: str
     n_semitones: int
-    f0_method: F0Method
+    f0_methods: list[F0Method]
     index_rate: float
     filter_radius: int
     rms_mix_rate: float
-    protect: float
+    protect_rate: float
     hop_length: int
+    split_vocals: bool
+    autotune_vocals: bool
+    autotune_strength: float
+    clean_vocals: bool
+    clean_strength: float
+    embedder_model: EmbedderModel
+    embedder_model_custom: DirectoryMetaData | None
+    sid: int
 
     model_config = ConfigDict(protected_namespaces=())
 

@@ -2,10 +2,10 @@ import math
 import torch
 from typing import Optional
 
-from rvc.lib.algorithm.commons import sequence_mask
-from rvc.lib.algorithm.modules import WaveNet
-from rvc.lib.algorithm.normalization import LayerNorm
-from rvc.lib.algorithm.attentions import FFN, MultiHeadAttention
+from ultimate_rvc.rvc.lib.algorithm.commons import sequence_mask
+from ultimate_rvc.rvc.lib.algorithm.modules import WaveNet
+from ultimate_rvc.rvc.lib.algorithm.normalization import LayerNorm
+from ultimate_rvc.rvc.lib.algorithm.attentions import FFN, MultiHeadAttention
 
 
 class Encoder(torch.nn.Module):

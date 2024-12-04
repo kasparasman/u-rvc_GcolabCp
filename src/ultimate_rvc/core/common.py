@@ -1,27 +1,32 @@
 """Common utility functions for the core of the Ultimate RVC project."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import hashlib
 import json
 import shutil
-from collections.abc import Sequence
 from pathlib import Path
-
-import requests
 
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 
-import gradio as gr
-
 from rich import print as rprint
 
-from ultimate_rvc.common import AUDIO_DIR, RVC_MODELS_DIR
+from ultimate_rvc.common import AUDIO_DIR, MODELS_DIR
 from ultimate_rvc.core.exceptions import Entity, HttpUrlError, NotFoundError
-from ultimate_rvc.typing_extra import Json, StrPath
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import gradio as gr
+
+    from ultimate_rvc.typing_extra import Json, StrPath
 
 RVC_DOWNLOAD_URL = "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/"
 INTERMEDIATE_AUDIO_BASE_DIR = AUDIO_DIR / "intermediate"
 OUTPUT_AUDIO_DIR = AUDIO_DIR / "output"
-FLAG_FILE = RVC_MODELS_DIR / ".initialized"
+FLAG_FILE = MODELS_DIR / ".initialized"
 
 
 def display_progress(
@@ -251,35 +256,3 @@ def validate_url(url: str) -> None:
         TypeAdapter(AnyHttpUrl).validate_python(url)
     except ValidationError:
         raise HttpUrlError(url) from None
-
-
-def _download_base_model(url: str, name: str, directory: StrPath) -> None:
-    """
-    Download a base model and save it to an existing directory.
-
-    Parameters
-    ----------
-    url : str
-        An URL pointing to a location where a base model is hosted.
-    name : str
-        The name of the base model to download.
-    directory : str
-        The path to the directory where the base model should be saved.
-
-    """
-    dir_path = Path(directory)
-    with requests.get(f"{url}{name}", timeout=10) as r:
-        r.raise_for_status()
-        with (dir_path / name).open("wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-
-def download_base_models() -> None:
-    """Download base models."""
-    RVC_MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    base_model_names = ["hubert_base.pt", "rmvpe.pt"]
-    for base_model_name in base_model_names:
-        if not Path(RVC_MODELS_DIR / base_model_name).is_file():
-            rprint(f"Downloading {base_model_name}...")
-            _download_base_model(RVC_DOWNLOAD_URL, base_model_name, RVC_MODELS_DIR)

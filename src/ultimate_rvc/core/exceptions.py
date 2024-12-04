@@ -3,9 +3,14 @@ Module which defines custom exception and enumerations used when
 instiating and re-raising those exceptions.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from enum import StrEnum
 
-from ultimate_rvc.typing_extra import StrPath
+if TYPE_CHECKING:
+    from ultimate_rvc.typing_extra import StrPath
 
 
 class Entity(StrEnum):
@@ -28,6 +33,7 @@ class Entity(StrEnum):
     INSTRUMENTALS_TRACK = "instrumentals track"
     BACKUP_VOCALS_TRACK = "backup vocals track"
     MAIN_VOCALS_TRACK = "main vocals track"
+    EMBEDDER_MODEL_CUSTOM = "custom embedder model"
 
 
 class Location(StrEnum):

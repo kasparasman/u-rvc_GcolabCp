@@ -1,11 +1,16 @@
 """Module which defines functions used for managing various settings."""
 
-import shutil
+from __future__ import annotations
 
-import gradio as gr
+from typing import TYPE_CHECKING
+
+import shutil
 
 from ultimate_rvc.common import TEMP_DIR
 from ultimate_rvc.core.common import display_progress
+
+if TYPE_CHECKING:
+    import gradio as gr
 
 
 def delete_temp_files(

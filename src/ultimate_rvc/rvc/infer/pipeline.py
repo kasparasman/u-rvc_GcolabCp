@@ -14,12 +14,14 @@ from torch import Tensor
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
-from rvc.lib.predictors.RMVPE import RMVPE0Predictor
-from rvc.lib.predictors.FCPE import FCPEF0Predictor
+from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
+from ultimate_rvc.rvc.lib.predictors.FCPE import FCPEF0Predictor
+from ultimate_rvc.common import RVC_MODELS_DIR
 
 import logging
 
-logging.getLogger("faiss").setLevel(logging.WARNING)
+#logging.getLogger("faiss").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 # Constants for high-pass filter
 FILTER_ORDER = 5
@@ -208,7 +210,7 @@ class Pipeline:
         self.autotune = Autotune(self.ref_freqs)
         self.note_dict = self.autotune.note_dict
         self.model_rmvpe = RMVPE0Predictor(
-            os.path.join("rvc", "models", "predictors", "rmvpe.pt"),
+            os.path.join(str(RVC_MODELS_DIR), "predictors", "rmvpe.pt"),
             is_half=self.is_half,
             device=self.device,
         )
@@ -264,7 +266,7 @@ class Pipeline:
 
     def get_f0_hybrid(
         self,
-        methods_str,
+        methods,
         x,
         f0_min,
         f0_max,
@@ -275,32 +277,35 @@ class Pipeline:
         Estimates the fundamental frequency (F0) using a hybrid approach combining multiple methods.
 
         Args:
-            methods_str: A string specifying the methods to combine (e.g., "hybrid[crepe+rmvpe]").
+            methods: A set of strings specifying the methods to combine.
             x: The input audio signal as a NumPy array.
             f0_min: Minimum F0 value to consider.
             f0_max: Maximum F0 value to consider.
             p_len: Desired length of the F0 output.
             hop_length: Hop length for F0 estimation methods.
         """
-        methods_str = re.search("hybrid\[(.+)\]", methods_str)
-        if methods_str:
-            methods = [method.strip() for method in methods_str.group(1).split("+")]
         f0_computation_stack = []
-        print(f"Calculating f0 pitch estimations for methods {str(methods)}")
-        x = x.astype(np.float32)
-        x /= np.quantile(np.abs(x), 0.999)
+        logger.info(
+                "Calculating f0 pitch estimations for methods: %s", methods,
+        )
+        # x = x.astype(np.float32)
+        # x /= np.quantile(np.abs(x), 0.999)
         for method in methods:
             f0 = None
             if method == "crepe":
-                f0 = self.get_f0_crepe_computation(
+                f0 = self.get_f0_crepe(
                     x, f0_min, f0_max, p_len, int(hop_length)
+                )
+            elif method == "crepe-tiny":
+                f0 = self.get_f0_crepe(
+                    x, self.f0_min, self.f0_max, p_len, int(hop_length), "tiny",
                 )
             elif method == "rmvpe":
                 f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
                 f0 = f0[1:]
             elif method == "fcpe":
                 self.model_fcpe = FCPEF0Predictor(
-                    os.path.join("rvc", "models", "predictors", "fcpe.pt"),
+                    os.path.join(str(RVC_MODELS_DIR), "predictors", "fcpe.pt"),
                     f0_min=int(f0_min),
                     f0_max=int(f0_max),
                     dtype=torch.float32,
@@ -327,7 +332,7 @@ class Pipeline:
         x,
         p_len,
         pitch,
-        f0_method,
+        f0_methods,
         filter_radius,
         hop_length,
         f0_autotune,
@@ -342,44 +347,22 @@ class Pipeline:
             x: The input audio signal as a NumPy array.
             p_len: Desired length of the F0 output.
             pitch: Key to adjust the pitch of the F0 contour.
-            f0_method: Method to use for F0 estimation (e.g., "crepe").
+            f0_methods: list of methods to use for F0 estimation (e.g., "[crepe]").
             filter_radius: Radius for median filtering the F0 contour.
             hop_length: Hop length for F0 estimation methods.
             f0_autotune: Whether to apply autotune to the F0 contour.
             inp_f0: Optional input F0 contour to use instead of estimating.
         """
         global input_audio_path2wav
-        if f0_method == "crepe":
-            f0 = self.get_f0_crepe(x, self.f0_min, self.f0_max, p_len, int(hop_length))
-        elif f0_method == "crepe-tiny":
-            f0 = self.get_f0_crepe(
-                x, self.f0_min, self.f0_max, p_len, int(hop_length), "tiny"
-            )
-        elif f0_method == "rmvpe":
-            f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
-        elif f0_method == "fcpe":
-            self.model_fcpe = FCPEF0Predictor(
-                os.path.join("rvc", "models", "predictors", "fcpe.pt"),
-                f0_min=int(self.f0_min),
-                f0_max=int(self.f0_max),
-                dtype=torch.float32,
-                device=self.device,
-                sample_rate=self.sample_rate,
-                threshold=0.03,
-            )
-            f0 = self.model_fcpe.compute_f0(x, p_len=p_len)
-            del self.model_fcpe
-            gc.collect()
-        elif "hybrid" in f0_method:
-            input_audio_path2wav[input_audio_path] = x.astype(np.double)
-            f0 = self.get_f0_hybrid(
-                f0_method,
-                x,
-                self.f0_min,
-                self.f0_max,
-                p_len,
-                hop_length,
-            )
+        # input_audio_path2wav[input_audio_path] = x.astype(np.double)
+        f0 = self.get_f0_hybrid(
+            f0_methods,
+            x,
+            self.f0_min,
+            self.f0_max,
+            p_len,
+            hop_length,
+        )
 
         if f0_autotune is True:
             f0 = Autotune.autotune_f0(self, f0, f0_autotune_strength)
@@ -404,7 +387,7 @@ class Pipeline:
         ) + 1
         f0_mel[f0_mel <= 1] = 1
         f0_mel[f0_mel > 255] = 255
-        f0_coarse = np.rint(f0_mel).astype(np.int)
+        f0_coarse = np.rint(f0_mel).astype(int)
 
         return f0_coarse, f0bak
 
@@ -518,7 +501,7 @@ class Pipeline:
         sid,
         audio,
         pitch,
-        f0_method,
+        f0_methods,
         file_index,
         index_rate,
         pitch_guidance,
@@ -541,7 +524,7 @@ class Pipeline:
             audio: The input audio signal.
             input_audio_path: Path to the input audio file.
             pitch: Key to adjust the pitch of the F0 contour.
-            f0_method: Method to use for F0 estimation.
+            f0_methods: Methods to use for F0 estimation.
             file_index: Path to the FAISS index file for speaker embedding retrieval.
             index_rate: Blending rate for speaker embedding retrieval.
             pitch_guidance: Whether to use pitch guidance during voice conversion.
@@ -603,7 +586,7 @@ class Pipeline:
                 audio_pad,
                 p_len,
                 pitch,
-                f0_method,
+                f0_methods,
                 filter_radius,
                 hop_length,
                 f0_autotune,

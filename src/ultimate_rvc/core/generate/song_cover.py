@@ -3,13 +3,15 @@ Module which defines functions that faciliatate song cover generation
 using RVC.
 """
 
-import gc
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import logging
 import operator
 import shutil
-from collections.abc import Sequence
 from contextlib import suppress
-from functools import reduce
+from functools import cache, reduce
 from itertools import starmap
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -18,19 +20,16 @@ import yt_dlp
 
 from pydantic import ValidationError
 
-import gradio as gr
-
 import ffmpeg
 import soundfile as sf
 import sox
-from audio_separator.separator import Separator
 from pedalboard import Compressor, HighpassFilter, Reverb
 from pedalboard._pedalboard import Pedalboard  # noqa: PLC2701
 from pedalboard.io import AudioFile
 from pydub import AudioSegment
 from pydub import utils as pydub_utils
 
-from ultimate_rvc.common import RVC_MODELS_DIR, SEPARATOR_MODELS_DIR
+from ultimate_rvc.common import SEPARATOR_MODELS_DIR, VOICE_MODELS_DIR
 from ultimate_rvc.core.common import (
     INTERMEDIATE_AUDIO_BASE_DIR,
     OUTPUT_AUDIO_DIR,
@@ -56,6 +55,7 @@ from ultimate_rvc.core.exceptions import (
 from ultimate_rvc.core.typing_extra import (
     AudioExtInternal,
     ConvertedVocalsMetaData,
+    DirectoryMetaData,
     EffectedVocalsMetaData,
     FileMetaData,
     MixedSongMetaData,
@@ -67,23 +67,38 @@ from ultimate_rvc.core.typing_extra import (
 )
 from ultimate_rvc.typing_extra import (
     AudioExt,
+    EmbedderModel,
     F0Method,
     Json,
     SegmentSize,
     SeparationModel,
     StrPath,
 )
-from ultimate_rvc.vc.rvc import Config, get_vc, load_hubert, rvc_infer
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import gradio as gr
+
+    # NOTE the only reason these are imported here is so we can annotate
+    # the return value of the two functions below
+    from audio_separator.separator import Separator
+
+    from ultimate_rvc.rvc.infer.infer import VoiceConverter
 
 logger = logging.getLogger(__name__)
 
 
+@cache
 def _get_audio_separator(
     output_dir: StrPath = INTERMEDIATE_AUDIO_BASE_DIR,
     output_format: str = AudioExt.WAV,
     segment_size: int = SegmentSize.SEG_256,
     sample_rate: int = 44100,
 ) -> Separator:
+    # NOTE lazy import to shave off upt to 2.5 sec from startup time
+    from audio_separator.separator import Separator  # noqa: PLC0415
+
     """
     Get an audio separator.
 
@@ -117,6 +132,23 @@ def _get_audio_separator(
             "enable_denoise": False,
         },
     )
+
+
+@cache
+def _get_voice_converter() -> VoiceConverter:
+    """
+    Get a voice converter.
+
+    Returns
+    -------
+    VoiceConverter
+        A voice converter.
+
+    """
+    # NOTE lazy import to shave off up to 5 sec from startup time
+    from ultimate_rvc.rvc.infer.infer import VoiceConverter  # noqa: PLC0415
+
+    return VoiceConverter()
 
 
 def initialize_audio_separator(progress_bar: gr.Progress | None = None) -> None:
@@ -616,7 +648,7 @@ def retrieve_song(
 
 
 def _validate_exists(
-    identifier: StrPath,
+    identifier: StrPath | None,
     entity: Entity,
 ) -> Path:
     """
@@ -626,7 +658,7 @@ def _validate_exists(
 
     Parameters
     ----------
-    identifier : StrPath
+    identifier : StrPath | None
         The identifier to validate.
     entity : Entity
         The entity that the identifier should identify.
@@ -652,12 +684,13 @@ def _validate_exists(
         case Entity.MODEL_NAME:
             if not identifier:
                 raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_VOICE_MODEL)
-            path = RVC_MODELS_DIR / identifier
+            path = VOICE_MODELS_DIR / identifier
             if not path.is_dir():
                 raise VoiceModelNotFoundError(str(identifier))
-        case Entity.SONG_DIR:
+        case Entity.SONG_DIR | Entity.EMBEDDER_MODEL_CUSTOM:
+            ui_msg = UIMessage.NO_SONG_DIR if entity == Entity.SONG_DIR else None
             if not identifier:
-                raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_SONG_DIR)
+                raise NotProvidedError(entity=entity, ui_msg=ui_msg)
             path = Path(identifier)
             if not path.is_dir():
                 raise NotFoundError(entity=entity, location=path)
@@ -681,7 +714,7 @@ def _validate_exists(
 
 
 def _validate_all_exist(
-    identifier_entity_pairs: Sequence[tuple[StrPath, Entity]],
+    identifier_entity_pairs: Sequence[tuple[StrPath | None, Entity]],
 ) -> list[Path]:
     """
     Validate that all provided identifiers are not none and that they
@@ -828,206 +861,9 @@ def _get_rvc_files(model_name: str) -> tuple[Path, Path | None]:
             is_path=False,
         )
 
-    model_file = model_dir_path / file_path_map[".pth"]
-    index_file = (
-        model_dir_path / file_path_map[".index"] if ".index" in file_path_map else None
-    )
-
+    model_file = file_path_map[".pth"]
+    index_file = file_path_map.get(".index")
     return model_file, index_file
-
-
-def _convert(
-    voice_track: StrPath,
-    output_file: StrPath,
-    model_name: str,
-    n_semitones: int = 0,
-    f0_method: F0Method = F0Method.RMVPE,
-    index_rate: float = 0.5,
-    filter_radius: int = 3,
-    rms_mix_rate: float = 0.25,
-    protect: float = 0.33,
-    hop_length: int = 128,
-    output_sr: int = 44100,
-) -> None:
-    """
-    Convert a voice track using a voice model and save the result to a
-    an output file.
-
-    Parameters
-    ----------
-    voice_track : StrPath
-        The path to the voice track to convert.
-    output_file : StrPath
-        The path to the file to save the converted voice track to.
-    model_name : str
-        The name of the model to use for voice conversion.
-    n_semitones : int, default=0
-        The number of semitones to pitch-shift the converted voice by.
-    f0_method : F0Method, default=F0Method.RMVPE
-        The method to use for pitch detection.
-    index_rate : float, default=0.5
-        The influence of the index file on the voice conversion.
-    filter_radius : int, default=3
-        The filter radius to use for the voice conversion.
-    rms_mix_rate : float, default=0.25
-        The blending rate of the volume envelope of the converted voice.
-    protect : float, default=0.33
-        The protection rate for consonants and breathing sounds.
-    hop_length : int, default=128
-        The hop length to use for crepe-based pitch detection.
-    output_sr : int, default=44100
-        The sample rate of the output audio file.
-
-    """
-    rvc_model_path, rvc_index_path = _get_rvc_files(model_name)
-    device = "cuda:0"
-    config = Config(device, is_half=True)
-    hubert_model = load_hubert(
-        device,
-        str(RVC_MODELS_DIR / "hubert_base.pt"),
-        is_half=config.is_half,
-    )
-    cpt, version, net_g, tgt_sr, vc = get_vc(
-        device,
-        config,
-        str(rvc_model_path),
-        is_half=config.is_half,
-    )
-
-    # convert main vocals
-    rvc_infer(
-        str(rvc_index_path) if rvc_index_path else "",
-        index_rate,
-        str(voice_track),
-        str(output_file),
-        n_semitones,
-        f0_method,
-        cpt,
-        version,
-        net_g,
-        filter_radius,
-        tgt_sr,
-        rms_mix_rate,
-        protect,
-        hop_length,
-        vc,
-        hubert_model,
-        output_sr,
-    )
-    del hubert_model, cpt
-    gc.collect()
-
-
-def convert(
-    vocals_track: StrPath,
-    song_dir: StrPath,
-    model_name: str,
-    n_octaves: int = 0,
-    n_semitones: int = 0,
-    f0_method: F0Method = F0Method.RMVPE,
-    index_rate: float = 0.5,
-    filter_radius: int = 3,
-    rms_mix_rate: float = 0.25,
-    protect: float = 0.33,
-    hop_length: int = 128,
-    progress_bar: gr.Progress | None = None,
-    percentage: float = 0.5,
-) -> Path:
-    """
-    Convert a vocals track using a voice model.
-
-    Parameters
-    ----------
-    vocals_track : StrPath
-        The path to the vocals track to convert.
-    song_dir : StrPath
-        The path to the song directory where the converted vocals track
-        will be saved.
-    model_name : str
-        The name of the model to use for vocal conversion.
-    n_octaves : int, default=0
-        The number of octaves to pitch-shift the converted vocals by.
-    n_semitones : int, default=0
-        The number of semitones to pitch-shift the converted vocals by.
-    f0_method : F0Method, default=F0Method.RMVPE
-        The method to use for pitch detection.
-    index_rate : float, default=0.5
-        The influence of the index file on the vocal conversion.
-    filter_radius : int, default=3
-        The filter radius to use for the vocal conversion.
-    rms_mix_rate : float, default=0.25
-        The blending rate of the volume envelope of the converted
-        vocals.
-    protect : float, default=0.33
-        The protection rate for consonants and breathing sounds.
-    hop_length : int, default=128
-        The hop length to use for crepe-based pitch detection.
-    progress_bar : gr.Progress, optional
-        Gradio progress bar to update.
-    percentage : float, default=0.5
-        Percentage to display in the progress bar.
-
-    Returns
-    -------
-    Path
-        The path to the converted vocals track.
-
-    """
-    vocals_path, song_dir_path, _ = _validate_all_exist(
-        [
-            (vocals_track, Entity.VOCALS_TRACK),
-            (song_dir, Entity.SONG_DIR),
-            (model_name, Entity.MODEL_NAME),
-        ],
-    )
-
-    n_semitones = n_octaves * 12 + n_semitones
-
-    args_dict = ConvertedVocalsMetaData(
-        vocals_track=FileMetaData(
-            name=vocals_path.name,
-            hash_id=get_file_hash(vocals_path),
-        ),
-        model_name=model_name,
-        n_semitones=n_semitones,
-        f0_method=f0_method,
-        index_rate=index_rate,
-        filter_radius=filter_radius,
-        rms_mix_rate=rms_mix_rate,
-        protect=protect,
-        hop_length=hop_length,
-    ).model_dump()
-
-    paths = [
-        get_unique_base_path(
-            song_dir_path,
-            "21_Vocals_Converted",
-            args_dict,
-            progress_bar=progress_bar,
-            percentage=percentage,
-        ).with_suffix(suffix)
-        for suffix in [".wav", ".json"]
-    ]
-
-    converted_vocals_path, converted_vocals_json_path = paths
-
-    if not all(path.exists() for path in paths):
-        display_progress("[~] Converting vocals using RVC...", percentage, progress_bar)
-        _convert(
-            vocals_path,
-            converted_vocals_path,
-            model_name,
-            n_semitones,
-            f0_method,
-            index_rate,
-            filter_radius,
-            rms_mix_rate,
-            protect,
-            hop_length,
-            output_sr=44100,
-        )
-        json_dump(args_dict, converted_vocals_json_path)
-    return converted_vocals_path
 
 
 def to_wav(
@@ -1078,9 +914,11 @@ def to_wav(
     song_info = pydub_utils.mediainfo(str(audio_path))
     logger.info("Song Info:\n%s", json_dumps(song_info))
     if any(
-        accepted_format in song_info["format_name"]
-        if accepted_format == AudioExt.M4A
-        else accepted_format == song_info["format_name"]
+        (
+            accepted_format in song_info["format_name"]
+            if accepted_format == AudioExt.M4A
+            else accepted_format == song_info["format_name"]
+        )
         for accepted_format in accepted_formats
     ):
         args_dict = WaveifiedAudioMetaData(
@@ -1120,6 +958,194 @@ def to_wav(
             json_dump(args_dict, wav_json_path)
 
     return wav_path
+
+
+def convert(
+    vocals_track: StrPath,
+    song_dir: StrPath,
+    model_name: str,
+    n_octaves: int = 0,
+    n_semitones: int = 0,
+    f0_methods: Sequence[F0Method] | None = None,
+    index_rate: float = 0.5,
+    filter_radius: int = 3,
+    rms_mix_rate: float = 0.25,
+    protect_rate: float = 0.33,
+    hop_length: int = 128,
+    split_vocals: bool = False,
+    autotune_vocals: bool = False,
+    autotune_strength: float = 1.0,
+    clean_vocals: bool = False,
+    clean_strength: float = 0.7,
+    embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
+    embedder_model_custom: StrPath | None = None,
+    sid: int = 0,
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> Path:
+    """
+    Convert a vocals track using a voice model.
+
+    Parameters
+    ----------
+    vocals_track : StrPath
+        The path to the vocals track to convert.
+    song_dir : StrPath
+        The path to the song directory where the converted vocals track
+        will be saved.
+    model_name : str
+        The name of the model to use for vocal conversion.
+    n_octaves : int, default=0
+        The number of octaves to pitch-shift the converted vocals by.
+    n_semitones : int, default=0
+        The number of semitones to pitch-shift the converted vocals by.
+    f0_methods : Sequence[F0Method], optional
+        The methods to use for pitch extraction. If None, the method
+        used is rmvpe.
+    index_rate : float, default=0.5
+        The influence of the index file on the vocal conversion.
+    filter_radius : int, default=3
+        The filter radius to use for the vocal conversion.
+    rms_mix_rate : float, default=0.25
+        The blending rate of the volume envelope of the converted
+        vocals.
+    protect_rate : float, default=0.33
+        The protection rate for consonants and breathing sounds.
+    hop_length : int, default=128
+        The hop length to use for CREPE-based pitch extraction.
+    split_vocals : bool, default=False
+        Whether to split the vocals track into smaller segments before
+        converting it.
+    autotune_vocals : bool, default=False
+        Whether to apply autotune to the converted vocals.
+    autotune_strength : float, default=1.0
+        The strength of the autotune to apply to the converted vocals.
+    clean_vocals : bool, default=False
+        Whether to clean the converted vocals.
+    clean_strength : float, default=0.7
+        The intensity of the cleaning to apply to the converted vocals.
+    embedder_model : EmbedderModel, default=EmbedderModel.CONTENTVEC
+        The model to use for generating speaker embeddings.
+    embedder_model_custom : StrPath, optional
+        The path to a directory with a custom model to use for
+        generating speaker embeddings.
+    sid : int, default=0
+        The speaker id to use for multi-speaker models.
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    Returns
+    -------
+    Path
+        The path to the converted vocals track.
+
+    """
+    vocals_path, song_dir_path, _ = _validate_all_exist(
+        [
+            (vocals_track, Entity.VOCALS_TRACK),
+            (song_dir, Entity.SONG_DIR),
+            (model_name, Entity.MODEL_NAME),
+        ],
+    )
+    if embedder_model == EmbedderModel.CUSTOM:
+        embedder_model_custom = _validate_exists(
+            embedder_model_custom,
+            Entity.EMBEDDER_MODEL_CUSTOM,
+        )
+
+    vocals_path = to_wav(
+        vocals_path,
+        song_dir_path,
+        "20_Input",
+        accepted_formats={AudioExt.M4A, AudioExt.AAC},
+        progress_bar=progress_bar,
+        percentage=percentage,
+    )
+
+    n_semitones = n_octaves * 12 + n_semitones
+    f0_methods_set = set(f0_methods) if f0_methods else {F0Method.RMVPE}
+
+    args_dict = ConvertedVocalsMetaData(
+        vocals_track=FileMetaData(
+            name=vocals_path.name,
+            hash_id=get_file_hash(vocals_path),
+        ),
+        model_name=model_name,
+        n_semitones=n_semitones,
+        f0_methods=sorted(f0_methods_set),
+        index_rate=index_rate,
+        filter_radius=filter_radius,
+        rms_mix_rate=rms_mix_rate,
+        protect_rate=protect_rate,
+        hop_length=hop_length,
+        split_vocals=split_vocals,
+        autotune_vocals=autotune_vocals,
+        autotune_strength=autotune_strength,
+        clean_vocals=clean_vocals,
+        clean_strength=clean_strength,
+        embedder_model=embedder_model,
+        embedder_model_custom=(
+            DirectoryMetaData(
+                name=Path(embedder_model_custom).name,
+                path=str(embedder_model_custom),
+            )
+            if embedder_model_custom is not None
+            else None
+        ),
+        sid=sid,
+    ).model_dump()
+
+    paths = [
+        get_unique_base_path(
+            song_dir_path,
+            "21_Vocals_Converted",
+            args_dict,
+            progress_bar=progress_bar,
+            percentage=percentage,
+        ).with_suffix(suffix)
+        for suffix in [".wav", ".json"]
+    ]
+
+    converted_vocals_path, converted_vocals_json_path = paths
+
+    if not all(path.exists() for path in paths):
+        display_progress("[~] Converting vocals using RVC...", percentage, progress_bar)
+
+        rvc_model_path, rvc_index_path = _get_rvc_files(model_name)
+
+        voice_converter = _get_voice_converter()
+
+        voice_converter.convert_audio(
+            audio_input_path=str(vocals_path),
+            audio_output_path=str(converted_vocals_path),
+            model_path=str(rvc_model_path),
+            index_path=str(rvc_index_path) if rvc_index_path else "",
+            pitch=n_semitones,
+            f0_methods=f0_methods_set,
+            index_rate=index_rate,
+            volume_envelope=rms_mix_rate,
+            protect=protect_rate,
+            hop_length=hop_length,
+            split_audio=split_vocals,
+            f0_autotune=autotune_vocals,
+            f0_autotune_strength=autotune_strength,
+            filter_radius=filter_radius,
+            embedder_model=embedder_model,
+            embedder_model_custom=(
+                str(embedder_model_custom)
+                if embedder_model_custom is not None
+                else None
+            ),
+            clean_audio=clean_vocals,
+            clean_strength=clean_strength,
+            post_process=False,
+            resample_sr=0,
+            sid=sid,
+        )
+        json_dump(args_dict, converted_vocals_json_path)
+    return converted_vocals_path
 
 
 def _add_effects(
@@ -1539,12 +1565,20 @@ def run_pipeline(
     model_name: str,
     n_octaves: int = 0,
     n_semitones: int = 0,
-    f0_method: F0Method = F0Method.RMVPE,
+    f0_methods: Sequence[F0Method] | None = None,
     index_rate: float = 0.5,
     filter_radius: int = 3,
     rms_mix_rate: float = 0.25,
-    protect: float = 0.33,
+    protect_rate: float = 0.33,
     hop_length: int = 128,
+    split_vocals: bool = False,
+    autotune_vocals: bool = False,
+    autotune_strength: float = 1.0,
+    clean_vocals: bool = False,
+    clean_strength: float = 0.7,
+    embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
+    embedder_model_custom: StrPath | None = None,
+    sid: int = 0,
     room_size: float = 0.15,
     wet_level: float = 0.2,
     dry_level: float = 0.8,
@@ -1572,8 +1606,9 @@ def run_pipeline(
     n_semitones : int, default=0
         The number of semi-tones to pitch-shift the converted vocals,
         instrumentals, and backup vocals by.
-    f0_method : F0Method, default=F0Method.RMVPE
-        The method to use for pitch detection during vocal conversion.
+    f0_methods : Sequence[F0Method], optional
+        The methods to use for pitch extraction during vocal
+        conversion. If None, the method used is rmvpe.
     index_rate : float, default=0.5
         The influence of the index file on the vocal conversion.
     filter_radius : int, default=3
@@ -1581,11 +1616,31 @@ def run_pipeline(
     rms_mix_rate : float, default=0.25
         The blending rate of the volume envelope of the converted
         vocals.
-    protect : float, default=0.33
-        The protection rate for consonants and breathing sounds during
+    protect_rate : float, default=0.33
+        The protect rate for consonants and breathing sounds during
         vocal conversion.
     hop_length : int, default=128
         The hop length to use for crepe-based pitch detection.
+    split_vocals : bool, default=False
+        Whether to perform audio splitting before converting the main
+        vocals.
+    autotune_vocals : bool, default=False
+        Whether to apply autotune to the converted vocals.
+    autotune_strength : float, default=1.0
+        The strength of the autotune to apply to the converted vocals.
+    clean_vocals : bool, default=False
+        Whether to clean the converted vocals.
+    clean_strength : float, default=0.7
+        The intensity of the cleaning to apply to the converted vocals.
+    embedder_model : EmbedderModel, default=EmbedderModel.CONTENTVEC
+        The model to use for generating speaker embeddings during vocal
+        conversion.
+    embedder_model_custom : StrPath, optional
+        The path to a directory with a custom model to use for
+        generating speaker embeddings during vocal conversion.
+    sid : int, default=0
+        The speaker id to use for multi-speaker models during vocal
+        conversion.
     room_size : float, default=0.15
         The room size of the reverb effect to apply to the converted
         vocals.
@@ -1656,17 +1711,25 @@ def run_pipeline(
         percentage=3 / 9,
     )
     converted_vocals_track = convert(
-        vocals_dereverb_track,
-        song_dir,
-        model_name,
-        n_octaves,
-        n_semitones,
-        f0_method,
-        index_rate,
-        filter_radius,
-        rms_mix_rate,
-        protect,
-        hop_length,
+        vocals_track=vocals_dereverb_track,
+        song_dir=song_dir,
+        model_name=model_name,
+        n_octaves=n_octaves,
+        n_semitones=n_semitones,
+        f0_methods=f0_methods,
+        index_rate=index_rate,
+        filter_radius=filter_radius,
+        rms_mix_rate=rms_mix_rate,
+        protect_rate=protect_rate,
+        hop_length=hop_length,
+        split_vocals=split_vocals,
+        autotune_vocals=autotune_vocals,
+        autotune_strength=autotune_strength,
+        clean_vocals=clean_vocals,
+        clean_strength=clean_strength,
+        embedder_model=embedder_model,
+        embedder_model_custom=embedder_model_custom,
+        sid=sid,
         progress_bar=progress_bar,
         percentage=4 / 9,
     )

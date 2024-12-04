@@ -2,6 +2,9 @@
 
 * should rename instances of "models" to "voice models"
 
+* remove old vc folder
+* format rvc package folder
+
 ## Project/task management
 
 * Should find tool for project/task management
@@ -82,10 +85,6 @@
 
 ### Common
 
-* fix problem with typing of block.launch()
-  * problem stems from doing from gradio import routes
-  * so instead should import from gradio.routes directly
-  * open a pr with changes
 * save default values for options for song generation in an `SongCoverOptionDefault` enum.
   * then reference this enum across the two tabs
   * and also use `list[SongCoverOptionDefault]` as input to reset settings click event listener in single click generation tab.
@@ -106,6 +105,9 @@
     * Whenever the state of a component is changed save the new state to a custom JSON file.
       * Then whenever the app is refreshed load the current state of components from the JSON file
       * This solution should probably work for Block types that are not components
+* fix gradio problem where last field components on a row are not aligned (DIFFICULT TO IMPLEMENT)
+  * current solution with manual `<br>` padding is way too hacky.
+  * this is a gradio bug so report?
 * need to fix the `INFO: Could not find files for the given pattern(s)` on startup of web application on windows (DIFFICULT TO IMPLEMENT)
   * this is an error that gradio needs to fix
 * Remove reset button on slider components (DIFFICULT TO IMPLEMENT)
@@ -139,15 +141,14 @@
 * enable server side rendering (requires installing node and setting ssr_mode = true in .launch) (DIFFICULT TO IMPLEMENT)
   * Also needs to set GRADIO_NODE_PATH to point to the node executable
   * problem is that on windows there is a ERR_UNSUPPORTED_ESM_URL_SCHEME which needs to be fixed by gradio
-    * see here https://github.com/nodejs/node/issues/31710
+    * see here <https://github.com/nodejs/node/issues/31710>
   * on linux it works but it is not possible to shutdown server using CTRL+ C
-
 
 ## Back end
 
 ### `generate_song_cover.py`
 
-* intermediate file prefixes should be made into enums 
+* intermediate file prefixes should be made into enums
 * find framework for caching intermediate results rather than relying on your homemade system
 
   * Joblib: <https://medium.com/@yuxuzi/unlocking-efficiency-in-machine-learning-projects-with-joblib-a-python-pipeline-powerhouse-feb0ebfdf4df>
@@ -177,6 +178,21 @@
 * use pandas.read_json to load public models table (DIFFICULT TO IMPLEMENT)
 
 ## CLI
+
+### general
+
+
+* shave off more startup time
+  * get static ffmpeg to load only when needed
+  * in cli only load from the generate song cover module when needed (lazily)
+* look into typer replacement like cyclopts
+  * so that we dont have to define separate cli wrappers for each function
+  * just need to make sure that cyclopts can also do some of the automatic input validation that typer does
+
+* replace _validate_exist and _validate_exists with _validate_provided. We dont need in the code to check whether the input exists as that is done by cli wrapper and gradio respectively. only exception is that we still need to check that model dir exists when given a model name
+
+* fix problem with not being able to rename default "Options" panel in typer
+  * the panel where "help" and other built in options are put
 
 ### Add remaining CLI interfaces
 
@@ -287,14 +303,59 @@
 
 ## Vocal Conversion
 
-* support arbitrary combination of pitch detection algorithms
-  * source: <https://github.com/gitmylo/audio-webui>
-* Investigate using onnx models for inference speedup on cpu
+* clone /fork applio huggingface repo and then download from your fork in prerequities_donwload.py
+
+* move all post processing to specific postprocessing step
+  * not part of voice conversion step
+
+* incorporate autotune as a post-processing step with separate package instead of as part of vocal conversion
+
+* parallelize different steps in the pipeline
+  * two pitch shifts operations that are currently executed sequentially should be executed in parallel because they are done on cpu.
+  * application of different f0 extraction methods should also be done in parallel.
+
 * Add more pitch detection methods
   * pm
   * harvest
   * dio
   * rvmpe+
+
+  * add harvest, pm, dio f0 methods back in?
+
+* support arbitrary combination of pitch detection algorithms
+  * use different method than median for combining extracted f0 values?
+
+* formant shifting currently does not make a difference because
+  * under the hood `tftPitchShift.shiftpitch` is called to pitch shift input audio with `quefrency` multiplied by `1e-3` which makes it almost equal to `0`. that might be too a value to have any effect
+* potentially use another library for formant shifting. for example praatio or parselmouth
+  * one solution: <https://github.com/drfeinberg/Parselmouth-Guides/blob/master/ManipulatingVoices.ipynb> (look at buttom)
+  * also, formant shifting is primarily meant for male to female and vice versa conversions without changing the pitch of the voice so it would actually be very useful as we can dispense wit hpitch shifting in that case
+  * can also use praatio for this: <https://timmahrt.github.io/praatIO/praatio/praat_scripts.html>
+
+* f0-curve file do not really work so the --f0-file parameter does not currently make sense for the inference step
+  * should probably remove it from the inference step
+  * we can add it back in once if we are able to fix the algorithm that
+  * uses custom f0 curve files but that is probably way down the line
+
+* audio upscaler is extremely slow
+  * mention this in applio and rvc-cli
+  * also try to use audio upscaling in the app and verify it takes long there
+  * try and find a better alternatively to the current audio upscaler package
+    * or perhaps optimize it yourself.
+  * also audio upscaling does not really make sense for inference as the audio is downsampled to 16kHz
+    * only makes sense if the audio is below 16kHz in sample rate which is unlikely
+    * so maybe we should just remove the audio upscaler from the pipeline
+  * conclusion: remove audio upscaler from inference pipeline
+* audio upscaler model should be downloaded at initialization and not laziely (when first used)
+* fix that audio upscaler downsload pyorch_model.bin to cwd
+
+* currently we are not downloading any-pretraineds. Potentially enabling downloading of all when it is needed later (perhaps when we add training tab?)
+
+* info on custom embedder models
+  * when using a custom embedder model you have to use a fine-tuned model trained using that embedder model during inference.
+    * its hard to find such models only so better fine tune your own model in that case
+  * the custom embedder model should be a folder with a pytorch_model.bin file and a config.json file
+
 * Implement multi-gpu Inference
 
 ## TTS conversion
