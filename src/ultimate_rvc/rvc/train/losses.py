@@ -8,10 +8,11 @@ def feature_loss(fmap_r, fmap_g):
     Args:
         fmap_r (list of torch.Tensor): List of reference feature maps.
         fmap_g (list of torch.Tensor): List of generated feature maps.
+
     """
     loss = 0
-    for dr, dg in zip(fmap_r, fmap_g):
-        for rl, gl in zip(dr, dg):
+    for dr, dg in zip(fmap_r, fmap_g, strict=False):
+        for rl, gl in zip(dr, dg, strict=False):
             rl = rl.float().detach()
             gl = gl.float()
             loss += torch.mean(torch.abs(rl - gl))
@@ -26,11 +27,12 @@ def discriminator_loss(disc_real_outputs, disc_generated_outputs):
     Args:
         disc_real_outputs (list of torch.Tensor): List of discriminator outputs for real samples.
         disc_generated_outputs (list of torch.Tensor): List of discriminator outputs for generated samples.
+
     """
     loss = 0
     r_losses = []
     g_losses = []
-    for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
+    for dr, dg in zip(disc_real_outputs, disc_generated_outputs, strict=False):
         dr = dr.float()
         dg = dg.float()
         r_loss = torch.mean((1 - dr) ** 2)
@@ -48,6 +50,7 @@ def generator_loss(disc_outputs):
 
     Args:
         disc_outputs (list of torch.Tensor): List of discriminator outputs for generated samples.
+
     """
     loss = 0
     gen_losses = []
@@ -70,6 +73,7 @@ def kl_loss(z_p, logs_q, m_p, logs_p, z_mask):
         m_p (torch.Tensor): Mean of p [b, h, t_t].
         logs_p (torch.Tensor): Log variance of p [b, h, t_t].
         z_mask (torch.Tensor): Mask for the latent variables [b, h, t_t].
+
     """
     z_p = z_p.float()
     logs_q = logs_q.float()

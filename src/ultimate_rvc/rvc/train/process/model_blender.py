@@ -1,6 +1,7 @@
 import os
-import torch
 from collections import OrderedDict
+
+import torch
 
 
 def extract(ckpt):

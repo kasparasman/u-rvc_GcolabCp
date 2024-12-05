@@ -1,8 +1,9 @@
-import os
-import torch
-import hashlib
 import datetime
+import hashlib
+import os
 from collections import OrderedDict
+
+import torch
 
 
 def replace_keys_in_dict(d, old_key_part, new_key_part):
@@ -37,7 +38,7 @@ def extract_small_model(
         opt = OrderedDict(
             weight={
                 key: value.half() for key, value in ckpt.items() if "enc_q" not in key
-            }
+            },
         )
         if "model" in ckpt:
             ckpt = ckpt["model"]
@@ -162,7 +163,7 @@ def extract_small_model(
         opt["version"] = version
         opt["creation_date"] = datetime.datetime.now().isoformat()
 
-        hash_input = f"{str(ckpt)} {epoch} {step} {datetime.datetime.now().isoformat()}"
+        hash_input = f"{ckpt!s} {epoch} {step} {datetime.datetime.now().isoformat()}"
         model_hash = hashlib.sha256(hash_input.encode()).hexdigest()
         opt["model_hash"] = model_hash
 
@@ -170,7 +171,9 @@ def extract_small_model(
         torch.save(
             replace_keys_in_dict(
                 replace_keys_in_dict(
-                    model, ".parametrizations.weight.original1", ".weight_v"
+                    model,
+                    ".parametrizations.weight.original1",
+                    ".weight_v",
                 ),
                 ".parametrizations.weight.original0",
                 ".weight_g",

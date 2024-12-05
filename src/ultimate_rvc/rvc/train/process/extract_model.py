@@ -1,9 +1,11 @@
-import os, sys
-import torch
-import hashlib
 import datetime
-from collections import OrderedDict
+import hashlib
 import json
+import os
+import sys
+from collections import OrderedDict
+
+import torch
 
 now_dir = os.getcwd()
 sys.path.append(now_dir)
@@ -46,12 +48,13 @@ def extract_model(
             pth_file = f"{name}_{epoch}e_{step}s.pth"
 
         pth_file_old_version_path = os.path.join(
-            model_dir_path, f"{pth_file}_old_version.pth"
+            model_dir_path,
+            f"{pth_file}_old_version.pth",
         )
 
         model_dir_path = os.path.dirname(model_dir)
         if os.path.exists(os.path.join(model_dir_path, "model_info.json")):
-            with open(os.path.join(model_dir_path, "model_info.json"), "r") as f:
+            with open(os.path.join(model_dir_path, "model_info.json")) as f:
                 data = json.load(f)
                 dataset_lenght = data.get("total_dataset_duration", None)
                 embedder_model = data.get("embedder_model", None)
@@ -59,14 +62,14 @@ def extract_model(
         else:
             dataset_lenght = None
 
-        with open(os.path.join(now_dir, "assets", "config.json"), "r") as f:
+        with open(os.path.join(now_dir, "assets", "config.json")) as f:
             data = json.load(f)
             model_author = data.get("model_author", None)
 
         opt = OrderedDict(
             weight={
                 key: value.half() for key, value in ckpt.items() if "enc_q" not in key
-            }
+            },
         )
         opt["config"] = [
             hps.data.filter_length // 2 + 1,
@@ -96,7 +99,7 @@ def extract_model(
         opt["version"] = version
         opt["creation_date"] = datetime.datetime.now().isoformat()
 
-        hash_input = f"{str(ckpt)} {epoch} {step} {datetime.datetime.now().isoformat()}"
+        hash_input = f"{ckpt!s} {epoch} {step} {datetime.datetime.now().isoformat()}"
         model_hash = hashlib.sha256(hash_input.encode()).hexdigest()
         opt["model_hash"] = model_hash
         opt["overtrain_info"] = overtrain_info
@@ -112,7 +115,9 @@ def extract_model(
         torch.save(
             replace_keys_in_dict(
                 replace_keys_in_dict(
-                    model, ".parametrizations.weight.original1", ".weight_v"
+                    model,
+                    ".parametrizations.weight.original1",
+                    ".weight_v",
                 ),
                 ".parametrizations.weight.original0",
                 ".weight_g",

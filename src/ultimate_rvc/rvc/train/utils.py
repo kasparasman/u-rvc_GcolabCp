@@ -1,10 +1,12 @@
-import os
 import glob
-import torch
+import os
+from collections import OrderedDict
+
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io.wavfile import read
-from collections import OrderedDict
-import matplotlib.pyplot as plt
+
+import torch
 
 MATPLOTLIB_FLAG = False
 
@@ -17,6 +19,7 @@ def replace_keys_in_dict(d, old_key_part, new_key_part):
         d (dict or OrderedDict): The dictionary to update.
         old_key_part (str): The part of the key to replace.
         new_key_part (str): The new part of the key.
+
     """
     updated_dict = OrderedDict() if isinstance(d, OrderedDict) else {}
     for key, value in d.items():
@@ -40,15 +43,18 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, load_opt=1):
         model (torch.nn.Module): The model to load the checkpoint into.
         optimizer (torch.optim.Optimizer, optional): The optimizer to load the state from. Defaults to None.
         load_opt (int, optional): Whether to load the optimizer state. Defaults to 1.
+
     """
     assert os.path.isfile(
-        checkpoint_path
+        checkpoint_path,
     ), f"Checkpoint file not found: {checkpoint_path}"
 
     checkpoint_dict = torch.load(checkpoint_path, map_location="cpu")
     checkpoint_dict = replace_keys_in_dict(
         replace_keys_in_dict(
-            checkpoint_dict, ".weight_v", ".parametrizations.weight.original1"
+            checkpoint_dict,
+            ".weight_v",
+            ".parametrizations.weight.original1",
         ),
         ".weight_g",
         ".parametrizations.weight.original0",
@@ -72,7 +78,7 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, load_opt=1):
         optimizer.load_state_dict(checkpoint_dict.get("optimizer", {}))
 
     print(
-        f"Loaded checkpoint '{checkpoint_path}' (epoch {checkpoint_dict['iteration']})"
+        f"Loaded checkpoint '{checkpoint_path}' (epoch {checkpoint_dict['iteration']})",
     )
     return (
         model,
@@ -92,6 +98,7 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path)
         learning_rate (float): The current learning rate.
         iteration (int): The current iteration.
         checkpoint_path (str): The path to save the checkpoint to.
+
     """
     state_dict = (
         model.module.state_dict() if hasattr(model, "module") else model.state_dict()
@@ -108,7 +115,9 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path)
     old_version_path = checkpoint_path.replace(".pth", "_old_version.pth")
     checkpoint_data = replace_keys_in_dict(
         replace_keys_in_dict(
-            checkpoint_data, ".parametrizations.weight.original1", ".weight_v"
+            checkpoint_data,
+            ".parametrizations.weight.original1",
+            ".weight_v",
         ),
         ".parametrizations.weight.original0",
         ".weight_g",
@@ -139,6 +148,7 @@ def summarize(
         images (dict, optional): Dictionary of image values to log.
         audios (dict, optional): Dictionary of audio values to log.
         audio_sample_rate (int, optional): Sampling rate of the audio data.
+
     """
     for k, v in scalars.items():
         writer.add_scalar(k, v, global_step)
@@ -157,6 +167,7 @@ def latest_checkpoint_path(dir_path, regex="G_*.pth"):
     Args:
         dir_path (str): The directory to search for checkpoints.
         regex (str, optional): The regular expression to match checkpoint files.
+
     """
     checkpoints = sorted(
         glob.glob(os.path.join(dir_path, regex)),
@@ -171,6 +182,7 @@ def plot_spectrogram_to_numpy(spectrogram):
 
     Args:
         spectrogram (numpy.ndarray): The spectrogram to plot.
+
     """
     global MATPLOTLIB_FLAG
     if not MATPLOTLIB_FLAG:
@@ -197,6 +209,7 @@ def load_wav_to_torch(full_path):
 
     Args:
         full_path (str): The path to the WAV file.
+
     """
     sample_rate, data = read(full_path)
     return torch.FloatTensor(data.astype(np.float32)), sample_rate
@@ -209,6 +222,7 @@ def load_filepaths_and_text(filename, split="|"):
     Args:
         filename (str): The path to the file.
         split (str, optional): The delimiter used to split the lines.
+
     """
     with open(filename, encoding="utf-8") as f:
         return [line.strip().split(split) for line in f]

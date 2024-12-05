@@ -1,26 +1,29 @@
-import os
 import gc
+import os
 import re
 import sys
+
+import numpy as np
+from scipy import signal
+
+import faiss
 import torch
 import torch.nn.functional as F
 import torchcrepe
-import faiss
-import librosa
-import numpy as np
-from scipy import signal
 from torch import Tensor
+
+import librosa
 
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
-from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
-from ultimate_rvc.rvc.lib.predictors.FCPE import FCPEF0Predictor
-from ultimate_rvc.common import RVC_MODELS_DIR
-
 import logging
 
-#logging.getLogger("faiss").setLevel(logging.WARNING)
+from ultimate_rvc.common import RVC_MODELS_DIR
+from ultimate_rvc.rvc.lib.predictors.FCPE import FCPEF0Predictor
+from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
+
+# logging.getLogger("faiss").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Constants for high-pass filter
@@ -28,7 +31,10 @@ FILTER_ORDER = 5
 CUTOFF_FREQUENCY = 48  # Hz
 SAMPLE_RATE = 16000  # Hz
 bh, ah = signal.butter(
-    N=FILTER_ORDER, Wn=CUTOFF_FREQUENCY, btype="high", fs=SAMPLE_RATE
+    N=FILTER_ORDER,
+    Wn=CUTOFF_FREQUENCY,
+    btype="high",
+    fs=SAMPLE_RATE,
 )
 
 input_audio_path2wav = {}
@@ -55,6 +61,7 @@ class AudioProcessor:
             target_audio: The target audio signal to adjust.
             target_rate: The sampling rate of the target audio.
             rate: The blending rate between the source and target RMS levels.
+
         """
         # Calculate RMS of both audio data
         rms1 = librosa.feature.rms(
@@ -100,6 +107,7 @@ class Autotune:
 
         Args:
             ref_freqs: A list of reference frequencies representing musical notes.
+
         """
         self.ref_freqs = ref_freqs
         self.note_dict = self.ref_freqs  # No interpolation needed
@@ -110,6 +118,7 @@ class Autotune:
 
         Args:
             f0: The input F0 contour as a NumPy array.
+
         """
         autotuned_f0 = np.zeros_like(f0)
         for i, freq in enumerate(f0):
@@ -131,6 +140,7 @@ class Pipeline:
         Args:
             tgt_sr: The target sampling rate for the output audio.
             config: A configuration object containing various parameters for the pipeline.
+
         """
         self.x_pad = config.x_pad
         self.x_query = config.x_query
@@ -234,6 +244,7 @@ class Pipeline:
             p_len: Desired length of the F0 output.
             hop_length: Hop length for the Crepe model.
             model: Crepe model size to use ("full" or "tiny").
+
         """
         x = x.astype(np.float32)
         x /= np.quantile(np.abs(x), 0.999)
@@ -283,10 +294,12 @@ class Pipeline:
             f0_max: Maximum F0 value to consider.
             p_len: Desired length of the F0 output.
             hop_length: Hop length for F0 estimation methods.
+
         """
         f0_computation_stack = []
         logger.info(
-                "Calculating f0 pitch estimations for methods: %s", methods,
+            "Calculating f0 pitch estimations for methods: %s",
+            methods,
         )
         # x = x.astype(np.float32)
         # x /= np.quantile(np.abs(x), 0.999)
@@ -294,11 +307,20 @@ class Pipeline:
             f0 = None
             if method == "crepe":
                 f0 = self.get_f0_crepe(
-                    x, f0_min, f0_max, p_len, int(hop_length)
+                    x,
+                    f0_min,
+                    f0_max,
+                    p_len,
+                    int(hop_length),
                 )
             elif method == "crepe-tiny":
                 f0 = self.get_f0_crepe(
-                    x, self.f0_min, self.f0_max, p_len, int(hop_length), "tiny",
+                    x,
+                    self.f0_min,
+                    self.f0_max,
+                    p_len,
+                    int(hop_length),
+                    "tiny",
                 )
             elif method == "rmvpe":
                 f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
@@ -352,6 +374,7 @@ class Pipeline:
             hop_length: Hop length for F0 estimation methods.
             f0_autotune: Whether to apply autotune to the F0 contour.
             inp_f0: Optional input F0 contour to use instead of estimating.
+
         """
         global input_audio_path2wav
         # input_audio_path2wav[input_audio_path] = x.astype(np.double)
@@ -371,10 +394,12 @@ class Pipeline:
         tf0 = self.sample_rate // self.window
         if inp_f0 is not None:
             delta_t = np.round(
-                (inp_f0[:, 0].max() - inp_f0[:, 0].min()) * tf0 + 1
+                (inp_f0[:, 0].max() - inp_f0[:, 0].min()) * tf0 + 1,
             ).astype("int16")
             replace_f0 = np.interp(
-                list(range(delta_t)), inp_f0[:, 0] * 100, inp_f0[:, 1]
+                list(range(delta_t)),
+                inp_f0[:, 0] * 100,
+                inp_f0[:, 1],
             )
             shape = f0[self.x_pad * tf0 : self.x_pad * tf0 + len(replace_f0)].shape[0]
             f0[self.x_pad * tf0 : self.x_pad * tf0 + len(replace_f0)] = replace_f0[
@@ -420,6 +445,7 @@ class Pipeline:
             index_rate: Blending rate for speaker embedding retrieval.
             version: Model version ("v1" or "v2").
             protect: Protection level for preserving the original pitch.
+
         """
         with torch.no_grad():
             pitch_guidance = pitch != None and pitchf != None
@@ -443,17 +469,24 @@ class Pipeline:
                 index
             ):  # set by parent function, only true if index is available, loaded, and index rate > 0
                 feats = self._retrieve_speaker_embeddings(
-                    feats, index, big_npy, index_rate
+                    feats,
+                    index,
+                    big_npy,
+                    index_rate,
                 )
             # feature upsampling
             feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(
-                0, 2, 1
+                0,
+                2,
+                1,
             )
             # adjust the length if the audio is short
             p_len = min(audio0.shape[0] // self.window, feats.shape[1])
             if pitch_guidance:
                 feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(
-                    0, 2, 1
+                    0,
+                    2,
+                    1,
                 )
                 pitch, pitchf = pitch[:, :p_len], pitchf[:, :p_len]
                 # Pitch protection blending
@@ -537,6 +570,7 @@ class Pipeline:
             hop_length: Hop length for F0 estimation methods.
             f0_autotune: Whether to apply autotune to the F0 contour.
             f0_file: Path to a file containing an F0 contour to use.
+
         """
         if file_index != "" and os.path.exists(file_index) and index_rate > 0:
             try:
@@ -560,8 +594,8 @@ class Pipeline:
                     - self.t_query
                     + np.where(
                         np.abs(audio_sum[t - self.t_query : t + self.t_query])
-                        == np.abs(audio_sum[t - self.t_query : t + self.t_query]).min()
-                    )[0][0]
+                        == np.abs(audio_sum[t - self.t_query : t + self.t_query]).min(),
+                    )[0][0],
                 )
         s = 0
         audio_opt = []
@@ -571,7 +605,7 @@ class Pipeline:
         inp_f0 = None
         if hasattr(f0_file, "name"):
             try:
-                with open(f0_file.name, "r") as f:
+                with open(f0_file.name) as f:
                     lines = f.read().strip("\n").split("\n")
                 inp_f0 = []
                 for line in lines:
@@ -615,7 +649,7 @@ class Pipeline:
                         index_rate,
                         version,
                         protect,
-                    )[self.t_pad_tgt : -self.t_pad_tgt]
+                    )[self.t_pad_tgt : -self.t_pad_tgt],
                 )
             else:
                 audio_opt.append(
@@ -631,7 +665,7 @@ class Pipeline:
                         index_rate,
                         version,
                         protect,
-                    )[self.t_pad_tgt : -self.t_pad_tgt]
+                    )[self.t_pad_tgt : -self.t_pad_tgt],
                 )
             s = t
         if pitch_guidance:
@@ -648,7 +682,7 @@ class Pipeline:
                     index_rate,
                     version,
                     protect,
-                )[self.t_pad_tgt : -self.t_pad_tgt]
+                )[self.t_pad_tgt : -self.t_pad_tgt],
             )
         else:
             audio_opt.append(
@@ -664,12 +698,16 @@ class Pipeline:
                     index_rate,
                     version,
                     protect,
-                )[self.t_pad_tgt : -self.t_pad_tgt]
+                )[self.t_pad_tgt : -self.t_pad_tgt],
             )
         audio_opt = np.concatenate(audio_opt)
         if volume_envelope != 1:
             audio_opt = AudioProcessor.change_rms(
-                audio, self.sample_rate, audio_opt, self.sample_rate, volume_envelope
+                audio,
+                self.sample_rate,
+                audio_opt,
+                self.sample_rate,
+                volume_envelope,
             )
         # if resample_sr >= self.sample_rate and tgt_sr != resample_sr:
         #    audio_opt = librosa.resample(

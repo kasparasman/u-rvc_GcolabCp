@@ -1,7 +1,10 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
+
 import requests
+
+from tqdm import tqdm
+
 from ultimate_rvc.common import RVC_MODELS_DIR
 
 url_base = "https://huggingface.co/IAHispano/Applio/resolve/main/Resources"
@@ -23,7 +26,7 @@ pretraineds_v1_list = [
             "f0G40k.pth",
             "f0G48k.pth",
         ],
-    )
+    ),
 ]
 pretraineds_v2_list = [
     (
@@ -42,7 +45,7 @@ pretraineds_v2_list = [
             "f0G40k.pth",
             "f0G48k.pth",
         ],
-    )
+    ),
 ]
 models_list = [("predictors/", ["rmvpe.pt", "fcpe.pt"])]
 embedders_list = [
@@ -94,7 +97,6 @@ def download_file(url, destination_path, global_bar):
     Download a file from the given URL to the specified destination path,
     updating the global progress bar as data is downloaded.
     """
-
     dir_name = os.path.dirname(destination_path)
     if dir_name:
         os.makedirs(dir_name, exist_ok=True)
@@ -121,8 +123,11 @@ def download_mapping_files(file_mapping_list, global_bar):
                     url = f"{url_base}/{remote_folder}{file}"
                     futures.append(
                         executor.submit(
-                            download_file, url, destination_path, global_bar
-                        )
+                            download_file,
+                            url,
+                            destination_path,
+                            global_bar,
+                        ),
                     )
         for future in futures:
             future.result()
@@ -142,10 +147,10 @@ def split_pretraineds(pretrained_list):
 
 
 pretraineds_v1_f0_list, pretraineds_v1_nof0_list = split_pretraineds(
-    pretraineds_v1_list
+    pretraineds_v1_list,
 )
 pretraineds_v2_f0_list, pretraineds_v2_nof0_list = split_pretraineds(
-    pretraineds_v2_list
+    pretraineds_v2_list,
 )
 
 
@@ -195,7 +200,10 @@ def prequisites_download_pipeline(
 
     if total_size > 0:
         with tqdm(
-            total=total_size, unit="iB", unit_scale=True, desc="Downloading all files"
+            total=total_size,
+            unit="iB",
+            unit_scale=True,
+            desc="Downloading all files",
         ) as global_bar:
             if models:
                 download_mapping_files(models_list, global_bar)

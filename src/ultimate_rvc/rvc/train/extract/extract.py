@@ -1,28 +1,33 @@
-import os
-import sys
+import concurrent.futures
 import glob
+import json
+import multiprocessing as mp
+import os
+import shutil
+import sys
 import time
+
+from distutils.util import strtobool
+
+import numpy as np
 import tqdm
+
 import torch
 import torchcrepe
-import numpy as np
-import concurrent.futures
-import multiprocessing as mp
-import json
-import shutil
-from distutils.util import strtobool
 
 now_dir = os.getcwd()
 sys.path.append(os.path.join(now_dir))
 
 # Zluda hijack
 import ultimate_rvc.rvc.lib.zluda
-
-from ultimate_rvc.rvc.lib.utils import load_audio, load_embedding
-from ultimate_rvc.rvc.train.extract.preparing_files import generate_config, generate_filelist
-from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
-from ultimate_rvc.rvc.configs.config import Config
 from ultimate_rvc.common import RVC_MODELS_DIR
+from ultimate_rvc.rvc.configs.config import Config
+from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
+from ultimate_rvc.rvc.lib.utils import load_audio, load_embedding
+from ultimate_rvc.rvc.train.extract.preparing_files import (
+    generate_config,
+    generate_filelist,
+)
 
 # Load config
 config = Config()
@@ -47,10 +52,9 @@ class FeatureInput:
         """Extract F0 using the specified method."""
         if f0_method == "crepe":
             return self.get_crepe(np_arr, hop_length)
-        elif f0_method == "rmvpe":
+        if f0_method == "rmvpe":
             return self.model_rmvpe.infer_from_audio(np_arr, thred=0.03)
-        else:
-            raise ValueError(f"Unknown F0 method: {f0_method}")
+        raise ValueError(f"Unknown F0 method: {f0_method}")
 
     def get_crepe(self, x, hop_length):
         """Extract F0 using CREPE."""
@@ -106,11 +110,18 @@ class FeatureInput:
             np.save(opt_path1, coarse_pit, allow_pickle=False)
         except Exception as error:
             print(
-                f"An error occurred extracting file {inp_path} on {self.device}: {error}"
+                f"An error occurred extracting file {inp_path} on {self.device}:"
+                f" {error}",
             )
 
     def process_files(
-        self, files, f0_method, hop_length, device_num, device, n_threads
+        self,
+        files,
+        f0_method,
+        hop_length,
+        device_num,
+        device,
+        n_threads,
     ):
         """Process multiple files."""
         self.device = device
@@ -131,7 +142,7 @@ class FeatureInput:
         with tqdm.tqdm(total=len(files), leave=True, position=device_num) as pbar:
             # using multi-threading
             with concurrent.futures.ThreadPoolExecutor(
-                max_workers=n_threads
+                max_workers=n_threads,
             ) as executor:
                 futures = [
                     executor.submit(process_file_wrapper, file_info)
@@ -144,7 +155,8 @@ class FeatureInput:
 def run_pitch_extraction(files, devices, f0_method, hop_length, num_processes):
     devices_str = ", ".join(devices)
     print(
-        f"Starting pitch extraction with {num_processes} cores on {devices_str} using {f0_method}..."
+        f"Starting pitch extraction with {num_processes} cores on {devices_str} using"
+        f" {f0_method}...",
     )
     start_time = time.time()
     fe = FeatureInput()
@@ -173,7 +185,13 @@ def run_pitch_extraction(files, devices, f0_method, hop_length, num_processes):
 
 
 def process_file_embedding(
-    files, version, embedder_model, embedder_model_custom, device_num, device, n_threads
+    files,
+    version,
+    embedder_model,
+    embedder_model_custom,
+    device_num,
+    device,
+    n_threads,
 ):
     dtype = torch.float16 if config.is_half and "cuda" in device else torch.float32
     model = load_embedding(embedder_model, embedder_model_custom).to(dtype).to(device)
@@ -208,12 +226,16 @@ def process_file_embedding(
 
 
 def run_embedding_extraction(
-    files, devices, version, embedder_model, embedder_model_custom
+    files,
+    devices,
+    version,
+    embedder_model,
+    embedder_model_custom,
 ):
     start_time = time.time()
     devices_str = ", ".join(devices)
     print(
-        f"Starting embedding extraction with {num_processes} cores on {devices_str}..."
+        f"Starting embedding extraction with {num_processes} cores on {devices_str}...",
     )
     # split the task between devices
     ps = []
@@ -264,14 +286,14 @@ if __name__ == "__main__":
 
     file_path = os.path.join(exp_dir, "model_info.json")
     if os.path.exists(file_path):
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
     else:
         data = {}
     data.update(
         {
             "embedder_model": chosen_embedder_model,
-        }
+        },
     )
     with open(file_path, "w") as f:
         json.dump(data, f, indent=4)
@@ -284,7 +306,9 @@ if __name__ == "__main__":
             os.path.join(exp_dir, "f0", file_name + ".npy"),
             os.path.join(exp_dir, "f0_voiced", file_name + ".npy"),
             os.path.join(
-                exp_dir, version + "_extracted", file_name.replace("wav", "npy")
+                exp_dir,
+                version + "_extracted",
+                file_name.replace("wav", "npy"),
             ),
         ]
         files.append(file_info)
@@ -295,7 +319,11 @@ if __name__ == "__main__":
 
     # Run Embedding Extraction
     run_embedding_extraction(
-        files, devices, version, embedder_model, embedder_model_custom
+        files,
+        devices,
+        version,
+        embedder_model,
+        embedder_model_custom,
     )
 
     # Run Preparing Files

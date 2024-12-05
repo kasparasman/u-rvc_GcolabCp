@@ -1,8 +1,9 @@
+import json
 import os
 import shutil
 from random import shuffle
+
 from ultimate_rvc.rvc.configs.config import Config
-import json
 
 config = Config()
 current_directory = os.getcwd()
@@ -16,7 +17,10 @@ def generate_config(rvc_version: str, sample_rate: int, model_path: str):
 
 
 def generate_filelist(
-    pitch_guidance: bool, model_path: str, rvc_version: str, sample_rate: int
+    pitch_guidance: bool,
+    model_path: str,
+    rvc_version: str,
+    sample_rate: int,
 ):
     gt_wavs_dir = os.path.join(model_path, "sliced_audios")
     feature_dir = os.path.join(model_path, f"{rvc_version}_extracted")
@@ -40,14 +44,18 @@ def generate_filelist(
         if sid not in sids:
             sids.append(sid)
         options.append(
-            f"{gt_wavs_dir}/{name}.wav|{feature_dir}/{name}.npy|{f0_dir}/{name}.wav.npy|{f0nsf_dir}/{name}.wav.npy|{sid}"
+            f"{gt_wavs_dir}/{name}.wav|{feature_dir}/{name}.npy|{f0_dir}/{name}.wav.npy|{f0nsf_dir}/{name}.wav.npy|{sid}",
         )
 
     mute_audio_path = os.path.join(
-        mute_base_path, "sliced_audios", f"mute{sample_rate}.wav"
+        mute_base_path,
+        "sliced_audios",
+        f"mute{sample_rate}.wav",
     )
     mute_feature_path = os.path.join(
-        mute_base_path, f"{rvc_version}_extracted", "mute.npy"
+        mute_base_path,
+        f"{rvc_version}_extracted",
+        "mute.npy",
     )
     mute_f0_path = os.path.join(mute_base_path, "f0", "mute.wav.npy")
     mute_f0nsf_path = os.path.join(mute_base_path, "f0_voiced", "mute.wav.npy")
@@ -55,22 +63,22 @@ def generate_filelist(
     # always adding two files
     for sid in sids:
         options.append(
-            f"{mute_audio_path}|{mute_feature_path}|{mute_f0_path}|{mute_f0nsf_path}|{sid}"
+            f"{mute_audio_path}|{mute_feature_path}|{mute_f0_path}|{mute_f0nsf_path}|{sid}",
         )
         options.append(
-            f"{mute_audio_path}|{mute_feature_path}|{mute_f0_path}|{mute_f0nsf_path}|{sid}"
+            f"{mute_audio_path}|{mute_feature_path}|{mute_f0_path}|{mute_f0nsf_path}|{sid}",
         )
 
     file_path = os.path.join(model_path, "model_info.json")
     if os.path.exists(file_path):
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
     else:
         data = {}
     data.update(
         {
             "speakers_id": len(sids),
-        }
+        },
     )
     with open(file_path, "w") as f:
         json.dump(data, f, indent=4)

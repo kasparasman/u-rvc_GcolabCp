@@ -1,7 +1,8 @@
-import numpy as np
 import matplotlib.pyplot as plt
-import librosa.display
+import numpy as np
+
 import librosa
+import librosa.display
 
 
 def calculate_features(y, sr):

@@ -1,22 +1,23 @@
 from typing import Union
 
-import torch.nn.functional as F
-import numpy as np
-import torch
-import torch.nn as nn
-from torch.nn.utils.parametrizations import weight_norm
-from torchaudio.transforms import Resample
-import os
-import librosa
-import soundfile as sf
-import torch.utils.data
-from librosa.filters import mel as librosa_mel_fn
 import math
+import os
 from functools import partial
 
+import numpy as np
+
+import torch
+import torch.nn.functional as F
+import torch.utils.data
 from einops import rearrange, repeat
 from local_attention import LocalAttention
 from torch import nn
+from torch.nn.utils.parametrizations import weight_norm
+from torchaudio.transforms import Resample
+
+import librosa
+import soundfile as sf
+from librosa.filters import mel as librosa_mel_fn
 
 os.environ["LRU_CACHE_CAPACITY"] = "3"
 
@@ -29,8 +30,7 @@ def load_wav_to_torch(full_path, target_sr=None, return_empty_on_exception=False
         print(f"An error occurred loading {full_path}: {error}")
         if return_empty_on_exception:
             return [], sample_rate or target_sr or 48000
-        else:
-            raise
+        raise
 
     data = data[:, 0] if len(data.shape) > 1 else data
     assert len(data) > 2
@@ -52,8 +52,10 @@ def load_wav_to_torch(full_path, target_sr=None, return_empty_on_exception=False
     if target_sr is not None and sample_rate != target_sr:
         data = torch.from_numpy(
             librosa.core.resample(
-                data.numpy(), orig_sr=sample_rate, target_sr=target_sr
-            )
+                data.numpy(),
+                orig_sr=sample_rate,
+                target_sr=target_sr,
+            ),
         )
         sample_rate = target_sr
 
@@ -121,7 +123,11 @@ class STFT:
         mel_basis_key = str(fmax) + "_" + str(y.device)
         if mel_basis_key not in mel_basis:
             mel = librosa_mel_fn(
-                sr=sample_rate, n_fft=n_fft, n_mels=n_mels, fmin=fmin, fmax=fmax
+                sr=sample_rate,
+                n_fft=n_fft,
+                n_mels=n_mels,
+                fmin=fmin,
+                fmax=fmax,
             )
             mel_basis[mel_basis_key] = torch.from_numpy(mel).float().to(y.device)
 
@@ -177,7 +183,13 @@ stft = STFT()
 
 
 def softmax_kernel(
-    data, *, projection_matrix, is_query, normalize_data=True, eps=1e-4, device=None
+    data,
+    *,
+    projection_matrix,
+    is_query,
+    normalize_data=True,
+    eps=1e-4,
+    device=None,
 ):
     b, h, *_ = data.shape
 
@@ -202,7 +214,7 @@ def softmax_kernel(
             torch.exp(
                 data_dash
                 - diag_data
-                - torch.max(data_dash, dim=-1, keepdim=True).values
+                - torch.max(data_dash, dim=-1, keepdim=True).values,
             )
             + eps
         )
@@ -274,7 +286,9 @@ class _EncoderLayer(nn.Module):
         self.norm = nn.LayerNorm(parent.dim_model)
         self.dropout = nn.Dropout(parent.residual_dropout)
         self.attn = SelfAttention(
-            dim=parent.dim_model, heads=parent.num_heads, causal=False
+            dim=parent.dim_model,
+            heads=parent.num_heads,
+            causal=False,
         )
 
     def forward(self, phone, mask=None):
@@ -326,7 +340,12 @@ class DepthWiseConv1d(nn.Module):
 
 class ConformerConvModule(nn.Module):
     def __init__(
-        self, dim, causal=False, expansion_factor=2, kernel_size=31, dropout=0.0
+        self,
+        dim,
+        causal=False,
+        expansion_factor=2,
+        kernel_size=31,
+        dropout=0.0,
     ):
         super().__init__()
 
@@ -339,7 +358,10 @@ class ConformerConvModule(nn.Module):
             nn.Conv1d(dim, inner_dim * 2, 1),
             GLU(dim=1),
             DepthWiseConv1d(
-                inner_dim, inner_dim, kernel_size=kernel_size, padding=padding
+                inner_dim,
+                inner_dim,
+                kernel_size=kernel_size,
+                padding=padding,
             ),
             Swish(),
             nn.Conv1d(inner_dim, dim, 1),
@@ -355,30 +377,37 @@ def linear_attention(q, k, v):
     if v is None:
         out = torch.einsum("...ed,...nd->...ne", k, q)
         return out
-    else:
-        k_cumsum = k.sum(dim=-2)
-        D_inv = 1.0 / (torch.einsum("...nd,...d->...n", q, k_cumsum.type_as(q)) + 1e-8)
-        context = torch.einsum("...nd,...ne->...de", k, v)
-        out = torch.einsum("...de,...nd,...n->...ne", context, q, D_inv)
-        return out
+    k_cumsum = k.sum(dim=-2)
+    D_inv = 1.0 / (torch.einsum("...nd,...d->...n", q, k_cumsum.type_as(q)) + 1e-8)
+    context = torch.einsum("...nd,...ne->...de", k, v)
+    out = torch.einsum("...de,...nd,...n->...ne", context, q, D_inv)
+    return out
 
 
 def gaussian_orthogonal_random_matrix(
-    nb_rows, nb_columns, scaling=0, qr_uniform_q=False, device=None
+    nb_rows,
+    nb_columns,
+    scaling=0,
+    qr_uniform_q=False,
+    device=None,
 ):
     nb_full_blocks = int(nb_rows / nb_columns)
     block_list = []
 
     for _ in range(nb_full_blocks):
         q = orthogonal_matrix_chunk(
-            nb_columns, qr_uniform_q=qr_uniform_q, device=device
+            nb_columns,
+            qr_uniform_q=qr_uniform_q,
+            device=device,
         )
         block_list.append(q)
 
     remaining_rows = nb_rows - nb_full_blocks * nb_columns
     if remaining_rows > 0:
         q = orthogonal_matrix_chunk(
-            nb_columns, qr_uniform_q=qr_uniform_q, device=device
+            nb_columns,
+            qr_uniform_q=qr_uniform_q,
+            device=device,
         )
         block_list.append(q[:remaining_rows])
 
@@ -387,8 +416,9 @@ def gaussian_orthogonal_random_matrix(
     if scaling == 0:
         multiplier = torch.randn((nb_rows, nb_columns), device=device).norm(dim=1)
     elif scaling == 1:
-        multiplier = math.sqrt((float(nb_columns))) * torch.ones(
-            (nb_rows,), device=device
+        multiplier = math.sqrt(float(nb_columns)) * torch.ones(
+            (nb_rows,),
+            device=device,
         )
     else:
         raise ValueError(f"Invalid scaling {scaling}")
@@ -444,7 +474,9 @@ class FastAttention(nn.Module):
             k = torch.exp(k) if self.causal else k.softmax(dim=-2)
         else:
             create_kernel = partial(
-                softmax_kernel, projection_matrix=self.projection_matrix, device=device
+                softmax_kernel,
+                projection_matrix=self.projection_matrix,
+                device=device,
             )
             q = create_kernel(q, is_query=True)
             k = create_kernel(k, is_query=False)
@@ -454,9 +486,8 @@ class FastAttention(nn.Module):
         if v is None:
             out = attn_fn(q, k, None)
             return out
-        else:
-            out = attn_fn(q, k, v)
-            return out
+        out = attn_fn(q, k, v)
+        return out
 
 
 class SelfAttention(nn.Module):
@@ -617,7 +648,7 @@ class FCPE(nn.Module):
                 self.f0_to_cent(torch.Tensor([f0_min]))[0],
                 self.f0_to_cent(torch.Tensor([f0_max]))[0],
                 out_dims,
-            )
+            ),
         )
         self.register_buffer("cent_table", self.cent_table_b)
 
@@ -647,7 +678,12 @@ class FCPE(nn.Module):
         self.dense_out = weight_norm(nn.Linear(n_chans, self.n_out))
 
     def forward(
-        self, mel, infer=True, gt_f0=None, return_hz_f0=False, cdecoder="local_argmax"
+        self,
+        mel,
+        infer=True,
+        gt_f0=None,
+        return_hz_f0=False,
+        cdecoder="local_argmax",
     ):
         if cdecoder == "argmax":
             self.cdecoder = self.cents_decoder
@@ -670,7 +706,8 @@ class FCPE(nn.Module):
             loss_all = self.loss_mse_scale * F.binary_cross_entropy(x, gt_cent_f0)
             if self.loss_l2_regularization:
                 loss_all = loss_all + l2_regularization(
-                    model=self, l2_alpha=self.loss_l2_regularization_scale
+                    model=self,
+                    l2_alpha=self.loss_l2_regularization_scale,
                 )
             x = loss_all
         if infer:
@@ -684,7 +721,9 @@ class FCPE(nn.Module):
         B, N, _ = y.size()
         ci = self.cent_table[None, None, :].expand(B, N, -1)
         rtn = torch.sum(ci * y, dim=-1, keepdim=True) / torch.sum(
-            y, dim=-1, keepdim=True
+            y,
+            dim=-1,
+            keepdim=True,
         )
         if mask:
             confident = torch.max(y, dim=-1, keepdim=True)[0]
@@ -702,7 +741,9 @@ class FCPE(nn.Module):
         ci_l = torch.gather(ci, -1, local_argmax_index)
         y_l = torch.gather(y, -1, local_argmax_index)
         rtn = torch.sum(ci_l * y_l, dim=-1, keepdim=True) / torch.sum(
-            y_l, dim=-1, keepdim=True
+            y_l,
+            dim=-1,
+            keepdim=True,
         )
         if mask:
             confident_mask = torch.ones_like(confident)
@@ -793,7 +834,9 @@ class Wav2Mel:
             key_str = str(sample_rate)
             if key_str not in self.resample_kernel:
                 self.resample_kernel[key_str] = Resample(
-                    sample_rate, self.sample_rate, lowpass_filter_width=128
+                    sample_rate,
+                    self.sample_rate,
+                    lowpass_filter_width=128,
                 )
             self.resample_kernel[key_str] = (
                 self.resample_kernel[key_str].to(self.dtype).to(self.device)
@@ -801,7 +844,9 @@ class Wav2Mel:
             audio_res = self.resample_kernel[key_str](audio)
 
         mel = self.extract_nvstft(
-            audio_res, keyshift=keyshift, train=train
+            audio_res,
+            keyshift=keyshift,
+            train=train,
         )  # B, n_frames, bins
         n_frames = int(audio.shape[1] // self.hop_size) + 1
         mel = (
@@ -823,7 +868,7 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 
-class F0Predictor(object):
+class F0Predictor:
     def compute_f0(self, wav, p_len):
         pass
 
@@ -855,7 +900,7 @@ class FCPEF0Predictor(F0Predictor):
 
     def repeat_expand(
         self,
-        content: Union[torch.Tensor, np.ndarray],
+        content: torch.Tensor | np.ndarray,
         target_len: int,
         mode: str = "nearest",
     ):

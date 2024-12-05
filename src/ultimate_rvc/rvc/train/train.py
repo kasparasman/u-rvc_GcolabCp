@@ -1,62 +1,62 @@
+import datetime
+import glob
+import json
 import os
 import re
 import sys
-import glob
-import json
-import torch
-import datetime
+from random import randint, shuffle
+from time import sleep
+from time import time as ttime
 
 from distutils.util import strtobool
-from random import randint, shuffle
-from time import time as ttime
-from time import sleep
+
 from tqdm import tqdm
 
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.tensorboard import SummaryWriter
-from torch.cuda.amp import GradScaler, autocast
-from torch.utils.data import DataLoader
-from torch.nn import functional as F
-
+import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from torch.cuda.amp import GradScaler, autocast
+from torch.nn import functional as F
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 now_dir = os.getcwd()
 sys.path.append(os.path.join(now_dir))
 
 # Zluda hijack
 import ultimate_rvc.rvc.lib.zluda
-
-from ultimate_rvc.rvc.train.utils import (
-    HParams,
-    plot_spectrogram_to_numpy,
-    summarize,
-    load_checkpoint,
-    save_checkpoint,
-    latest_checkpoint_path,
-    load_wav_to_torch,
+from ultimate_rvc.rvc.lib.algorithm import commons
+from ultimate_rvc.rvc.lib.algorithm.discriminators import (
+    MultiPeriodDiscriminator,
+    MultiPeriodDiscriminatorV2,
 )
-
+from ultimate_rvc.rvc.lib.algorithm.synthesizers import Synthesizer
 from ultimate_rvc.rvc.train.data_utils import (
     DistributedBucketSampler,
     TextAudioCollateMultiNSFsid,
     TextAudioLoaderMultiNSFsid,
 )
-
 from ultimate_rvc.rvc.train.losses import (
     discriminator_loss,
     feature_loss,
     generator_loss,
     kl_loss,
 )
-from ultimate_rvc.rvc.train.mel_processing import mel_spectrogram_torch, spec_to_mel_torch
-
+from ultimate_rvc.rvc.train.mel_processing import (
+    mel_spectrogram_torch,
+    spec_to_mel_torch,
+)
 from ultimate_rvc.rvc.train.process.extract_model import extract_model
-
-from ultimate_rvc.rvc.lib.algorithm import commons
-from ultimate_rvc.rvc.lib.algorithm.discriminators import MultiPeriodDiscriminator
-from ultimate_rvc.rvc.lib.algorithm.discriminators import MultiPeriodDiscriminatorV2
-from ultimate_rvc.rvc.lib.algorithm.synthesizers import Synthesizer
+from ultimate_rvc.rvc.train.utils import (
+    HParams,
+    latest_checkpoint_path,
+    load_checkpoint,
+    load_wav_to_torch,
+    plot_spectrogram_to_numpy,
+    save_checkpoint,
+    summarize,
+)
 
 # Parse command line arguments
 model_name = sys.argv[1]
@@ -81,7 +81,7 @@ experiment_dir = os.path.join(current_dir, "logs", model_name)
 config_save_path = os.path.join(experiment_dir, "config.json")
 dataset_path = os.path.join(experiment_dir, "sliced_audios")
 
-with open(config_save_path, "r") as f:
+with open(config_save_path) as f:
     config = json.load(f)
 config = HParams(**config)
 config.data.training_files = os.path.join(experiment_dir, "filelist.txt")
@@ -152,13 +152,14 @@ def main():
     os.environ["MASTER_PORT"] = str(randint(20000, 55555))
     # Check sample rate
     wavs = glob.glob(
-        os.path.join(os.path.join(experiment_dir, "sliced_audios"), "*.wav")
+        os.path.join(os.path.join(experiment_dir, "sliced_audios"), "*.wav"),
     )
     if wavs:
         _, sr = load_wav_to_torch(wavs[0])
         if sr != sample_rate:
             print(
-                f"Error: Pretrained model sample rate ({sample_rate} Hz) does not match dataset audio sample rate ({sr} Hz)."
+                f"Error: Pretrained model sample rate ({sample_rate} Hz) does not match"
+                f" dataset audio sample rate ({sr} Hz).",
             )
             os._exit(1)
     else:
@@ -181,7 +182,7 @@ def main():
         """
         children = []
         pid_data = {"process_pids": []}
-        with open(config_save_path, "r") as pid_file:
+        with open(config_save_path) as pid_file:
             try:
                 existing_data = json.load(pid_file)
                 pid_data.update(existing_data)
@@ -218,9 +219,10 @@ def main():
 
         Args:
             file_path (str): The path to the JSON file.
+
         """
         if os.path.exists(file_path):
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 data = json.load(f)
                 return (
                     data.get("loss_disc_history", []),
@@ -236,6 +238,7 @@ def main():
 
         Args:
             training_file_path (str): The file path of the JSON file containing the training history.
+
         """
         if overtraining_detector:
             if os.path.exists(training_file_path):
@@ -251,7 +254,8 @@ def main():
 
         # Clean up unnecessary files
         for root, dirs, files in os.walk(
-            os.path.join(now_dir, "logs", model_name), topdown=False
+            os.path.join(now_dir, "logs", model_name),
+            topdown=False,
         ):
             for name in files:
                 file_path = os.path.join(root, name)
@@ -304,6 +308,7 @@ def run(
         custom_save_every_weights (int): The interval (in epochs) at which to save model weights.
         config (object): Configuration object containing training parameters.
         device (torch.device): The device to use for training (CPU or GPU).
+
     """
     global global_step, smoothed_value_gen, smoothed_value_disc
 
@@ -386,10 +391,14 @@ def run(
     try:
         print("Starting training...")
         _, _, _, epoch_str = load_checkpoint(
-            latest_checkpoint_path(experiment_dir, "D_*.pth"), net_d, optim_d
+            latest_checkpoint_path(experiment_dir, "D_*.pth"),
+            net_d,
+            optim_d,
         )
         _, _, _, epoch_str = load_checkpoint(
-            latest_checkpoint_path(experiment_dir, "G_*.pth"), net_g, optim_g
+            latest_checkpoint_path(experiment_dir, "G_*.pth"),
+            net_g,
+            optim_g,
         )
         epoch_str += 1
         global_step = (epoch_str - 1) * len(train_loader)
@@ -403,11 +412,11 @@ def run(
                 print(f"Loaded pretrained (G) '{pretrainG}'")
             if hasattr(net_g, "module"):
                 net_g.module.load_state_dict(
-                    torch.load(pretrainG, map_location="cpu")["model"]
+                    torch.load(pretrainG, map_location="cpu")["model"],
                 )
             else:
                 net_g.load_state_dict(
-                    torch.load(pretrainG, map_location="cpu")["model"]
+                    torch.load(pretrainG, map_location="cpu")["model"],
                 )
 
         if pretrainD != "":
@@ -415,19 +424,23 @@ def run(
                 print(f"Loaded pretrained (D) '{pretrainD}'")
             if hasattr(net_d, "module"):
                 net_d.module.load_state_dict(
-                    torch.load(pretrainD, map_location="cpu")["model"]
+                    torch.load(pretrainD, map_location="cpu")["model"],
                 )
             else:
                 net_d.load_state_dict(
-                    torch.load(pretrainD, map_location="cpu")["model"]
+                    torch.load(pretrainD, map_location="cpu")["model"],
                 )
 
     # Initialize schedulers and scaler
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
-        optim_g, gamma=config.train.lr_decay, last_epoch=epoch_str - 2
+        optim_g,
+        gamma=config.train.lr_decay,
+        last_epoch=epoch_str - 2,
     )
     scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
-        optim_d, gamma=config.train.lr_decay, last_epoch=epoch_str - 2
+        optim_d,
+        gamma=config.train.lr_decay,
+        last_epoch=epoch_str - 2,
     )
 
     optim_g.step()
@@ -514,6 +527,7 @@ def train_and_evaluate(
         writers (list): List of TensorBoard writers [writer, writer_eval].
         cache (list): List to cache data in GPU memory.
         use_cpu (bool): Whether to use CPU for training.
+
     """
     global global_step, lowest_value, loss_disc, consecutive_increases_gen, consecutive_increases_disc, smoothed_value_gen, smoothed_value_disc
 
@@ -572,7 +586,7 @@ def train_and_evaluate(
                             wave_lengths.cuda(rank, non_blocking=True),
                             sid.cuda(rank, non_blocking=True),
                         ),
-                    )
+                    ),
                 )
         else:
             shuffle(cache)
@@ -662,7 +676,8 @@ def train_and_evaluate(
                 y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
                 with autocast(enabled=False):
                     loss_disc, losses_disc_r, losses_disc_g = discriminator_loss(
-                        y_d_hat_r, y_d_hat_g
+                        y_d_hat_r,
+                        y_d_hat_g,
                     )
             # Discriminator backward and update
             optim_d.zero_grad()
@@ -690,7 +705,8 @@ def train_and_evaluate(
                         # print(f'Lowest generator loss updated: {lowest_value["value"]} at epoch {epoch}, step {global_step}')
                         if epoch > lowest_value["epoch"]:
                             print(
-                                "Alert: The lower generating loss has been exceeded by a lower loss in a subsequent epoch."
+                                "Alert: The lower generating loss has been exceeded by"
+                                " a lower loss in a subsequent epoch.",
                             )
 
             optim_g.zero_grad()
@@ -706,10 +722,8 @@ def train_and_evaluate(
     # Logging and checkpointing
     if rank == 0:
         lr = optim_g.param_groups[0]["lr"]
-        if loss_mel > 75:
-            loss_mel = 75
-        if loss_kl > 9:
-            loss_kl = 9
+        loss_mel = min(loss_mel, 75)
+        loss_kl = min(loss_kl, 9)
         scalar_dict = {
             "loss/g/total": loss_gen_all,
             "loss/d/total": loss_disc,
@@ -773,8 +787,9 @@ def train_and_evaluate(
             if custom_save_every_weights:
                 model_add.append(
                     os.path.join(
-                        experiment_dir, f"{model_name}_{epoch}e_{global_step}s.pth"
-                    )
+                        experiment_dir,
+                        f"{model_name}_{epoch}e_{global_step}s.pth",
+                    ),
                 )
         overtrain_info = ""
         # Check overtraining
@@ -784,11 +799,13 @@ def train_and_evaluate(
             loss_disc_history.append(current_loss_disc)
             # Update smoothed loss history with loss_disc
             smoothed_value_disc = update_exponential_moving_average(
-                smoothed_loss_disc_history, current_loss_disc
+                smoothed_loss_disc_history,
+                current_loss_disc,
             )
             # Check overtraining with smoothed loss_disc
             is_overtraining_disc = check_overtraining(
-                smoothed_loss_disc_history, overtraining_threshold * 2
+                smoothed_loss_disc_history,
+                overtraining_threshold * 2,
             )
             if is_overtraining_disc:
                 consecutive_increases_disc += 1
@@ -799,17 +816,23 @@ def train_and_evaluate(
             loss_gen_history.append(current_loss_gen)
             # Update the smoothed loss_gen history
             smoothed_value_gen = update_exponential_moving_average(
-                smoothed_loss_gen_history, current_loss_gen
+                smoothed_loss_gen_history,
+                current_loss_gen,
             )
             # Check for overtraining with the smoothed loss_gen
             is_overtraining_gen = check_overtraining(
-                smoothed_loss_gen_history, overtraining_threshold, 0.01
+                smoothed_loss_gen_history,
+                overtraining_threshold,
+                0.01,
             )
             if is_overtraining_gen:
                 consecutive_increases_gen += 1
             else:
                 consecutive_increases_gen = 0
-            overtrain_info = f"Smoothed loss_g {smoothed_value_gen:.3f} and loss_d {smoothed_value_disc:.3f}"
+            overtrain_info = (
+                f"Smoothed loss_g {smoothed_value_gen:.3f} and loss_d"
+                f" {smoothed_value_disc:.3f}"
+            )
             # Save the data in the JSON file if the epoch is divisible by save_every_epoch
             if epoch % save_every_epoch == 0:
                 save_to_json(
@@ -823,19 +846,22 @@ def train_and_evaluate(
             if (
                 is_overtraining_gen
                 and consecutive_increases_gen == overtraining_threshold
-                or is_overtraining_disc
+            ) or (
+                is_overtraining_disc
                 and consecutive_increases_disc == overtraining_threshold * 2
             ):
                 print(
-                    f"Overtraining detected at epoch {epoch} with smoothed loss_g {smoothed_value_gen:.3f} and loss_d {smoothed_value_disc:.3f}"
+                    f"Overtraining detected at epoch {epoch} with smoothed loss_g"
+                    f" {smoothed_value_gen:.3f} and loss_d {smoothed_value_disc:.3f}",
                 )
                 done = True
             else:
                 print(
-                    f"New best epoch {epoch} with smoothed loss_g {smoothed_value_gen:.3f} and loss_d {smoothed_value_disc:.3f}"
+                    f"New best epoch {epoch} with smoothed loss_g"
+                    f" {smoothed_value_gen:.3f} and loss_d {smoothed_value_disc:.3f}",
                 )
                 old_model_files = glob.glob(
-                    os.path.join(experiment_dir, f"{model_name}_*e_*s_best_epoch.pth")
+                    os.path.join(experiment_dir, f"{model_name}_*e_*s_best_epoch.pth"),
                 )
                 for file in old_model_files:
                     model_del.append(file)
@@ -843,7 +869,7 @@ def train_and_evaluate(
                     os.path.join(
                         experiment_dir,
                         f"{model_name}_{epoch}e_{global_step}s_best_epoch.pth",
-                    )
+                    ),
                 )
 
         # Check completion
@@ -851,14 +877,16 @@ def train_and_evaluate(
             lowest_value_rounded = float(lowest_value["value"])
             lowest_value_rounded = round(lowest_value_rounded, 3)
             print(
-                f"Training has been successfully completed with {epoch} epoch, {global_step} steps and {round(loss_gen_all.item(), 3)} loss gen."
+                f"Training has been successfully completed with {epoch} epoch,"
+                f" {global_step} steps and {round(loss_gen_all.item(), 3)} loss gen.",
             )
             print(
-                f"Lowest generator loss: {lowest_value_rounded} at epoch {lowest_value['epoch']}, step {lowest_value['step']}"
+                f"Lowest generator loss: {lowest_value_rounded} at epoch"
+                f" {lowest_value['epoch']}, step {lowest_value['step']}",
             )
 
             pid_file_path = os.path.join(experiment_dir, "config.json")
-            with open(pid_file_path, "r") as pid_file:
+            with open(pid_file_path) as pid_file:
                 pid_data = json.load(pid_file)
             with open(pid_file_path, "w") as pid_file:
                 pid_data.pop("process_pids", None)
@@ -866,8 +894,9 @@ def train_and_evaluate(
             # Final model
             model_add.append(
                 os.path.join(
-                    experiment_dir, f"{model_name}_{epoch}e_{global_step}s.pth"
-                )
+                    experiment_dir,
+                    f"{model_name}_{epoch}e_{global_step}s.pth",
+                ),
             )
             done = True
 
@@ -900,11 +929,15 @@ def train_and_evaluate(
         lowest_value_rounded = float(lowest_value["value"])
         lowest_value_rounded = round(lowest_value_rounded, 3)
 
-        record = f"{model_name} | epoch={epoch} | step={global_step} | {epoch_recorder.record()}"
+        record = (
+            f"{model_name} | epoch={epoch} | step={global_step} |"
+            f" {epoch_recorder.record()}"
+        )
         if epoch > 1:
             record = (
                 record
-                + f" | lowest_value={lowest_value_rounded} (epoch {lowest_value['epoch']} and step {lowest_value['step']})"
+                + f" | lowest_value={lowest_value_rounded} (epoch"
+                f" {lowest_value['epoch']} and step {lowest_value['step']})"
             )
 
         if overtraining_detector:
@@ -914,7 +947,10 @@ def train_and_evaluate(
             )
             record = (
                 record
-                + f" | Number of epochs remaining for overtraining: g/total: {remaining_epochs_gen} d/total: {remaining_epochs_disc} | smoothed_loss_gen={smoothed_value_gen:.3f} | smoothed_loss_disc={smoothed_value_disc:.3f}"
+                + " | Number of epochs remaining for overtraining: g/total:"
+                f" {remaining_epochs_gen} d/total: {remaining_epochs_disc} |"
+                f" smoothed_loss_gen={smoothed_value_gen:.3f} |"
+                f" smoothed_loss_disc={smoothed_value_disc:.3f}"
             )
         print(record)
         last_loss_gen_all = loss_gen_all
@@ -931,6 +967,7 @@ def check_overtraining(smoothed_loss_history, threshold, epsilon=0.004):
         smoothed_loss_history (list): List of smoothed losses for each epoch.
         threshold (int): Number of consecutive epochs with insignificant changes or increases to consider overtraining.
         epsilon (float): The maximum change considered insignificant.
+
     """
     if len(smoothed_loss_history) < threshold + 1:
         return False
@@ -944,7 +981,9 @@ def check_overtraining(smoothed_loss_history, threshold, epsilon=0.004):
 
 
 def update_exponential_moving_average(
-    smoothed_loss_history, new_value, smoothing=0.987
+    smoothed_loss_history,
+    new_value,
+    smoothing=0.987,
 ):
     """
     Updates the exponential moving average with a new value.
@@ -953,6 +992,7 @@ def update_exponential_moving_average(
         smoothed_loss_history (list): List of smoothed values.
         new_value (float): New value to be added.
         smoothing (float): Smoothing factor.
+
     """
     if smoothed_loss_history:
         smoothed_value = (

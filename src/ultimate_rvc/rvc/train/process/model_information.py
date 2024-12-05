@@ -1,5 +1,6 @@
-import torch
 from datetime import datetime
+
+import torch
 
 
 def prettify_date(date_str):

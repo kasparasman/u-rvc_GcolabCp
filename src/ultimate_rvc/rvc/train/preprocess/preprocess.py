@@ -1,25 +1,28 @@
+import concurrent.futures
+import json
+import multiprocessing
 import os
 import sys
 import time
+
+from distutils.util import strtobool
+
+import numpy as np
 from scipy import signal
 from scipy.io import wavfile
-import numpy as np
-import concurrent.futures
 from tqdm import tqdm
-import json
-from distutils.util import strtobool
+
 import librosa
-import multiprocessing
 import noisereduce as nr
 
 now_directory = os.getcwd()
 sys.path.append(now_directory)
 
-from ultimate_rvc.rvc.lib.utils import load_audio
-from ultimate_rvc.rvc.train.preprocess.slicer import Slicer
-
 # Remove colab logs
 import logging
+
+from ultimate_rvc.rvc.lib.utils import load_audio
+from ultimate_rvc.rvc.train.preprocess.slicer import Slicer
 
 logging.getLogger("numba.core.byteflow").setLevel(logging.WARNING)
 logging.getLogger("numba.core.ssa").setLevel(logging.WARNING)
@@ -45,7 +48,10 @@ class PreProcess:
         )
         self.sr = sr
         self.b_high, self.a_high = signal.butter(
-            N=5, Wn=HIGH_PASS_CUTOFF, btype="high", fs=self.sr
+            N=5,
+            Wn=HIGH_PASS_CUTOFF,
+            btype="high",
+            fs=self.sr,
         )
         self.per = per
         self.exp_dir = exp_dir
@@ -77,7 +83,9 @@ class PreProcess:
             normalized_audio.astype(np.float32),
         )
         audio_16k = librosa.resample(
-            normalized_audio, orig_sr=self.sr, target_sr=SAMPLE_RATE_16K
+            normalized_audio,
+            orig_sr=self.sr,
+            target_sr=SAMPLE_RATE_16K,
         )
         wavfile.write(
             os.path.join(self.wavs16k_dir, f"{sid}_{idx0}_{idx1}.wav"),
@@ -104,7 +112,9 @@ class PreProcess:
                 audio = self._normalize_audio(audio)
             if noise_reduction:
                 audio = nr.reduce_noise(
-                    y=audio, sr=self.sr, prop_decrease=reduction_strength
+                    y=audio,
+                    sr=self.sr,
+                    prop_decrease=reduction_strength,
                 )
             idx1 = 0
             if cut_preprocess:
@@ -155,7 +165,7 @@ def format_duration(seconds):
 
 def save_dataset_duration(file_path, dataset_duration):
     try:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
     except FileNotFoundError:
         data = {}
@@ -214,14 +224,15 @@ def preprocess_training_set(
                     idx += 1
         except ValueError:
             print(
-                f'Speaker ID folder is expected to be integer, got "{os.path.basename(root)}" instead.'
+                "Speaker ID folder is expected to be integer, got"
+                f' "{os.path.basename(root)}" instead.',
             )
 
     # print(f"Number of files: {len(files)}")
     audio_length = []
     with tqdm(total=len(files)) as pbar:
         with concurrent.futures.ProcessPoolExecutor(
-            max_workers=num_processes
+            max_workers=num_processes,
         ) as executor:
             futures = [
                 executor.submit(
@@ -243,11 +254,13 @@ def preprocess_training_set(
 
     audio_length = sum(audio_length)
     save_dataset_duration(
-        os.path.join(exp_dir, "model_info.json"), dataset_duration=audio_length
+        os.path.join(exp_dir, "model_info.json"),
+        dataset_duration=audio_length,
     )
     elapsed_time = time.time() - start_time
     print(
-        f"Preprocess completed in {elapsed_time:.2f} seconds on {format_duration(audio_length)} seconds of audio."
+        f"Preprocess completed in {elapsed_time:.2f} seconds on"
+        f" {format_duration(audio_length)} seconds of audio.",
     )
 
 
