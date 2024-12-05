@@ -1,14 +1,16 @@
+from typing import Optional
+
 import torch
 from torch.nn.utils import remove_weight_norm
 from torch.nn.utils.parametrizations import weight_norm
-from typing import Optional
 
-from ultimate_rvc.rvc.lib.algorithm.residuals import LRELU_SLOPE, ResBlock1, ResBlock2
 from ultimate_rvc.rvc.lib.algorithm.commons import init_weights
+from ultimate_rvc.rvc.lib.algorithm.residuals import LRELU_SLOPE, ResBlock1, ResBlock2
 
 
 class Generator(torch.nn.Module):
-    """Generator for synthesizing audio. Optimized for performance and quality.
+    """
+    Generator for synthesizing audio. Optimized for performance and quality.
 
     Args:
         initial_channel (int): Number of channels in the initial convolutional layer.
@@ -19,6 +21,7 @@ class Generator(torch.nn.Module):
         upsample_initial_channel (int): Number of channels in the initial upsampling layer.
         upsample_kernel_sizes (list): Kernel sizes of the upsampling layers.
         gin_channels (int, optional): Number of channels for the global conditioning input. Defaults to 0.
+
     """
 
     def __init__(
@@ -36,14 +39,20 @@ class Generator(torch.nn.Module):
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
         self.conv_pre = torch.nn.Conv1d(
-            initial_channel, upsample_initial_channel, 7, 1, padding=3
+            initial_channel,
+            upsample_initial_channel,
+            7,
+            1,
+            padding=3,
         )
         resblock = ResBlock1 if resblock == "1" else ResBlock2
 
         self.ups = torch.nn.ModuleList()
         self.resblocks = torch.nn.ModuleList()
 
-        for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
+        for i, (u, k) in enumerate(
+            zip(upsample_rates, upsample_kernel_sizes, strict=False)
+        ):
             self.ups.append(
                 weight_norm(
                     torch.nn.ConvTranspose1d(
@@ -52,12 +61,12 @@ class Generator(torch.nn.Module):
                         k,
                         u,
                         padding=(k - u) // 2,
-                    )
-                )
+                    ),
+                ),
             )
             ch = upsample_initial_channel // (2 ** (i + 1))
             for j, (k, d) in enumerate(
-                zip(resblock_kernel_sizes, resblock_dilation_sizes)
+                zip(resblock_kernel_sizes, resblock_dilation_sizes, strict=False),
             ):
                 self.resblocks.append(resblock(ch, k, d))
 
@@ -67,7 +76,7 @@ class Generator(torch.nn.Module):
         if gin_channels != 0:
             self.cond = torch.nn.Conv1d(gin_channels, upsample_initial_channel, 1)
 
-    def forward(self, x: torch.Tensor, g: Optional[torch.Tensor] = None):
+    def forward(self, x: torch.Tensor, g: torch.Tensor | None = None):
         x = self.conv_pre(x)
         if g is not None:
             x = x + self.cond(g)
@@ -109,7 +118,8 @@ class Generator(torch.nn.Module):
 
 
 class SineGen(torch.nn.Module):
-    """Sine wave generator.
+    """
+    Sine wave generator.
 
     Args:
         samp_rate (int): Sampling rate in Hz.
@@ -118,6 +128,7 @@ class SineGen(torch.nn.Module):
         noise_std (float, optional): Standard deviation of Gaussian noise. Defaults to 0.003.
         voiced_threshold (float, optional): F0 threshold for voiced/unvoiced classification. Defaults to 0.
         flag_for_pulse (bool, optional): Whether this SineGen is used inside PulseGen. Defaults to False.
+
     """
 
     def __init__(
@@ -138,21 +149,25 @@ class SineGen(torch.nn.Module):
         self.voiced_threshold = voiced_threshold
 
     def _f02uv(self, f0):
-        """Converts F0 to voiced/unvoiced signal.
+        """
+        Converts F0 to voiced/unvoiced signal.
 
         Args:
             f0 (torch.Tensor): F0 tensor with shape (batch_size, length, 1)..
+
         """
         uv = torch.ones_like(f0)
         uv = uv * (f0 > self.voiced_threshold)
         return uv
 
     def forward(self, f0: torch.Tensor, upp: int):
-        """Generates sine waves.
+        """
+        Generates sine waves.
 
         Args:
             f0 (torch.Tensor): F0 tensor with shape (batch_size, length, 1).
             upp (int): Upsampling factor.
+
         """
         with torch.no_grad():
             f0 = f0[:, None].transpose(1, 2)
@@ -161,12 +176,16 @@ class SineGen(torch.nn.Module):
             f0_buf[:, :, 1:] = (
                 f0_buf[:, :, 0:1]
                 * torch.arange(2, self.harmonic_num + 2, device=f0.device)[
-                    None, None, :
+                    None,
+                    None,
+                    :,
                 ]
             )
             rad_values = (f0_buf / float(self.sample_rate)) % 1
             rand_ini = torch.rand(
-                f0_buf.shape[0], f0_buf.shape[2], device=f0_buf.device
+                f0_buf.shape[0],
+                f0_buf.shape[2],
+                device=f0_buf.device,
             )
             rand_ini[:, 0] = 0
             rad_values[:, 0, :] = rad_values[:, 0, :] + rand_ini
@@ -179,19 +198,23 @@ class SineGen(torch.nn.Module):
                 align_corners=True,
             ).transpose(2, 1)
             rad_values = torch.nn.functional.interpolate(
-                rad_values.transpose(2, 1), scale_factor=float(upp), mode="nearest"
+                rad_values.transpose(2, 1),
+                scale_factor=float(upp),
+                mode="nearest",
             ).transpose(2, 1)
             tmp_over_one %= 1
             tmp_over_one_idx = (tmp_over_one[:, 1:, :] - tmp_over_one[:, :-1, :]) < 0
             cumsum_shift = torch.zeros_like(rad_values)
             cumsum_shift[:, 1:, :] = tmp_over_one_idx * -1.0
             sine_waves = torch.sin(
-                torch.cumsum(rad_values + cumsum_shift, dim=1) * 2 * torch.pi
+                torch.cumsum(rad_values + cumsum_shift, dim=1) * 2 * torch.pi,
             )
             sine_waves = sine_waves * self.sine_amp
             uv = self._f02uv(f0)
             uv = torch.nn.functional.interpolate(
-                uv.transpose(2, 1), scale_factor=float(upp), mode="nearest"
+                uv.transpose(2, 1),
+                scale_factor=float(upp),
+                mode="nearest",
             ).transpose(2, 1)
             noise_amp = uv * self.noise_std + (1 - uv) * self.sine_amp / 3
             noise = noise_amp * torch.randn_like(sine_waves)

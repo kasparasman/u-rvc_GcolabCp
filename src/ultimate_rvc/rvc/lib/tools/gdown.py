@@ -1,16 +1,19 @@
+import json
 import os
 import re
-import six
-import sys
-import json
-import tqdm
-import time
 import shutil
-import warnings
+import sys
 import tempfile
 import textwrap
-import requests
+import time
+import warnings
+
+import six
 from six.moves import urllib_parse
+
+import requests
+
+import tqdm
 
 
 def indent(text, prefix):
@@ -29,7 +32,8 @@ class FolderContentsMaximumLimitError(Exception):
 
 
 def parse_url(url, warning=True):
-    """Parse URLs especially for Google Drive links.
+    """
+    Parse URLs especially for Google Drive links.
 
     Args:
         url: URL to parse.
@@ -39,6 +43,7 @@ def parse_url(url, warning=True):
         A tuple (file_id, is_download_link), where file_id is the ID of the
         file on Google Drive, and is_download_link is a flag indicating
         whether the URL is a download link.
+
     """
     parsed = urllib_parse.urlparse(url)
     query = urllib_parse.parse_qs(parsed.query)
@@ -69,7 +74,7 @@ def parse_url(url, warning=True):
         warnings.warn(
             "You specified a Google Drive link that is not the correct link "
             "to download a file. You might want to try `--fuzzy` option "
-            f"or the following url: https://drive.google.com/uc?id={file_id}"
+            f"or the following url: https://drive.google.com/uc?id={file_id}",
         )
 
     return file_id, is_download_link
@@ -114,7 +119,7 @@ def get_url_from_gdrive_confirmation(contents):
     raise FileURLRetrievalError(
         "Cannot retrieve the public link of the file. "
         "You may need to change the permission to "
-        "'Anyone with the link', or have had many accesses."
+        "'Anyone with the link', or have had many accesses.",
     )
 
 
@@ -122,7 +127,7 @@ def _get_session(proxy, use_cookies, return_cookies_file=False):
     """Create a requests session with optional proxy and cookie handling."""
     sess = requests.session()
     sess.headers.update(
-        {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6)"}
+        {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6)"},
     )
 
     if proxy is not None:
@@ -152,7 +157,8 @@ def download(
     resume=False,
     format=None,
 ):
-    """Download file from URL.
+    """
+    Download file from URL.
 
     Parameters
     ----------
@@ -189,6 +195,7 @@ def download(
     -------
     output: str
         Output filename.
+
     """
     if not (id is None) ^ (url is None):
         raise ValueError("Either url or id has to be specified")
@@ -198,7 +205,9 @@ def download(
     url_origin = url
 
     sess, cookies_file = _get_session(
-        proxy=proxy, use_cookies=use_cookies, return_cookies_file=True
+        proxy=proxy,
+        use_cookies=use_cookies,
+        return_cookies_file=True,
     )
 
     gdrive_file_id, is_gdrive_download_link = parse_url(url, warning=not fuzzy)
@@ -218,24 +227,32 @@ def download(
             continue
 
         if res.headers["Content-Type"].startswith("text/html"):
-            title = re.search("<title>(.+)</title>", res.text)
+            title = re.search(r"<title>(.+)</title>", res.text)
             if title:
                 title = title.group(1)
                 if title.endswith(" - Google Docs"):
-                    url = f"https://docs.google.com/document/d/{gdrive_file_id}/export?format={'docx' if format is None else format}"
+                    url = (
+                        f"https://docs.google.com/document/d/{gdrive_file_id}/export?format={'docx' if format is None else format}"
+                    )
                     continue
                 if title.endswith(" - Google Sheets"):
-                    url = f"https://docs.google.com/spreadsheets/d/{gdrive_file_id}/export?format={'xlsx' if format is None else format}"
+                    url = (
+                        f"https://docs.google.com/spreadsheets/d/{gdrive_file_id}/export?format={'xlsx' if format is None else format}"
+                    )
                     continue
                 if title.endswith(" - Google Slides"):
-                    url = f"https://docs.google.com/presentation/d/{gdrive_file_id}/export?format={'pptx' if format is None else format}"
+                    url = (
+                        f"https://docs.google.com/presentation/d/{gdrive_file_id}/export?format={'pptx' if format is None else format}"
+                    )
                     continue
         elif (
             "Content-Disposition" in res.headers
             and res.headers["Content-Disposition"].endswith("pptx")
             and format not in (None, "pptx")
         ):
-            url = f"https://docs.google.com/presentation/d/{gdrive_file_id}/export?format={'pptx' if format is None else format}"
+            url = (
+                f"https://docs.google.com/presentation/d/{gdrive_file_id}/export?format={'pptx' if format is None else format}"
+            )
             continue
 
         if use_cookies:
@@ -304,12 +321,14 @@ def download(
                     "Please remove them except one to resume downloading.",
                     file=sys.stderr,
                 )
-                return
+                return None
             tmp_file = existing_tmp_files[0]
         else:
             resume = False
             tmp_file = tempfile.mktemp(
-                suffix=tempfile.template, prefix=prefix, dir=temp_dir
+                suffix=tempfile.template,
+                prefix=prefix,
+                dir=temp_dir,
             )
         f = open(tmp_file, "ab")
     else:

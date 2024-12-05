@@ -1,6 +1,7 @@
-import torch
 import json
 import os
+
+import torch
 
 from ultimate_rvc.rvc.common import RVC_CONFIGS_DIR
 
@@ -43,7 +44,7 @@ class Config:
         configs = {}
         for config_file in version_config_paths:
             config_path = os.path.join(str(RVC_CONFIGS_DIR), config_file)
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 configs[config_file] = json.load(f)
         return configs
 
@@ -73,7 +74,7 @@ class Config:
         for config_path in version_config_paths:
             full_config_path = os.path.join(str(RVC_CONFIGS_DIR), config_path)
             try:
-                with open(full_config_path, "r") as f:
+                with open(full_config_path) as f:
                     config = json.load(f)
                 config["train"]["fp16_run"] = fp16_run_value
                 with open(full_config_path, "w") as f:
@@ -82,10 +83,11 @@ class Config:
                 print(f"File not found: {full_config_path}")
 
         if os.path.exists(preprocess_path):
-            with open(preprocess_path, "r") as f:
+            with open(preprocess_path) as f:
                 preprocess_content = f.read()
             preprocess_content = preprocess_content.replace(
-                "3.0" if precision == "fp16" else "3.7", preprocess_target_version
+                "3.0" if precision == "fp16" else "3.7",
+                preprocess_target_version,
             )
             with open(preprocess_path, "w") as f:
                 f.write(preprocess_content)
@@ -98,7 +100,7 @@ class Config:
 
         full_config_path = os.path.join(str(RVC_CONFIGS_DIR), version_config_paths[0])
         try:
-            with open(full_config_path, "r") as f:
+            with open(full_config_path) as f:
                 config = json.load(f)
             fp16_run_value = config["train"].get("fp16_run", False)
             precision = "fp16" if fp16_run_value else "fp32"
@@ -150,8 +152,7 @@ def max_vram_gpu(gpu):
         gpu_properties = torch.cuda.get_device_properties(gpu)
         total_memory_gb = round(gpu_properties.total_memory / 1024 / 1024 / 1024)
         return total_memory_gb
-    else:
-        return "8"
+    return "8"
 
 
 def get_gpu_info():
@@ -162,13 +163,16 @@ def get_gpu_info():
             gpu_name = torch.cuda.get_device_name(i)
             mem = int(
                 torch.cuda.get_device_properties(i).total_memory / 1024 / 1024 / 1024
-                + 0.4
+                + 0.4,
             )
             gpu_infos.append(f"{i}: {gpu_name} ({mem} GB)")
     if len(gpu_infos) > 0:
         gpu_info = "\n".join(gpu_infos)
     else:
-        gpu_info = "Unfortunately, there is no compatible GPU available to support your training."
+        gpu_info = (
+            "Unfortunately, there is no compatible GPU available to support your"
+            " training."
+        )
     return gpu_info
 
 
@@ -176,5 +180,4 @@ def get_number_of_gpus():
     if torch.cuda.is_available():
         num_gpus = torch.cuda.device_count()
         return "-".join(map(str, range(num_gpus)))
-    else:
-        return "-"
+    return "-"

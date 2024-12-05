@@ -1,18 +1,23 @@
 import dataclasses
+import os
 import pathlib
-import libf0
-import librosa
-import numpy as np
+
 import resampy
+
+import numpy as np
+
+import libf0
 import torch
 import torchcrepe
 import torchfcpe
-import os
+
+import librosa
+
+from ultimate_rvc.common import RVC_MODELS_DIR
+from ultimate_rvc.rvc.configs.config import Config
 
 # from tools.anyf0.rmvpe import RMVPE
 from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
-from ultimate_rvc.rvc.configs.config import Config
-from ultimate_rvc.common import RVC_MODELS_DIR
 
 config = Config()
 

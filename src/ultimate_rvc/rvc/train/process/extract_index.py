@@ -1,9 +1,12 @@
 import os
 import sys
-import faiss
-import numpy as np
-from sklearn.cluster import MiniBatchKMeans
 from multiprocessing import cpu_count
+
+from sklearn.cluster import MiniBatchKMeans
+
+import numpy as np
+
+import faiss
 
 # Parse command line arguments
 exp_dir = str(sys.argv[1])
@@ -70,7 +73,8 @@ try:
 
         # index_added
         index_added = faiss.index_factory(
-            256 if version == "v1" else 768, f"IVF{n_ivf},Flat"
+            256 if version == "v1" else 768,
+            f"IVF{n_ivf},Flat",
         )
         index_ivf_added = faiss.extract_index_ivf(index_added)
         index_ivf_added.nprobe = 1
@@ -86,5 +90,6 @@ try:
 except Exception as error:
     print(f"An error occurred extracting the index: {error}")
     print(
-        "If you are running this code in a virtual environment, make sure you have enough GPU available to generate the Index file."
+        "If you are running this code in a virtual environment, make sure you have"
+        " enough GPU available to generate the Index file.",
     )

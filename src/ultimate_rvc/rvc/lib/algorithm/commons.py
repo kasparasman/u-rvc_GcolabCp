@@ -1,6 +1,8 @@
-import math
-import torch
 from typing import List, Optional
+
+import math
+
+import torch
 
 
 def init_weights(m, mean=0.0, std=0.01):
@@ -11,6 +13,7 @@ def init_weights(m, mean=0.0, std=0.01):
         m: The module to initialize.
         mean: The mean of the normal distribution.
         std: The standard deviation of the normal distribution.
+
     """
     classname = m.__class__.__name__
     if classname.find("Conv") != -1:
@@ -24,6 +27,7 @@ def get_padding(kernel_size, dilation=1):
     Args:
         kernel_size: The size of the kernel.
         dilation: The dilation of the convolution.
+
     """
     return int((kernel_size * dilation - dilation) / 2)
 
@@ -34,6 +38,7 @@ def convert_pad_shape(pad_shape):
 
     Args:
         pad_shape: The pad shape..
+
     """
     l = pad_shape[::-1]
     pad_shape = [item for sublist in l for item in sublist]
@@ -49,6 +54,7 @@ def kl_divergence(m_p, logs_p, m_q, logs_q):
         logs_p: The log of the standard deviation of the first distribution.
         m_q: The mean of the second distribution.
         logs_q: The log of the standard deviation of the second distribution.
+
     """
     kl = (logs_q - logs_p) - 0.5
     kl += (
@@ -58,7 +64,10 @@ def kl_divergence(m_p, logs_p, m_q, logs_q):
 
 
 def slice_segments(
-    x: torch.Tensor, ids_str: torch.Tensor, segment_size: int = 4, dim: int = 2
+    x: torch.Tensor,
+    ids_str: torch.Tensor,
+    segment_size: int = 4,
+    dim: int = 2,
 ):
     """
     Slice segments from a tensor, handling tensors with different numbers of dimensions.
@@ -68,6 +77,7 @@ def slice_segments(
         ids_str (torch.Tensor): The starting indices of the segments.
         segment_size (int, optional): The size of each segment. Defaults to 4.
         dim (int, optional): The dimension to slice across (2D or 3D tensors). Defaults to 2.
+
     """
     if dim == 2:
         ret = torch.zeros_like(x[:, :segment_size])
@@ -93,6 +103,7 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
         x: The tensor to slice.
         x_lengths: The lengths of the sequences.
         segment_size: The size of each segment.
+
     """
     b, d, t = x.size()
     if x_lengths is None:
@@ -112,6 +123,7 @@ def get_timing_signal_1d(length, channels, min_timescale=1.0, max_timescale=1.0e
         channels: The number of channels of the signal.
         min_timescale: The minimum timescale.
         max_timescale: The maximum timescale.
+
     """
     position = torch.arange(length, dtype=torch.float)
     num_timescales = channels // 2
@@ -119,7 +131,7 @@ def get_timing_signal_1d(length, channels, min_timescale=1.0, max_timescale=1.0e
         num_timescales - 1
     )
     inv_timescales = min_timescale * torch.exp(
-        torch.arange(num_timescales, dtype=torch.float) * -log_timescale_increment
+        torch.arange(num_timescales, dtype=torch.float) * -log_timescale_increment,
     )
     scaled_time = position.unsqueeze(0) * inv_timescales.unsqueeze(1)
     signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], 0)
@@ -134,6 +146,7 @@ def subsequent_mask(length):
 
     Args:
         length: The length of the sequence.
+
     """
     mask = torch.tril(torch.ones(length, length)).unsqueeze(0).unsqueeze(0)
     return mask
@@ -148,6 +161,7 @@ def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
         input_a: The first input tensor.
         input_b: The second input tensor.
         n_channels: The number of channels.
+
     """
     n_channels_int = n_channels[0]
     in_act = input_a + input_b
@@ -157,23 +171,25 @@ def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
     return acts
 
 
-def convert_pad_shape(pad_shape: List[List[int]]) -> List[int]:
+def convert_pad_shape(pad_shape: list[list[int]]) -> list[int]:
     """
     Convert the pad shape to a list of integers.
 
     Args:
         pad_shape: The pad shape.
+
     """
     return torch.tensor(pad_shape).flip(0).reshape(-1).int().tolist()
 
 
-def sequence_mask(length: torch.Tensor, max_length: Optional[int] = None):
+def sequence_mask(length: torch.Tensor, max_length: int | None = None):
     """
     Generate a sequence mask.
 
     Args:
         length: The lengths of the sequences.
         max_length: The maximum length of the sequences.
+
     """
     if max_length is None:
         max_length = length.max()
@@ -189,6 +205,7 @@ def clip_grad_value(parameters, clip_value, norm_type=2):
         parameters: The list of parameters to clip.
         clip_value: The maximum value of the gradients.
         norm_type: The type of norm to use for clipping.
+
     """
     if isinstance(parameters, torch.Tensor):
         parameters = [parameters]

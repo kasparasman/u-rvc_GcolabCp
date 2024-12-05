@@ -1,11 +1,12 @@
-import torch
 from typing import Optional
 
-from ultimate_rvc.rvc.lib.algorithm.nsf import GeneratorNSF
+import torch
+
+from ultimate_rvc.rvc.lib.algorithm.commons import rand_slice_segments, slice_segments
+from ultimate_rvc.rvc.lib.algorithm.encoders import PosteriorEncoder, TextEncoder
 from ultimate_rvc.rvc.lib.algorithm.generators import Generator
-from ultimate_rvc.rvc.lib.algorithm.commons import slice_segments, rand_slice_segments
+from ultimate_rvc.rvc.lib.algorithm.nsf import GeneratorNSF
 from ultimate_rvc.rvc.lib.algorithm.residuals import ResidualCouplingBlock
-from ultimate_rvc.rvc.lib.algorithm.encoders import TextEncoder, PosteriorEncoder
 
 
 class Synthesizer(torch.nn.Module):
@@ -34,6 +35,7 @@ class Synthesizer(torch.nn.Module):
         use_f0 (bool): Whether to use F0 information.
         text_enc_hidden_dim (int): Hidden dimension for the text encoder.
         kwargs: Additional keyword arguments.
+
     """
 
     def __init__(
@@ -58,7 +60,7 @@ class Synthesizer(torch.nn.Module):
         sr,
         use_f0,
         text_enc_hidden_dim=768,
-        **kwargs
+        **kwargs,
     ):
         super(Synthesizer, self).__init__()
         self.spec_channels = spec_channels
@@ -127,7 +129,12 @@ class Synthesizer(torch.nn.Module):
             gin_channels=gin_channels,
         )
         self.flow = ResidualCouplingBlock(
-            inter_channels, hidden_channels, 5, 1, 3, gin_channels=gin_channels
+            inter_channels,
+            hidden_channels,
+            5,
+            1,
+            3,
+            gin_channels=gin_channels,
         )
         self.emb_g = torch.nn.Embedding(self.spk_embed_dim, gin_channels)
 
@@ -164,11 +171,11 @@ class Synthesizer(torch.nn.Module):
         self,
         phone: torch.Tensor,
         phone_lengths: torch.Tensor,
-        pitch: Optional[torch.Tensor] = None,
-        pitchf: Optional[torch.Tensor] = None,
+        pitch: torch.Tensor | None = None,
+        pitchf: torch.Tensor | None = None,
         y: torch.Tensor = None,
         y_lengths: torch.Tensor = None,
-        ds: Optional[torch.Tensor] = None,
+        ds: torch.Tensor | None = None,
     ):
         """
         Forward pass of the model.
@@ -181,6 +188,7 @@ class Synthesizer(torch.nn.Module):
             y (torch.Tensor, optional): Target spectrogram.
             y_lengths (torch.Tensor, optional): Lengths of the target spectrograms.
             ds (torch.Tensor, optional): Speaker embedding. Defaults to None.
+
         """
         g = self.emb_g(ds).unsqueeze(-1)
         m_p, logs_p, x_mask = self.enc_p(phone, pitch, phone_lengths)
@@ -194,18 +202,17 @@ class Synthesizer(torch.nn.Module):
             else:
                 o = self.dec(z_slice, g=g)
             return o, ids_slice, x_mask, y_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
-        else:
-            return None, None, x_mask, None, (None, None, m_p, logs_p, None, None)
+        return None, None, x_mask, None, (None, None, m_p, logs_p, None, None)
 
     @torch.jit.export
     def infer(
         self,
         phone: torch.Tensor,
         phone_lengths: torch.Tensor,
-        pitch: Optional[torch.Tensor] = None,
-        nsff0: Optional[torch.Tensor] = None,
+        pitch: torch.Tensor | None = None,
+        nsff0: torch.Tensor | None = None,
         sid: torch.Tensor = None,
-        rate: Optional[torch.Tensor] = None,
+        rate: torch.Tensor | None = None,
     ):
         """
         Inference of the model.
@@ -217,6 +224,7 @@ class Synthesizer(torch.nn.Module):
             nsff0 (torch.Tensor, optional): Fine-grained pitch sequence.
             sid (torch.Tensor): Speaker embedding.
             rate (torch.Tensor, optional): Rate for time-stretching. Defaults to None.
+
         """
         g = self.emb_g(sid).unsqueeze(-1)
         m_p, logs_p, x_mask = self.enc_p(phone, pitch, phone_lengths)

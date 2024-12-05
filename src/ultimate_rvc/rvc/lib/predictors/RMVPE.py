@@ -1,10 +1,12 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from typing import List
+
 import numpy as np
 
+import torch
+import torch.nn.functional as F
+from torch import nn
+
 from librosa.filters import mel
-from typing import List
 
 # Constants for readability
 N_MELS = 128
@@ -20,6 +22,7 @@ class ConvBlockRes(nn.Module):
         in_channels (int): Number of input channels.
         out_channels (int): Number of output channels.
         momentum (float): Momentum for batch normalization.
+
     """
 
     def __init__(self, in_channels, out_channels, momentum=0.01):
@@ -55,8 +58,7 @@ class ConvBlockRes(nn.Module):
     def forward(self, x):
         if self.is_shortcut:
             return self.conv(x) + self.shortcut(x)
-        else:
-            return self.conv(x) + x
+        return self.conv(x) + x
 
 
 # Define a class for residual encoder blocks
@@ -70,10 +72,16 @@ class ResEncoderBlock(nn.Module):
         kernel_size (tuple): Size of the average pooling kernel.
         n_blocks (int): Number of convolutional blocks in the block.
         momentum (float): Momentum for batch normalization.
+
     """
 
     def __init__(
-        self, in_channels, out_channels, kernel_size, n_blocks=1, momentum=0.01
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        n_blocks=1,
+        momentum=0.01,
     ):
         super(ResEncoderBlock, self).__init__()
         self.n_blocks = n_blocks
@@ -90,8 +98,7 @@ class ResEncoderBlock(nn.Module):
             x = self.conv[i](x)
         if self.kernel_size is not None:
             return x, self.pool(x)
-        else:
-            return x
+        return x
 
 
 # Define a class for the encoder
@@ -107,6 +114,7 @@ class Encoder(nn.Module):
         n_blocks (int): Number of convolutional blocks in each encoder block.
         out_channels (int): Number of output channels for the first encoder block.
         momentum (float): Momentum for batch normalization.
+
     """
 
     def __init__(
@@ -127,8 +135,12 @@ class Encoder(nn.Module):
         for i in range(self.n_encoders):
             self.layers.append(
                 ResEncoderBlock(
-                    in_channels, out_channels, kernel_size, n_blocks, momentum=momentum
-                )
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    n_blocks,
+                    momentum=momentum,
+                ),
             )
             self.latent_channels.append([out_channels, in_size])
             in_channels = out_channels
@@ -138,7 +150,7 @@ class Encoder(nn.Module):
         self.out_channel = out_channels
 
     def forward(self, x: torch.Tensor):
-        concat_tensors: List[torch.Tensor] = []
+        concat_tensors: list[torch.Tensor] = []
         x = self.bn(x)
         for i in range(self.n_encoders):
             t, x = self.layers[i](x)
@@ -157,6 +169,7 @@ class Intermediate(nn.Module):
         n_inters (int): Number of convolutional blocks in the intermediate layer.
         n_blocks (int): Number of convolutional blocks in each intermediate block.
         momentum (float): Momentum for batch normalization.
+
     """
 
     def __init__(self, in_channels, out_channels, n_inters, n_blocks, momentum=0.01):
@@ -164,11 +177,11 @@ class Intermediate(nn.Module):
         self.n_inters = n_inters
         self.layers = nn.ModuleList()
         self.layers.append(
-            ResEncoderBlock(in_channels, out_channels, None, n_blocks, momentum)
+            ResEncoderBlock(in_channels, out_channels, None, n_blocks, momentum),
         )
         for _ in range(self.n_inters - 1):
             self.layers.append(
-                ResEncoderBlock(out_channels, out_channels, None, n_blocks, momentum)
+                ResEncoderBlock(out_channels, out_channels, None, n_blocks, momentum),
             )
 
     def forward(self, x):
@@ -188,6 +201,7 @@ class ResDecoderBlock(nn.Module):
         stride (tuple): Stride for transposed convolution.
         n_blocks (int): Number of convolutional blocks in the block.
         momentum (float): Momentum for batch normalization.
+
     """
 
     def __init__(self, in_channels, out_channels, stride, n_blocks=1, momentum=0.01):
@@ -231,6 +245,7 @@ class Decoder(nn.Module):
         stride (tuple): Stride for transposed convolution.
         n_blocks (int): Number of convolutional blocks in each decoder block.
         momentum (float): Momentum for batch normalization.
+
     """
 
     def __init__(self, in_channels, n_decoders, stride, n_blocks, momentum=0.01):
@@ -240,7 +255,7 @@ class Decoder(nn.Module):
         for _ in range(self.n_decoders):
             out_channels = in_channels // 2
             self.layers.append(
-                ResDecoderBlock(in_channels, out_channels, stride, n_blocks, momentum)
+                ResDecoderBlock(in_channels, out_channels, stride, n_blocks, momentum),
             )
             in_channels = out_channels
 
@@ -262,6 +277,7 @@ class DeepUnet(nn.Module):
         inter_layers (int): Number of convolutional blocks in the intermediate layer.
         in_channels (int): Number of input channels.
         en_out_channels (int): Number of output channels for the first encoder block.
+
     """
 
     def __init__(
@@ -275,7 +291,12 @@ class DeepUnet(nn.Module):
     ):
         super(DeepUnet, self).__init__()
         self.encoder = Encoder(
-            in_channels, 128, en_de_layers, kernel_size, n_blocks, en_out_channels
+            in_channels,
+            128,
+            en_de_layers,
+            kernel_size,
+            n_blocks,
+            en_out_channels,
         )
         self.intermediate = Intermediate(
             self.encoder.out_channel // 2,
@@ -284,7 +305,10 @@ class DeepUnet(nn.Module):
             n_blocks,
         )
         self.decoder = Decoder(
-            self.encoder.out_channel, en_de_layers, kernel_size, n_blocks
+            self.encoder.out_channel,
+            en_de_layers,
+            kernel_size,
+            n_blocks,
         )
 
     def forward(self, x):
@@ -307,6 +331,7 @@ class E2E(nn.Module):
         inter_layers (int): Number of convolutional blocks in the intermediate layer.
         in_channels (int): Number of input channels.
         en_out_channels (int): Number of output channels for the first encoder block.
+
     """
 
     def __init__(
@@ -338,7 +363,9 @@ class E2E(nn.Module):
             )
         else:
             self.fc = nn.Sequential(
-                nn.Linear(3 * N_MELS, N_CLASS), nn.Dropout(0.25), nn.Sigmoid()
+                nn.Linear(3 * N_MELS, N_CLASS),
+                nn.Dropout(0.25),
+                nn.Sigmoid(),
             )
 
     def forward(self, mel):
@@ -363,6 +390,7 @@ class MelSpectrogram(torch.nn.Module):
         mel_fmin (int, optional): Minimum frequency for the Mel filter bank. Defaults to 0.
         mel_fmax (int, optional): Maximum frequency for the Mel filter bank. Defaults to None.
         clamp (float, optional): Minimum value for clamping the Mel-spectrogram. Defaults to 1e-5.
+
     """
 
     def __init__(
@@ -406,7 +434,7 @@ class MelSpectrogram(torch.nn.Module):
         keyshift_key = str(keyshift) + "_" + str(audio.device)
         if keyshift_key not in self.hann_window:
             self.hann_window[keyshift_key] = torch.hann_window(win_length_new).to(
-                audio.device
+                audio.device,
             )
         fft = torch.stft(
             audio,
@@ -441,6 +469,7 @@ class RMVPE0Predictor:
         model_path (str): Path to the RMVPE0 model file.
         is_half (bool): Whether to use half-precision floating-point numbers.
         device (str, optional): Device to use for computation. Defaults to None, which uses CUDA if available.
+
     """
 
     def __init__(self, model_path, is_half, device=None):
@@ -456,7 +485,14 @@ class RMVPE0Predictor:
         self.is_half = is_half
         self.device = device
         self.mel_extractor = MelSpectrogram(
-            is_half, N_MELS, 16000, 1024, 160, None, 30, 8000
+            is_half,
+            N_MELS,
+            16000,
+            1024,
+            160,
+            None,
+            30,
+            8000,
         ).to(device)
         self.model = self.model.to(device)
         cents_mapping = 20 * np.arange(N_CLASS) + 1997.3794084376191
@@ -468,11 +504,14 @@ class RMVPE0Predictor:
 
         Args:
             mel (torch.Tensor): Mel-spectrogram features.
+
         """
         with torch.no_grad():
             n_frames = mel.shape[-1]
             mel = F.pad(
-                mel, (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames), mode="reflect"
+                mel,
+                (0, 32 * ((n_frames - 1) // 32 + 1) - n_frames),
+                mode="reflect",
             )
             hidden = self.model(mel)
             return hidden[:, :n_frames]
@@ -484,6 +523,7 @@ class RMVPE0Predictor:
         Args:
             hidden (np.ndarray): Hidden representation.
             thred (float, optional): Threshold for salience. Defaults to 0.03.
+
         """
         cents_pred = self.to_local_average_cents(hidden, thred=thred)
         f0 = 10 * (2 ** (cents_pred / 1200))
@@ -497,6 +537,7 @@ class RMVPE0Predictor:
         Args:
             audio (np.ndarray): Audio signal.
             thred (float, optional): Threshold for salience. Defaults to 0.03.
+
         """
         audio = torch.from_numpy(audio).float().to(self.device).unsqueeze(0)
         mel = self.mel_extractor(audio, center=True)
@@ -514,6 +555,7 @@ class RMVPE0Predictor:
         Args:
             salience (np.ndarray): Salience values.
             thred (float, optional): Threshold for salience. Defaults to 0.05.
+
         """
         center = np.argmax(salience, axis=1)
         salience = np.pad(salience, ((0, 0), (4, 4)))
@@ -544,6 +586,7 @@ class BiGRU(nn.Module):
         input_features (int): Number of input features.
         hidden_features (int): Number of hidden features.
         num_layers (int): Number of GRU layers.
+
     """
 
     def __init__(self, input_features, hidden_features, num_layers):

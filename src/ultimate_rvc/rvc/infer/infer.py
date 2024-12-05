@@ -1,41 +1,46 @@
 from typing import Unpack
+
+import logging
 import os
 import sys
 import time
-import torch
-import librosa
-import logging
 import traceback
+
 import numpy as np
+
+import torch
+
+import librosa
 import soundfile as sf
 from pedalboard import (
-    Pedalboard,
-    Chorus,
-    Distortion,
-    Reverb,
-    PitchShift,
-    Limiter,
-    Gain,
     Bitcrush,
+    Chorus,
     Clipping,
     Compressor,
     Delay,
+    Distortion,
+    Gain,
+    Limiter,
+    Pedalboard,
+    PitchShift,
+    Reverb,
 )
 
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
-from ultimate_rvc.rvc.infer.pipeline import Pipeline as VC
-from ultimate_rvc.rvc.lib.utils import load_audio_infer, load_embedding
-from ultimate_rvc.rvc.lib.tools.split_audio import process_audio, merge_audio
-from ultimate_rvc.rvc.lib.algorithm.synthesizers import Synthesizer
 from ultimate_rvc.rvc.configs.config import Config
+from ultimate_rvc.rvc.infer.pipeline import Pipeline as VC
 from ultimate_rvc.rvc.infer.typing_extra import ConvertAudioKwArgs
+from ultimate_rvc.rvc.lib.algorithm.synthesizers import Synthesizer
+from ultimate_rvc.rvc.lib.tools.split_audio import merge_audio, process_audio
+from ultimate_rvc.rvc.lib.utils import load_audio_infer, load_embedding
 from ultimate_rvc.typing_extra import F0Method
-#logging.getLogger("httpx").setLevel(logging.WARNING)
-#logging.getLogger("httpcore").setLevel(logging.WARNING)
-#logging.getLogger("faiss").setLevel(logging.WARNING)
-#logging.getLogger("faiss.loader").setLevel(logging.WARNING)
+
+# logging.getLogger("httpx").setLevel(logging.WARNING)
+# logging.getLogger("httpcore").setLevel(logging.WARNING)
+# logging.getLogger("faiss").setLevel(logging.WARNING)
+# logging.getLogger("faiss.loader").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +74,7 @@ class VoiceConverter:
         Args:
             embedder_model (str): Path to the pre-trained HuBERT model.
             embedder_model_custom (str): Path to the custom HuBERT model.
+
         """
         self.hubert_model = load_embedding(embedder_model, embedder_model_custom)
         self.hubert_model.to(self.config.device)
@@ -88,12 +94,16 @@ class VoiceConverter:
             data (numpy.ndarray): The audio data as a NumPy array.
             sr (int): The sample rate of the audio data.
             reduction_strength (float): Strength of the noise reduction. Default is 0.7.
+
         """
         try:
             # NOTE lazy import to shave off 0.5 sec from startup time
             import noisereduce as nr
+
             reduced_noise = nr.reduce_noise(
-                y=data, sr=sr, prop_decrease=reduction_strength
+                y=data,
+                sr=sr,
+                prop_decrease=reduction_strength,
             )
             return reduced_noise
         except Exception as error:
@@ -109,6 +119,7 @@ class VoiceConverter:
             input_path (str): Path to the input audio file.
             output_path (str): Path to the output audio file.
             output_format (str): Desired audio format (e.g., "WAV", "MP3").
+
         """
         try:
             if output_format != "WAV":
@@ -127,7 +138,9 @@ class VoiceConverter:
                 ]
                 target_sr = min(common_sample_rates, key=lambda x: abs(x - sample_rate))
                 audio = librosa.resample(
-                    audio, orig_sr=sample_rate, target_sr=target_sr
+                    audio,
+                    orig_sr=sample_rate,
+                    target_sr=target_sr,
                 )
                 sf.write(output_path, audio, target_sr, format=output_format.lower())
             return output_path
@@ -253,6 +266,7 @@ class VoiceConverter:
             resample_sr (int, optional): Resample sampling rate. Default is 0.
             sid (int, optional): Speaker ID. Default is 0.
             **kwargs: Additional keyword arguments.
+
         """
         self.get_vc(model_path, sid)
         start_time = time.time()
@@ -327,7 +341,9 @@ class VoiceConverter:
 
         if clean_audio:
             cleaned_audio = self.remove_audio_noise(
-                audio_opt, self.tgt_sr, clean_strength
+                audio_opt,
+                self.tgt_sr,
+                clean_strength,
             )
             if cleaned_audio is not None:
                 audio_opt = cleaned_audio
@@ -341,17 +357,22 @@ class VoiceConverter:
 
         sf.write(audio_output_path, audio_opt, self.tgt_sr, format="WAV")
         output_path_format = audio_output_path.replace(
-        ".wav", f".{export_format.lower()}"
+            ".wav",
+            f".{export_format.lower()}",
         )
         audio_output_path = self.convert_audio_format(
-            audio_output_path, output_path_format, export_format
+            audio_output_path,
+            output_path_format,
+            export_format,
         )
 
         elapsed_time = time.time() - start_time
         logger.info(
             "Conversion completed at '%s' in %.2f seconds.",
-            audio_output_path, elapsed_time,
+            audio_output_path,
+            elapsed_time,
         )
+
     def convert_audio_batch(
         self,
         audio_input_paths: str,
@@ -367,11 +388,13 @@ class VoiceConverter:
             resample_sr (int, optional): Resample sampling rate. Default is 0.
             sid (int, optional): Speaker ID. Default is 0.
             **kwargs: Additional keyword arguments.
+
         """
         pid = os.getpid()
         try:
             with open(
-                os.path.join(now_dir, "assets", "infer_pid.txt"), "w"
+                os.path.join(now_dir, "assets", "infer_pid.txt"),
+                "w",
             ) as pid_file:
                 pid_file.write(str(pid))
             start_time = time.time()
@@ -394,7 +417,7 @@ class VoiceConverter:
                         "aiff",
                         "webm",
                         "ac3",
-                    )
+                    ),
                 )
             ]
             print(f"Detected {len(audio_files)} audio files for inference.")
@@ -425,6 +448,7 @@ class VoiceConverter:
         Args:
             weight_root (str): Path to the model weights.
             sid (int): Speaker ID.
+
         """
         if sid == "" or sid == []:
             self.cleanup_model()
@@ -459,6 +483,7 @@ class VoiceConverter:
 
         Args:
             weight_root (str): Path to the model weights.
+
         """
         self.cpt = (
             torch.load(weight_root, map_location="cpu")

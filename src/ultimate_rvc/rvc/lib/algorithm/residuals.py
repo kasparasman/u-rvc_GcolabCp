@@ -1,10 +1,11 @@
 from typing import Optional
+
 import torch
 from torch.nn.utils import remove_weight_norm
 from torch.nn.utils.parametrizations import weight_norm
 
-from ultimate_rvc.rvc.lib.algorithm.modules import WaveNet
 from ultimate_rvc.rvc.lib.algorithm.commons import get_padding, init_weights
+from ultimate_rvc.rvc.lib.algorithm.modules import WaveNet
 
 LRELU_SLOPE = 0.1
 
@@ -19,7 +20,7 @@ def create_conv1d_layer(channels, kernel_size, dilation):
             1,
             dilation=dilation,
             padding=get_padding(kernel_size, dilation),
-        )
+        ),
     )
 
 
@@ -31,17 +32,17 @@ class ResBlockBase(torch.nn.Module):
     def __init__(self, channels, kernel_size, dilations):
         super(ResBlockBase, self).__init__()
         self.convs1 = torch.nn.ModuleList(
-            [create_conv1d_layer(channels, kernel_size, d) for d in dilations]
+            [create_conv1d_layer(channels, kernel_size, d) for d in dilations],
         )
         self.convs1.apply(init_weights)
 
         self.convs2 = torch.nn.ModuleList(
-            [create_conv1d_layer(channels, kernel_size, 1) for _ in dilations]
+            [create_conv1d_layer(channels, kernel_size, 1) for _ in dilations],
         )
         self.convs2.apply(init_weights)
 
     def forward(self, x, x_mask=None):
-        for c1, c2 in zip(self.convs1, self.convs2):
+        for c1, c2 in zip(self.convs1, self.convs2, strict=False):
             xt = torch.nn.functional.leaky_relu(x, LRELU_SLOPE)
             xt = apply_mask(xt, x_mask)
             xt = torch.nn.functional.leaky_relu(c1(xt), LRELU_SLOPE)
@@ -66,52 +67,57 @@ class ResBlock2(ResBlockBase):
 
 
 class Log(torch.nn.Module):
-    """Logarithm module for flow-based models.
+    """
+    Logarithm module for flow-based models.
 
     This module computes the logarithm of the input and its log determinant.
     During reverse, it computes the exponential of the input.
     """
 
     def forward(self, x, x_mask, reverse=False, **kwargs):
-        """Forward pass.
+        """
+        Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor.
             x_mask (torch.Tensor): Mask tensor.
             reverse (bool, optional): Whether to reverse the operation. Defaults to False.
+
         """
         if not reverse:
             y = torch.log(torch.clamp_min(x, 1e-5)) * x_mask
             logdet = torch.sum(-y, [1, 2])
             return y, logdet
-        else:
-            x = torch.exp(x) * x_mask
-            return x
+        x = torch.exp(x) * x_mask
+        return x
 
 
 class Flip(torch.nn.Module):
-    """Flip module for flow-based models.
+    """
+    Flip module for flow-based models.
 
     This module flips the input along the time dimension.
     """
 
     def forward(self, x, *args, reverse=False, **kwargs):
-        """Forward pass.
+        """
+        Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor.
             reverse (bool, optional): Whether to reverse the operation. Defaults to False.
+
         """
         x = torch.flip(x, [1])
         if not reverse:
             logdet = torch.zeros(x.size(0)).to(dtype=x.dtype, device=x.device)
             return x, logdet
-        else:
-            return x
+        return x
 
 
 class ElementwiseAffine(torch.nn.Module):
-    """Elementwise affine transformation module for flow-based models.
+    """
+    Elementwise affine transformation module for flow-based models.
 
     This module performs an elementwise affine transformation on the input.
 
@@ -127,25 +133,27 @@ class ElementwiseAffine(torch.nn.Module):
         self.logs = torch.nn.Parameter(torch.zeros(channels, 1))
 
     def forward(self, x, x_mask, reverse=False, **kwargs):
-        """Forward pass.
+        """
+        Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor.
             x_mask (torch.Tensor): Mask tensor.
             reverse (bool, optional): Whether to reverse the operation. Defaults to False.
+
         """
         if not reverse:
             y = self.m + torch.exp(self.logs) * x
             y = y * x_mask
             logdet = torch.sum(self.logs * x_mask, [1, 2])
             return y, logdet
-        else:
-            x = (x - self.m) * torch.exp(-self.logs) * x_mask
-            return x
+        x = (x - self.m) * torch.exp(-self.logs) * x_mask
+        return x
 
 
 class ResidualCouplingBlock(torch.nn.Module):
-    """Residual Coupling Block for normalizing flow.
+    """
+    Residual Coupling Block for normalizing flow.
 
     Args:
         channels (int): Number of channels in the input.
@@ -155,6 +163,7 @@ class ResidualCouplingBlock(torch.nn.Module):
         n_layers (int): Number of layers in the coupling layer.
         n_flows (int, optional): Number of coupling layers in the block. Defaults to 4.
         gin_channels (int, optional): Number of channels for the global conditioning input. Defaults to 0.
+
     """
 
     def __init__(
@@ -187,7 +196,7 @@ class ResidualCouplingBlock(torch.nn.Module):
                     n_layers,
                     gin_channels=gin_channels,
                     mean_only=True,
-                )
+                ),
             )
             self.flows.append(Flip())
 
@@ -195,7 +204,7 @@ class ResidualCouplingBlock(torch.nn.Module):
         self,
         x: torch.Tensor,
         x_mask: torch.Tensor,
-        g: Optional[torch.Tensor] = None,
+        g: torch.Tensor | None = None,
         reverse: bool = False,
     ):
         if not reverse:
@@ -225,7 +234,8 @@ class ResidualCouplingBlock(torch.nn.Module):
 
 
 class ResidualCouplingLayer(torch.nn.Module):
-    """Residual coupling layer for flow-based models.
+    """
+    Residual coupling layer for flow-based models.
 
     Args:
         channels (int): Number of channels.
@@ -236,6 +246,7 @@ class ResidualCouplingLayer(torch.nn.Module):
         p_dropout (float, optional): Dropout probability. Defaults to 0.
         gin_channels (int, optional): Number of conditioning channels. Defaults to 0.
         mean_only (bool, optional): Whether to use mean-only coupling. Defaults to False.
+
     """
 
     def __init__(
@@ -269,13 +280,16 @@ class ResidualCouplingLayer(torch.nn.Module):
             gin_channels=gin_channels,
         )
         self.post = torch.nn.Conv1d(
-            hidden_channels, self.half_channels * (2 - mean_only), 1
+            hidden_channels,
+            self.half_channels * (2 - mean_only),
+            1,
         )
         self.post.weight.data.zero_()
         self.post.bias.data.zero_()
 
     def forward(self, x, x_mask, g=None, reverse=False):
-        """Forward pass.
+        """
+        Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, channels, time_steps).
@@ -283,6 +297,7 @@ class ResidualCouplingLayer(torch.nn.Module):
             g (torch.Tensor, optional): Conditioning tensor of shape (batch_size, gin_channels, time_steps).
                 Defaults to None.
             reverse (bool, optional): Whether to reverse the operation. Defaults to False.
+
         """
         x0, x1 = torch.split(x, [self.half_channels] * 2, 1)
         h = self.pre(x0) * x_mask
@@ -299,10 +314,9 @@ class ResidualCouplingLayer(torch.nn.Module):
             x = torch.cat([x0, x1], 1)
             logdet = torch.sum(logs, [1, 2])
             return x, logdet
-        else:
-            x1 = (x1 - m) * torch.exp(-logs) * x_mask
-            x = torch.cat([x0, x1], 1)
-            return x
+        x1 = (x1 - m) * torch.exp(-logs) * x_mask
+        x = torch.cat([x0, x1], 1)
+        return x
 
     def remove_weight_norm(self):
         """Remove weight normalization from the module."""

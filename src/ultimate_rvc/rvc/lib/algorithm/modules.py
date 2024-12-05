@@ -1,9 +1,11 @@
 import torch
+
 from ultimate_rvc.rvc.lib.algorithm.commons import fused_add_tanh_sigmoid_multiply
 
 
 class WaveNet(torch.nn.Module):
-    """WaveNet residual blocks as used in WaveGlow
+    """
+    WaveNet residual blocks as used in WaveGlow
 
     Args:
         hidden_channels (int): Number of hidden channels.
@@ -12,6 +14,7 @@ class WaveNet(torch.nn.Module):
         n_layers (int): Number of convolutional layers.
         gin_channels (int, optional): Number of conditioning channels. Defaults to 0.
         p_dropout (float, optional): Dropout probability. Defaults to 0.
+
     """
 
     def __init__(
@@ -38,10 +41,13 @@ class WaveNet(torch.nn.Module):
 
         if gin_channels != 0:
             cond_layer = torch.nn.Conv1d(
-                gin_channels, 2 * hidden_channels * n_layers, 1
+                gin_channels,
+                2 * hidden_channels * n_layers,
+                1,
             )
             self.cond_layer = torch.nn.utils.parametrizations.weight_norm(
-                cond_layer, name="weight"
+                cond_layer,
+                name="weight",
             )
 
         dilations = [dilation_rate**i for i in range(n_layers)]
@@ -56,7 +62,8 @@ class WaveNet(torch.nn.Module):
                 padding=paddings[i],
             )
             in_layer = torch.nn.utils.parametrizations.weight_norm(
-                in_layer, name="weight"
+                in_layer,
+                name="weight",
             )
             self.in_layers.append(in_layer)
 
@@ -66,18 +73,21 @@ class WaveNet(torch.nn.Module):
 
             res_skip_layer = torch.nn.Conv1d(hidden_channels, res_skip_channels, 1)
             res_skip_layer = torch.nn.utils.parametrizations.weight_norm(
-                res_skip_layer, name="weight"
+                res_skip_layer,
+                name="weight",
             )
             self.res_skip_layers.append(res_skip_layer)
 
     def forward(self, x, x_mask, g=None, **kwargs):
-        """Forward pass.
+        """
+        Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, hidden_channels, time_steps).
             x_mask (torch.Tensor): Mask tensor of shape (batch_size, 1, time_steps).
             g (torch.Tensor, optional): Conditioning tensor of shape (batch_size, gin_channels, time_steps).
                 Defaults to None.
+
         """
         output = torch.zeros_like(x)
         n_channels_tensor = torch.IntTensor([self.hidden_channels])

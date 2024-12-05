@@ -1,12 +1,14 @@
+from typing import Optional
+
 import math
+
 import torch
 from torch.nn.utils import remove_weight_norm
 from torch.nn.utils.parametrizations import weight_norm
-from typing import Optional
 
+from ultimate_rvc.rvc.lib.algorithm.commons import init_weights
 from ultimate_rvc.rvc.lib.algorithm.generators import SineGen
 from ultimate_rvc.rvc.lib.algorithm.residuals import LRELU_SLOPE, ResBlock1, ResBlock2
-from ultimate_rvc.rvc.lib.algorithm.commons import init_weights
 
 
 class SourceModuleHnNSF(torch.nn.Module):
@@ -20,6 +22,7 @@ class SourceModuleHnNSF(torch.nn.Module):
         add_noise_std (float, optional): Standard deviation of additive Gaussian noise. Defaults to 0.003.
         voiced_threshod (float, optional): Threshold to set voiced/unvoiced given F0. Defaults to 0.
         is_half (bool, optional): Whether to use half precision. Defaults to True.
+
     """
 
     def __init__(
@@ -38,7 +41,11 @@ class SourceModuleHnNSF(torch.nn.Module):
         self.is_half = is_half
 
         self.l_sin_gen = SineGen(
-            sample_rate, harmonic_num, sine_amp, add_noise_std, voiced_threshod
+            sample_rate,
+            harmonic_num,
+            sine_amp,
+            add_noise_std,
+            voiced_threshod,
         )
         self.l_linear = torch.nn.Linear(harmonic_num + 1, 1)
         self.l_tanh = torch.nn.Tanh()
@@ -65,6 +72,7 @@ class GeneratorNSF(torch.nn.Module):
         gin_channels (int): Number of channels for the global conditioning input.
         sr (int): Sampling rate.
         is_half (bool, optional): Whether to use half precision. Defaults to False.
+
     """
 
     def __init__(
@@ -86,11 +94,17 @@ class GeneratorNSF(torch.nn.Module):
         self.num_upsamples = len(upsample_rates)
         self.f0_upsamp = torch.nn.Upsample(scale_factor=math.prod(upsample_rates))
         self.m_source = SourceModuleHnNSF(
-            sample_rate=sr, harmonic_num=0, is_half=is_half
+            sample_rate=sr,
+            harmonic_num=0,
+            is_half=is_half,
         )
 
         self.conv_pre = torch.nn.Conv1d(
-            initial_channel, upsample_initial_channel, 7, 1, padding=3
+            initial_channel,
+            upsample_initial_channel,
+            7,
+            1,
+            padding=3,
         )
         resblock_cls = ResBlock1 if resblock == "1" else ResBlock2
 
@@ -106,7 +120,9 @@ class GeneratorNSF(torch.nn.Module):
             for i in range(len(upsample_rates))
         ]
 
-        for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
+        for i, (u, k) in enumerate(
+            zip(upsample_rates, upsample_kernel_sizes, strict=False)
+        ):
             self.ups.append(
                 weight_norm(
                     torch.nn.ConvTranspose1d(
@@ -115,8 +131,8 @@ class GeneratorNSF(torch.nn.Module):
                         k,
                         u,
                         padding=(k - u) // 2,
-                    )
-                )
+                    ),
+                ),
             )
 
             self.noise_convs.append(
@@ -126,15 +142,17 @@ class GeneratorNSF(torch.nn.Module):
                     kernel_size=(stride_f0s[i] * 2 if stride_f0s[i] > 1 else 1),
                     stride=stride_f0s[i],
                     padding=(stride_f0s[i] // 2 if stride_f0s[i] > 1 else 0),
-                )
+                ),
             )
 
         self.resblocks = torch.nn.ModuleList(
             [
                 resblock_cls(channels[i], k, d)
                 for i in range(len(self.ups))
-                for k, d in zip(resblock_kernel_sizes, resblock_dilation_sizes)
-            ]
+                for k, d in zip(
+                    resblock_kernel_sizes, resblock_dilation_sizes, strict=False
+                )
+            ],
         )
 
         self.conv_post = torch.nn.Conv1d(channels[-1], 1, 7, 1, padding=3, bias=False)
@@ -146,7 +164,7 @@ class GeneratorNSF(torch.nn.Module):
         self.upp = math.prod(upsample_rates)
         self.lrelu_slope = LRELU_SLOPE
 
-    def forward(self, x, f0, g: Optional[torch.Tensor] = None):
+    def forward(self, x, f0, g: torch.Tensor | None = None):
         har_source, _, _ = self.m_source(f0, self.upp)
         har_source = har_source.transpose(1, 2)
         x = self.conv_pre(x)
@@ -154,7 +172,9 @@ class GeneratorNSF(torch.nn.Module):
         if g is not None:
             x = x + self.cond(g)
 
-        for i, (ups, noise_convs) in enumerate(zip(self.ups, self.noise_convs)):
+        for i, (ups, noise_convs) in enumerate(
+            zip(self.ups, self.noise_convs, strict=False)
+        ):
             x = torch.nn.functional.leaky_relu(x, self.lrelu_slope)
             x = ups(x)
             x = x + noise_convs(har_source)
@@ -164,7 +184,7 @@ class GeneratorNSF(torch.nn.Module):
                     resblock(x)
                     for j, resblock in enumerate(self.resblocks)
                     if j in range(i * self.num_kernels, (i + 1) * self.num_kernels)
-                ]
+                ],
             )
             x = xs / self.num_kernels
 

@@ -30,7 +30,7 @@ def pretrained_selector(pitch_guidance):
                 ),
             },
         }
-    elif pitch_guidance == False:
+    if pitch_guidance == False:
         return {
             "v1": {
                 32000: (

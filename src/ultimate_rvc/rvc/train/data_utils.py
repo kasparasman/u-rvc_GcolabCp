@@ -1,5 +1,7 @@
 import os
+
 import numpy as np
+
 import torch
 import torch.utils.data
 
@@ -13,6 +15,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
 
     Args:
         hparams: Hyperparameters.
+
     """
 
     def __init__(self, hparams):
@@ -46,6 +49,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
 
         Args:
             sid (str): Speaker ID.
+
         """
         try:
             sid = torch.LongTensor([int(sid)])
@@ -60,6 +64,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
 
         Args:
             audiopath_and_text (list): List containing audio path, text, pitch, pitchf, and speaker ID.
+
         """
         file = audiopath_and_text[0]
         phone = audiopath_and_text[1]
@@ -94,6 +99,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
             phone (str): Path to phoneme label file.
             pitch (str): Path to pitch label file.
             pitchf (str): Path to pitchf label file.
+
         """
         phone = np.load(phone)
         phone = np.repeat(phone, 2, axis=0)
@@ -114,11 +120,12 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
 
         Args:
             filename (str): Path to audio file.
+
         """
         audio, sample_rate = load_wav_to_torch(filename)
         if sample_rate != self.sample_rate:
             raise ValueError(
-                f"{sample_rate} SR doesn't match target {self.sample_rate} SR"
+                f"{sample_rate} SR doesn't match target {self.sample_rate} SR",
             )
         audio_norm = audio
         audio_norm = audio_norm.unsqueeze(0)
@@ -155,6 +162,7 @@ class TextAudioLoaderMultiNSFsid(torch.utils.data.Dataset):
 
         Args:
             index (int): Index of the data sample.
+
         """
         return self.get_audio_text_pair(self.audiopaths_and_text[index])
 
@@ -171,6 +179,7 @@ class TextAudioCollateMultiNSFsid:
 
     Args:
         return_ids (bool, optional): Whether to return sample IDs. Defaults to False.
+
     """
 
     def __init__(self, return_ids=False):
@@ -182,9 +191,12 @@ class TextAudioCollateMultiNSFsid:
 
         Args:
             batch (list): List of data samples.
+
         """
         _, ids_sorted_decreasing = torch.sort(
-            torch.LongTensor([x[0].size(1) for x in batch]), dim=0, descending=True
+            torch.LongTensor([x[0].size(1) for x in batch]),
+            dim=0,
+            descending=True,
         )
 
         max_spec_len = max([x[0].size(1) for x in batch])
@@ -199,7 +211,9 @@ class TextAudioCollateMultiNSFsid:
         max_phone_len = max([x[2].size(0) for x in batch])
         phone_lengths = torch.LongTensor(len(batch))
         phone_padded = torch.FloatTensor(
-            len(batch), max_phone_len, batch[0][2].shape[1]
+            len(batch),
+            max_phone_len,
+            batch[0][2].shape[1],
         )
         pitch_padded = torch.LongTensor(len(batch), max_phone_len)
         pitchf_padded = torch.FloatTensor(len(batch), max_phone_len)
@@ -254,6 +268,7 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
         num_replicas (int, optional): Number of processes participating in distributed training. Defaults to None.
         rank (int, optional): Rank of the current process. Defaults to None.
         shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
+
     """
 
     def __init__(
@@ -285,7 +300,7 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
             if idx_bucket != -1:
                 buckets[idx_bucket].append(i)
 
-        for i in range(len(buckets) - 1, -1, -1):  #
+        for i in range(len(buckets) - 1, -1, -1):
             if len(buckets[i]) == 0:
                 buckets.pop(i)
                 self.boundaries.pop(i + 1)
@@ -357,20 +372,19 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
             x (int): Length to find the bucket for.
             lo (int, optional): Lower bound of the search range. Defaults to 0.
             hi (int, optional): Upper bound of the search range. Defaults to None.
+
         """
         if hi is None:
             hi = len(self.boundaries) - 1
 
         if hi > lo:
             mid = (hi + lo) // 2
-            if self.boundaries[mid] < x and x <= self.boundaries[mid + 1]:
+            if self.boundaries[mid] < x <= self.boundaries[mid + 1]:
                 return mid
-            elif x <= self.boundaries[mid]:
+            if x <= self.boundaries[mid]:
                 return self._bisect(x, lo, mid)
-            else:
-                return self._bisect(x, mid + 1, hi)
-        else:
-            return -1
+            return self._bisect(x, mid + 1, hi)
+        return -1
 
     def __len__(self):
         """

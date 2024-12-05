@@ -17,6 +17,7 @@ class MultiPeriodDiscriminator(torch.nn.Module):
     Args:
         use_spectral_norm (bool): Whether to use spectral normalization.
             Defaults to False.
+
     """
 
     def __init__(self, use_spectral_norm=False):
@@ -24,7 +25,7 @@ class MultiPeriodDiscriminator(torch.nn.Module):
         periods = [2, 3, 5, 7, 11, 17]
         self.discriminators = torch.nn.ModuleList(
             [DiscriminatorS(use_spectral_norm=use_spectral_norm)]
-            + [DiscriminatorP(p, use_spectral_norm=use_spectral_norm) for p in periods]
+            + [DiscriminatorP(p, use_spectral_norm=use_spectral_norm) for p in periods],
         )
 
     def forward(self, y, y_hat):
@@ -34,6 +35,7 @@ class MultiPeriodDiscriminator(torch.nn.Module):
         Args:
             y (torch.Tensor): Real audio signal.
             y_hat (torch.Tensor): Fake audio signal.
+
         """
         y_d_rs, y_d_gs, fmap_rs, fmap_gs = [], [], [], []
         for d in self.discriminators:
@@ -59,6 +61,7 @@ class MultiPeriodDiscriminatorV2(torch.nn.Module):
     Args:
         use_spectral_norm (bool): Whether to use spectral normalization.
             Defaults to False.
+
     """
 
     def __init__(self, use_spectral_norm=False):
@@ -66,7 +69,7 @@ class MultiPeriodDiscriminatorV2(torch.nn.Module):
         periods = [2, 3, 5, 7, 11, 17, 23, 37]
         self.discriminators = torch.nn.ModuleList(
             [DiscriminatorS(use_spectral_norm=use_spectral_norm)]
-            + [DiscriminatorP(p, use_spectral_norm=use_spectral_norm) for p in periods]
+            + [DiscriminatorP(p, use_spectral_norm=use_spectral_norm) for p in periods],
         )
 
     def forward(self, y, y_hat):
@@ -76,6 +79,7 @@ class MultiPeriodDiscriminatorV2(torch.nn.Module):
         Args:
             y (torch.Tensor): Real audio signal.
             y_hat (torch.Tensor): Fake audio signal.
+
         """
         y_d_rs, y_d_gs, fmap_rs, fmap_gs = [], [], [], []
         for d in self.discriminators:
@@ -109,7 +113,7 @@ class DiscriminatorS(torch.nn.Module):
                 norm_f(torch.nn.Conv1d(256, 1024, 41, 4, groups=64, padding=20)),
                 norm_f(torch.nn.Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
                 norm_f(torch.nn.Conv1d(1024, 1024, 5, 1, padding=2)),
-            ]
+            ],
         )
         self.conv_post = norm_f(torch.nn.Conv1d(1024, 1, 3, 1, padding=1))
         self.lrelu = torch.nn.LeakyReLU(LRELU_SLOPE)
@@ -120,6 +124,7 @@ class DiscriminatorS(torch.nn.Module):
 
         Args:
             x (torch.Tensor): Input audio signal.
+
         """
         fmap = []
         for conv in self.convs:
@@ -147,6 +152,7 @@ class DiscriminatorP(torch.nn.Module):
         stride (int): Stride of the convolutional layers. Defaults to 3.
         use_spectral_norm (bool): Whether to use spectral normalization.
             Defaults to False.
+
     """
 
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
@@ -166,10 +172,10 @@ class DiscriminatorP(torch.nn.Module):
                         (kernel_size, 1),
                         (stride, 1),
                         padding=(get_padding(kernel_size, 1), 0),
-                    )
+                    ),
                 )
-                for in_ch, out_ch in zip(in_channels, out_channels)
-            ]
+                for in_ch, out_ch in zip(in_channels, out_channels, strict=False)
+            ],
         )
 
         self.conv_post = norm_f(torch.nn.Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
@@ -181,6 +187,7 @@ class DiscriminatorP(torch.nn.Module):
 
         Args:
             x (torch.Tensor): Input audio signal.
+
         """
         fmap = []
         b, c, t = x.shape
