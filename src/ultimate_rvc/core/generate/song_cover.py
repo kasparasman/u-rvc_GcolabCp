@@ -36,7 +36,7 @@ from ultimate_rvc.core.common import (
     copy_file_safe,
     display_progress,
     get_file_hash,
-    get_hash,
+    get_unique_base_path,
     json_dump,
     json_dumps,
     json_load,
@@ -69,7 +69,6 @@ from ultimate_rvc.typing_extra import (
     AudioExt,
     EmbedderModel,
     F0Method,
-    Json,
     SegmentSize,
     SeparationModel,
     StrPath,
@@ -485,66 +484,6 @@ def init_song_dir(
     return song_dir_path, source_type
 
 
-# NOTE consider increasing hash_size to 16. Otherwise
-# we might have problems with hash collisions when using app as CLI
-def get_unique_base_path(
-    song_dir: StrPath,
-    prefix: str,
-    args_dict: Json,
-    hash_size: int = 5,
-    progress_bar: gr.Progress | None = None,
-    percentage: float = 0.5,
-) -> Path:
-    """
-    Get a unique base path (a path without any extension) for a file in
-    a song directory by hashing the arguments used to generate
-    the audio that is stored or will be stored in that file.
-
-    Parameters
-    ----------
-    song_dir :StrPath
-        The path to a song directory.
-    prefix : str
-        The prefix to use for the base path.
-    args_dict : Json
-        A JSON-serializable dictionary of named arguments used to
-        generate the audio that is stored or will be stored in a file
-        in the song directory.
-    hash_size : int, default=5
-        The size (in bytes) of the hash to use for the base path.
-    progress_bar : gr.Progress, optional
-        Gradio progress bar to update.
-    percentage : float, default=0.5
-        Percentage to display in the progress bar.
-
-    Returns
-    -------
-    Path
-        The unique base path for a file in a song directory.
-
-    Raises
-    ------
-    NotProvidedError
-        If no song directory is provided.
-
-    """
-    if not song_dir:
-        raise NotProvidedError(entity=Entity.SONG_DIR, ui_msg=UIMessage.NO_SONG_DIR)
-    song_dir_path = Path(song_dir)
-    dict_hash = get_hash(args_dict, size=hash_size)
-    while True:
-        base_path = song_dir_path / f"{prefix}_{dict_hash}"
-        json_path = base_path.with_suffix(".json")
-        if json_path.exists():
-            file_dict = json_load(json_path)
-            if file_dict == args_dict:
-                return base_path
-            display_progress("[~] Rehashing...", percentage, progress_bar)
-            dict_hash = get_hash(dict_hash, size=hash_size)
-        else:
-            return base_path
-
-
 def _get_youtube_audio(url: str, directory: StrPath) -> Path:
     """
     Download audio from a YouTube video.
@@ -791,8 +730,6 @@ def separate_audio(
             song_dir_path,
             prefix,
             args_dict,
-            progress_bar=progress_bar,
-            percentage=percentage,
         ).with_suffix(suffix)
         for prefix in ["11_Stem_Primary", "11_Stem_Secondary"]
         for suffix in [".wav", ".json"]
@@ -933,8 +870,6 @@ def to_wav(
                 song_dir_path,
                 prefix,
                 args_dict,
-                progress_bar=progress_bar,
-                percentage=percentage,
             ).with_suffix(suffix)
             for suffix in [".wav", ".json"]
         ]
@@ -1102,8 +1037,6 @@ def convert(
             song_dir_path,
             "21_Vocals_Converted",
             args_dict,
-            progress_bar=progress_bar,
-            percentage=percentage,
         ).with_suffix(suffix)
         for suffix in [".wav", ".json"]
     ]
@@ -1269,8 +1202,6 @@ def postprocess(
             song_dir_path,
             "31_Vocals_Effected",
             args_dict,
-            progress_bar=progress_bar,
-            percentage=percentage,
         ).with_suffix(suffix)
         for suffix in [".wav", ".json"]
     ]
@@ -1378,8 +1309,6 @@ def pitch_shift(
                 song_dir_path,
                 "41_Audio_Shifted",
                 args_dict,
-                progress_bar=progress_bar,
-                percentage=percentage,
             ).with_suffix(suffix)
             for suffix in [".wav", ".json"]
         ]
@@ -1538,8 +1467,6 @@ def mix_song(
             song_dir_path,
             "51_Mix",
             args_dict,
-            progress_bar=progress_bar,
-            percentage=percentage,
         ).with_suffix(suffix)
         for suffix in ["." + output_format, ".json"]
     ]
