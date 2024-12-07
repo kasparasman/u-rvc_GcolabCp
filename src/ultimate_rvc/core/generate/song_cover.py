@@ -16,20 +16,9 @@ from itertools import starmap
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import yt_dlp
-
 from pydantic import ValidationError
 
-import ffmpeg
-import soundfile as sf
-import sox
-from pedalboard import Compressor, HighpassFilter, Reverb
-from pedalboard._pedalboard import Pedalboard  # noqa: PLC2701
-from pedalboard.io import AudioFile
-from pydub import AudioSegment
-from pydub import utils as pydub_utils
-
-from ultimate_rvc.common import SEPARATOR_MODELS_DIR, VOICE_MODELS_DIR
+from ultimate_rvc.common import SEPARATOR_MODELS_DIR, VOICE_MODELS_DIR, lazy_import
 from ultimate_rvc.core.common import (
     INTERMEDIATE_AUDIO_BASE_DIR,
     OUTPUT_AUDIO_DIR,
@@ -77,13 +66,38 @@ from ultimate_rvc.typing_extra import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    import yt_dlp
+
     import gradio as gr
+
+    import ffmpeg
+    import pedalboard
+    import pedalboard._pedalboard as pedalboard_
+    import pedalboard.io as pedalboard_io
+    import pydub
+    import soundfile as sf
+    import sox
+    import static_ffmpeg
+    import static_sox
 
     # NOTE the only reason these are imported here is so we can annotate
     # the return value of the two functions below
     from audio_separator.separator import Separator
 
     from ultimate_rvc.rvc.infer.infer import VoiceConverter
+
+else:
+    yt_dlp = lazy_import("yt_dlp")
+
+    ffmpeg = lazy_import("ffmpeg")
+    pedalboard = lazy_import("pedalboard")
+    pedalboard_ = lazy_import("pedalboard._pedalboard")
+    pedalboard_io = lazy_import("pedalboard.io")
+    pydub = lazy_import("pydub")
+    sf = lazy_import("soundfile")
+    sox = lazy_import("sox")
+    static_ffmpeg = lazy_import("static_ffmpeg")
+    static_sox = lazy_import("static_sox")
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +109,8 @@ def _get_audio_separator(
     segment_size: int = SegmentSize.SEG_256,
     sample_rate: int = 44100,
 ) -> Separator:
-    # NOTE lazy import to shave off upt to 2.5 sec from startup time
+    static_ffmpeg.add_paths()
+    static_sox.add_paths()
     from audio_separator.separator import Separator  # noqa: PLC0415
 
     """
@@ -144,7 +159,7 @@ def _get_voice_converter() -> VoiceConverter:
         A voice converter.
 
     """
-    # NOTE lazy import to shave off up to 5 sec from startup time
+    static_sox.add_paths()
     from ultimate_rvc.rvc.infer.infer import VoiceConverter  # noqa: PLC0415
 
     return VoiceConverter()
@@ -506,6 +521,7 @@ def _get_youtube_audio(url: str, directory: StrPath) -> Path:
         If the provided URL does not point to a YouTube video.
 
     """
+    static_ffmpeg.add_paths()
     validate_url(url)
     outtmpl = str(Path(directory, "00_%(title)s"))
     ydl_opts = {
@@ -839,6 +855,14 @@ def to_wav(
         track if it is not in one of the accepted formats.
 
     """
+    static_ffmpeg.add_paths()
+    # NOTE have to import pydub.utils here because
+    # 1. when using gradio pydub.utils is not available if only pydub
+    #    itself is imported.
+    # 2. when using cli static_ffmpeg must be imported before
+    #    pydub.utils is imported.
+    import pydub.utils as pydub_utils  # noqa: PLC0415
+
     if accepted_formats is None:
         accepted_formats = set(AudioExt) - {AudioExt.WAV}
 
@@ -1109,11 +1133,11 @@ def _add_effects(
         The damping of the reverb effect.
 
     """
-    board = Pedalboard(
+    board = pedalboard_.Pedalboard(
         [
-            HighpassFilter(),
-            Compressor(ratio=4, threshold_db=-15),
-            Reverb(
+            pedalboard.HighpassFilter(),
+            pedalboard.Compressor(ratio=4, threshold_db=-15),
+            pedalboard.Reverb(
                 room_size=room_size,
                 dry_level=dry_level,
                 wet_level=wet_level,
@@ -1123,8 +1147,13 @@ def _add_effects(
     )
 
     with (
-        AudioFile(str(audio_track)) as f,
-        AudioFile(str(output_file), "w", f.samplerate, f.num_channels) as o,
+        pedalboard_io.AudioFile(str(audio_track)) as f,
+        pedalboard_io.AudioFile(
+            str(output_file),
+            "w",
+            f.samplerate,
+            f.num_channels,
+        ) as o,
     ):
         # Read one second of audio at a time, until the file is empty:
         while f.tell() < f.frames:
@@ -1240,6 +1269,7 @@ def _pitch_shift(audio_track: StrPath, output_file: StrPath, n_semi_tones: int) 
         The number of semi-tones to pitch-shift the audio track by.
 
     """
+    static_sox.add_paths()
     y, sr = sf.read(audio_track)
     tfm = sox.Transformer()
     tfm.pitch(n_semi_tones)
@@ -1369,10 +1399,11 @@ def _mix_song(
         The audio format of the mixed song.
 
     """
+    static_ffmpeg.add_paths()
     mixed_audio = reduce(
         lambda a1, a2: a1.overlay(a2),
         [
-            AudioSegment.from_wav(audio_track) + gain
+            pydub.AudioSegment.from_wav(audio_track) + gain
             for audio_track, gain in audio_track_gain_pairs
         ],
     )

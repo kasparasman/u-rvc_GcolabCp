@@ -1,4 +1,4 @@
-from typing import Unpack
+from typing import TYPE_CHECKING, Unpack
 
 import logging
 import os
@@ -29,6 +29,7 @@ from pedalboard import (
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
+from ultimate_rvc.common import lazy_import
 from ultimate_rvc.rvc.configs.config import Config
 from ultimate_rvc.rvc.infer.pipeline import Pipeline as VC
 from ultimate_rvc.rvc.infer.typing_extra import ConvertAudioKwArgs
@@ -36,6 +37,11 @@ from ultimate_rvc.rvc.lib.algorithm.synthesizers import Synthesizer
 from ultimate_rvc.rvc.lib.tools.split_audio import merge_audio, process_audio
 from ultimate_rvc.rvc.lib.utils import load_audio_infer, load_embedding
 from ultimate_rvc.typing_extra import F0Method
+
+if TYPE_CHECKING:
+    import noisereduce as nr
+else:
+    nr = lazy_import("noisereduce")
 
 # logging.getLogger("httpx").setLevel(logging.WARNING)
 # logging.getLogger("httpcore").setLevel(logging.WARNING)
@@ -97,8 +103,6 @@ class VoiceConverter:
 
         """
         try:
-            # NOTE lazy import to shave off 0.5 sec from startup time
-            import noisereduce as nr
 
             reduced_noise = nr.reduce_noise(
                 y=data,
@@ -304,7 +308,7 @@ class VoiceConverter:
 
         if split_audio:
             chunks, intervals = process_audio(audio, 16000)
-            print(f"Audio split into {len(chunks)} chunks for processing.")
+            logger.info("Audio split into %d chunks for processing.", len(chunks))
         else:
             chunks = []
             chunks.append(audio)
@@ -332,7 +336,7 @@ class VoiceConverter:
             )
             converted_chunks.append(audio_opt)
             if split_audio:
-                print(f"Converted audio chunk {len(converted_chunks)}")
+                logger.info("Converted audio chunk %d", len(converted_chunks))
 
         if split_audio:
             audio_opt = merge_audio(converted_chunks, intervals, 16000, self.tgt_sr)

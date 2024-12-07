@@ -13,6 +13,11 @@ from typing import Annotated
 
 import os
 
+# NOTE this import is lazily imported later in another module. It is
+# imported here as well to avoid user warnings due to imcompatiblity
+# with gradio.
+import yt_dlp  # type: ignore[ReportUnusedImport] # noqa: F401
+
 import gradio as gr
 
 import typer

@@ -11,8 +11,7 @@ from pathlib import Path
 
 import anyio
 
-from edge_tts import Communicate
-
+from ultimate_rvc.common import lazy_import
 from ultimate_rvc.core.common import (
     TTS_AUDIO_BASE_DIR,
     display_progress,
@@ -30,6 +29,11 @@ from ultimate_rvc.core.typing_extra import (
 
 if TYPE_CHECKING:
     import gradio as gr
+
+    import edge_tts
+
+else:
+    edge_tts = lazy_import("edge_tts")
 
 
 async def run_edge_tts(
@@ -122,7 +126,7 @@ async def run_edge_tts(
         speed_change_str = f"{speed_change:+}%"
         volume_change_str = f"{volume_change:+}%"
 
-        communicate = Communicate(
+        communicate = edge_tts.Communicate(
             text,
             voice,
             pitch=pitch_shift_str,

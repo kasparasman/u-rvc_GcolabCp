@@ -1,11 +1,19 @@
+from typing import TYPE_CHECKING
+
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-import requests
+from ultimate_rvc.common import RVC_MODELS_DIR, lazy_import
 
-from tqdm import tqdm
+if TYPE_CHECKING:
+    import requests
 
-from ultimate_rvc.common import RVC_MODELS_DIR
+    import tqdm
+
+else:
+    requests = lazy_import("requests")
+    tqdm = lazy_import("tqdm")
+
 
 url_base = "https://huggingface.co/IAHispano/Applio/resolve/main/Resources"
 
@@ -199,7 +207,7 @@ def prequisites_download_pipeline(
     )
 
     if total_size > 0:
-        with tqdm(
+        with tqdm.tqdm(
             total=total_size,
             unit="iB",
             unit_scale=True,

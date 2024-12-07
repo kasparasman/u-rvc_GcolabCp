@@ -1,9 +1,10 @@
 # TODO
 
 * should rename instances of "models" to "voice models"
-
-* remove old vc folder
-* format rvc package folder
+* make subsections under accorditions under one click generation tab into sub accordions ?
+  * applies for voice conversion options and audio mixing options
+* fix problem with audio components restarting if play button is pressed too fast after loading new audio
+  * this is a gradio bug so report?
 
 ## Project/task management
 
@@ -181,10 +182,6 @@
 
 ### general
 
-
-* shave off more startup time
-  * get static ffmpeg to load only when needed
-  * in cli only load from the generate song cover module when needed (lazily)
 * look into typer replacement like cyclopts
   * so that we dont have to define separate cli wrappers for each function
   * just need to make sure that cyclopts can also do some of the automatic input validation that typer does
