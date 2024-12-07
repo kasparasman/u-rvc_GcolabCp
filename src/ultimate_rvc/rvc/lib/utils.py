@@ -16,8 +16,8 @@ from transformers import HubertModel
 
 import librosa
 import soundfile as sf
-from pydub import AudioSegment
 
+# from pydub import AudioSegment
 from ultimate_rvc.common import RVC_MODELS_DIR
 
 # Remove this to see warnings about transformers models

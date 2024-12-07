@@ -5,12 +5,9 @@ TTS.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
-import asyncio
 import time
-
-from edge_tts import list_voices as _list_voices
 
 import typer
 from rich import print as rprint
@@ -18,7 +15,18 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ultimate_rvc.cli.common import format_duration
-from ultimate_rvc.core.generate.tts import run_edge_tts as _run_edge_tts
+from ultimate_rvc.common import lazy_import
+
+if TYPE_CHECKING:
+    import asyncio
+
+    import edge_tts
+
+    from ultimate_rvc.core.generate import tts as generate_tts
+else:
+    asyncio = lazy_import("asyncio")
+    edge_tts = lazy_import("edge_tts")
+    generate_tts = lazy_import("ultimate_rvc.core.generate.tts")
 
 app = typer.Typer(
     name="tts",
@@ -80,7 +88,7 @@ def run_edge_tts(
     rprint("[~] Converting text to speech using Edge TTS...")
 
     audio_path = asyncio.run(
-        _run_edge_tts(
+        generate_tts.run_edge_tts(
             source,
             voice,
             pitch_shift,
@@ -151,7 +159,7 @@ def list_voices(
     """List all available edge TTS voices."""
     start_time = time.perf_counter()
     rprint("[~] Retrieving information on all available edge TTS voices...")
-    voices = asyncio.run(_list_voices())
+    voices = asyncio.run(edge_tts.list_voices())
     keys = [
         "Name",
         "FriendlyName",

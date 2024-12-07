@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ultimate-rvc"
-version = "0.1.26"
+version = "0.2.0"
 description = "Ultimate RVC"
 readme = "README.md"
 requires-python = "==3.12.*"
@@ -20,7 +20,7 @@ dependencies = [
     
     # Networking
     "requests==2.32.3",
-    "yt_dlp==2024.11.4",
+    "yt_dlp==2024.12.6",
     "nodejs-wheel-binaries==22.11.0",
     "wget",
     # TODO potentially add these later

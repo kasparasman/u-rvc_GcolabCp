@@ -9,10 +9,7 @@ from functools import partial
 
 import gradio as gr
 
-# NOTE gradio is using pandas under the hood so it must be
-# imported at runtime.
-import pandas as pd  # noqa: TC002
-
+from ultimate_rvc.common import lazy_import
 from ultimate_rvc.core.manage.models import (
     delete_all_models,
     delete_models,
@@ -33,7 +30,12 @@ from ultimate_rvc.web.common import (
 
 if TYPE_CHECKING:
 
+    import pandas as pd
+
     from ultimate_rvc.web.typing_extra import DropdownValue
+
+else:
+    pd = lazy_import("pandas")
 
 
 def _update_models(
