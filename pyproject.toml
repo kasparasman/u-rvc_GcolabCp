@@ -66,8 +66,8 @@ dependencies = [
     "pedalboard==0.9.16",
     "audio-separator[gpu]==0.24.1",
     "noisereduce",
+    "edge-tts==6.1.19",
     # TODO potentially add these later
-    # "edge-tts==6.1.9",
     # below package outcommented until we use dio,pm and harvest
     #"pyworld-fixed==0.3.8",
     # below package outcommented until we use praat 

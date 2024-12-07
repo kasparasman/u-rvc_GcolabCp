@@ -18,7 +18,7 @@ from rich import print as rprint
 from rich.panel import Panel
 from rich.table import Table
 
-from ultimate_rvc.cli.common import format_duration
+from ultimate_rvc.cli.common import complete_name, format_duration
 from ultimate_rvc.cli.generate.typing_extra import PanelName
 from ultimate_rvc.core.generate.song_cover import convert as _convert
 from ultimate_rvc.core.generate.song_cover import run_pipeline as _run_pipeline
@@ -31,26 +31,6 @@ app = typer.Typer(
     help="Generate song covers",
     rich_markup_mode="markdown",
 )
-
-
-def complete_name(incomplete: str, enumeration: list[str]) -> list[str]:
-    """
-    Return a list of names that start with the incomplete string.
-
-    Parameters
-    ----------
-    incomplete : str
-        The incomplete string to complete.
-    enumeration : list[str]
-        The list of names to complete from.
-
-    Returns
-    -------
-    list[str]
-        The list of names that start with the incomplete string.
-
-    """
-    return [name for name in list(enumeration) if name.startswith(incomplete)]
 
 
 def complete_audio_ext(incomplete: str) -> list[str]:

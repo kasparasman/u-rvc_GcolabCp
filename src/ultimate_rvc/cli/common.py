@@ -1,6 +1,26 @@
 """Common utilities for the CLI."""
 
 
+def complete_name(incomplete: str, enumeration: list[str]) -> list[str]:
+    """
+    Return a list of names that start with the incomplete string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+    enumeration : list[str]
+        The list of names to complete from.
+
+    Returns
+    -------
+    list[str]
+        The list of names that start with the incomplete string.
+
+    """
+    return [name for name in list(enumeration) if name.startswith(incomplete)]
+
+
 def format_duration(seconds: float) -> str:
     """
     Format a duration in seconds to a human-readable string.

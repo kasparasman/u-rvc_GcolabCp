@@ -66,6 +66,9 @@ class UIMessage(StrEnum):
         "No source provided. Please provide a valid Youtube URL, local audio file"
         " or song directory."
     )
+    NO_TTS_SOURCE = (
+        "No source provided. Please provide a valid text string or path to a text file."
+    )
 
 
 class NotProvidedError(ValueError):
