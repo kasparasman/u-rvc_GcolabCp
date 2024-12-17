@@ -41,6 +41,7 @@ class Location(StrEnum):
     """Enumeration of locations where entities can be found."""
 
     INTERMEDIATE_AUDIO_ROOT = "the root of the intermediate audio base directory"
+    SPEECH_AUDIO_ROOT = "the root of the speech audio directory"
     OUTPUT_AUDIO_ROOT = "the root of the output audio directory"
     EXTRACTED_ZIP_FILE = "extracted zip file"
 
@@ -60,14 +61,17 @@ class UIMessage(StrEnum):
     NO_OUTPUT_AUDIO_FILES = (
         "No files selected. Please select one or more output audio files to delete."
     )
+    NO_SPEECH_AUDIO_FILES = (
+        "No files selected. Please select one or more speech audio files to delete."
+    )
     NO_UPLOADED_FILES = "No files selected."
     NO_VOICE_MODEL = "No voice model selected."
     NO_VOICE_MODELS = "No voice models selected."
-    NO_SOURCE = (
+    NO_AUDIO_SOURCE = (
         "No source provided. Please provide a valid Youtube URL, local audio file"
         " or song directory."
     )
-    NO_TTS_SOURCE = (
+    NO_TEXT_SOURCE = (
         "No source provided. Please provide a valid text string or path to a text file."
     )
 

@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict
 from ultimate_rvc.typing_extra import AudioExt, EmbedderModel, F0Method  # noqa: TC002
 
 
-class SourceType(StrEnum):
+class SongSourceType(StrEnum):
     """The type of source providing the song to generate a cover of."""
 
     URL = auto()
@@ -270,10 +270,10 @@ class EdgeTTSAudioMetaData(BaseModel):
         The number of hertz the pitch of the voice speaking the
         provided text was shifted.
     speed_change : int
-        The absolute change to the speed of the voice speaking the
+        The percentual change to the speed of the voice speaking the
         provided text.
     volume_change : int
-        The absolute change to the volume of the voice speaking the
+        The percentual change to the volume of the voice speaking the
         provided text.
 
     """
@@ -291,3 +291,7 @@ class MixedAudioType(StrEnum):
     AUDIO = "audio"
     SONG = "song"
     VOICE = "voice"
+
+
+EdgeTTSVoiceTable = list[list[str]]
+EdgeTTSVoiceKeys = list[str]

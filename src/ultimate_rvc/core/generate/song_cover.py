@@ -52,7 +52,7 @@ from ultimate_rvc.core.generate.typing_extra import (
     PitchShiftMetaData,
     RVCAudioMetaData,
     SeparatedAudioMetaData,
-    SourceType,
+    SongSourceType,
 )
 from ultimate_rvc.typing_extra import (
     AudioExt,
@@ -393,7 +393,7 @@ def init_song_dir(
     source: str,
     progress_bar: gr.Progress | None = None,
     percentage: float = 0.5,
-) -> tuple[Path, SourceType]:
+) -> tuple[Path, SongSourceType]:
     """
     Initialize a directory for a song provided by a given source.
 
@@ -422,7 +422,7 @@ def init_song_dir(
     -------
     song_dir : Path
         The path to the initialized song directory.
-    source_type : SourceType
+    source_type : SongSourceType
         The type of source provided.
 
     Raises
@@ -437,7 +437,7 @@ def init_song_dir(
 
     """
     if not source:
-        raise NotProvidedError(entity=Entity.SOURCE, ui_msg=UIMessage.NO_SOURCE)
+        raise NotProvidedError(entity=Entity.SOURCE, ui_msg=UIMessage.NO_AUDIO_SOURCE)
     source_path = Path(source)
 
     display_progress("[~] Initializing song directory...", percentage, progress_bar)
@@ -455,17 +455,17 @@ def init_song_dir(
             percentage,
             progress_bar,
         )
-        source_type = SourceType.SONG_DIR
+        source_type = SongSourceType.SONG_DIR
         return source_path, source_type
 
     # if source is a URL
     if urlparse(source).scheme == "https":
-        source_type = SourceType.URL
+        source_type = SongSourceType.URL
         song_id = _get_youtube_id(source)
 
     # if source is a path to a local audio file
     elif source_path.is_file():
-        source_type = SourceType.FILE
+        source_type = SongSourceType.FILE
         song_id = get_file_hash(source_path)
     else:
         raise NotFoundError(entity=Entity.FILE, location=source_path)
@@ -559,13 +559,13 @@ def retrieve_song(
 
     """
     if not source:
-        raise NotProvidedError(entity=Entity.SOURCE, ui_msg=UIMessage.NO_SOURCE)
+        raise NotProvidedError(entity=Entity.SOURCE, ui_msg=UIMessage.NO_AUDIO_SOURCE)
 
     song_dir_path, source_type = init_song_dir(source, progress_bar, percentage)
     song_path = _get_input_audio_path(song_dir_path)
 
     if not song_path:
-        if source_type == SourceType.URL:
+        if source_type == SongSourceType.URL:
             display_progress("[~] Downloading song...", percentage, progress_bar)
             song_url = source.split("&")[0]
             song_path = _get_youtube_audio(song_url, song_dir_path)

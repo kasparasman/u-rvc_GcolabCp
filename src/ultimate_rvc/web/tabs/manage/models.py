@@ -141,8 +141,10 @@ def _autofill_model_name_and_url(
 
 def render(
     model_delete: gr.Dropdown,
-    model_1click: gr.Dropdown,
-    model_multi: gr.Dropdown,
+    song_cover_model_1click: gr.Dropdown,
+    song_cover_model_multi: gr.Dropdown,
+    speech_model_1click: gr.Dropdown,
+    speech_model_multi: gr.Dropdown,
 ) -> None:
     """
 
@@ -153,12 +155,20 @@ def render(
     model_delete : gr.Dropdown
         Dropdown for selecting voice models to delete in the
         "Delete models" tab.
-    model_1click : gr.Dropdown
+    song_cover_model_1click : gr.Dropdown
         Dropdown for selecting a voice model to use in the
-        "One-click generation" tab.
-    model_multi : gr.Dropdown
+        "Generate song covers - One-click generation" tab.
+    song_cover_model_multi : gr.Dropdown
         Dropdown for selecting a voice model to use in the
-        "Multi-step generation" tab.
+        "Generate song covers - Multi-step generation" tab.
+    speech_model_1click : gr.Dropdown
+        Dropdown for selecting a voice model to use in the
+        "Generate speech - One Click Generation" tab.
+    speech_model_multi : gr.Dropdown
+        Dropdown for selecting a voice model to use in the
+        "Generate speech - Multi-step Generation" tab.
+
+
 
     """
     # Download tab
@@ -326,7 +336,13 @@ def render(
         delete_all_btn_click,
     ]:
         click_event.success(
-            partial(_update_models, 3, [], [2]),
-            outputs=[model_1click, model_multi, model_delete],
+            partial(_update_models, 5, [], [4]),
+            outputs=[
+                song_cover_model_1click,
+                song_cover_model_multi,
+                speech_model_1click,
+                speech_model_multi,
+                model_delete,
+            ],
             show_progress="hidden",
         )

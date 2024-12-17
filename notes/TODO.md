@@ -1,5 +1,22 @@
 # TODO
 
+* support more input files for tts than just .txt
+* support other initial tts models than just edge tts
+* fix new problem with hot reload:
+
+  ```python
+  Reloading src.ultimate_rvc.web.main failed with the following exception: 
+  Traceback (most recent call last):
+    File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\gradio\utils.py", line 302, in watchfn
+      changed_module = _find_module(changed)
+                      ^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\gradio\utils.py", line 226, in _find_module
+      for s, v in sys.modules.items():
+                  ^^^^^^^^^^^^^^^^^^^
+  RuntimeError: dictionary changed size during iteration
+  ```
+
+
 * should rename instances of "models" to "voice models"
 * make subsections under accorditions under one click generation tab into sub accordions ?
   * applies for voice conversion options and audio mixing options

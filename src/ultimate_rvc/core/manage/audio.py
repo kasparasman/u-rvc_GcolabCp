@@ -8,10 +8,11 @@ import operator
 import shutil
 from pathlib import Path
 
+from ultimate_rvc.common import AUDIO_DIR
 from ultimate_rvc.core.common import (
-    AUDIO_DIR,
     INTERMEDIATE_AUDIO_BASE_DIR,
     OUTPUT_AUDIO_DIR,
+    SPEECH_DIR,
     display_progress,
 )
 from ultimate_rvc.core.exceptions import (
@@ -47,6 +48,27 @@ def get_saved_output_audio() -> list[tuple[str, str]]:
             (file_path.name, str(file_path)) for file_path in OUTPUT_AUDIO_DIR.iterdir()
         ]
         return sorted(named_output_files, key=operator.itemgetter(0))
+    return []
+
+
+def get_saved_speech_audio() -> list[tuple[str, str]]:
+    """
+    Get the name and path of all speech audio files.
+
+    Returns
+    -------
+    list[tuple[str, Path]]
+        A list of tuples containing the name and path of each
+        speech audio file.
+
+    """
+    if SPEECH_DIR.is_dir():
+        named_speech_files = [
+            (file_path.name, str(file_path))
+            for file_path in SPEECH_DIR.iterdir()
+            if file_path.suffix != ".json"
+        ]
+        return sorted(named_speech_files, key=operator.itemgetter(0))
     return []
 
 
@@ -124,6 +146,82 @@ def delete_all_intermediate_audio(
     )
     if INTERMEDIATE_AUDIO_BASE_DIR.is_dir():
         shutil.rmtree(INTERMEDIATE_AUDIO_BASE_DIR)
+
+
+def delete_speech_audio(
+    files: Sequence[StrPath],
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete provided speech audio files.
+
+    The provided files must be located in the root of the speech audio
+    directory.
+
+    Parameters
+    ----------
+    files : Sequence[StrPath]
+        Paths to the speech audio files to delete.
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    Raises
+    ------
+    NotProvidedError
+        If no paths are provided.
+    NotFoundError
+        If a provided path does not point to an existing file.
+    InvalidLocationError
+        If a provided path does not point to a location in the root of
+        the speech audio directory.
+
+    """
+    if not files:
+        raise NotProvidedError(
+            entity=Entity.FILES,
+            ui_msg=UIMessage.NO_SPEECH_AUDIO_FILES,
+        )
+    display_progress(
+        "[~] Deleting speech audio files...",
+        percentage,
+        progress_bar,
+    )
+    for file in files:
+        file_path = Path(file)
+        json_file_path = file_path.with_suffix(".json")
+        if not file_path.is_file():
+            raise NotFoundError(entity=Entity.FILE, location=file_path)
+        if file_path.parent != SPEECH_DIR:
+            raise InvalidLocationError(
+                entity=Entity.FILE,
+                location=Location.SPEECH_AUDIO_ROOT,
+                path=file_path,
+            )
+        file_path.unlink()
+        json_file_path.unlink(missing_ok=True)
+
+
+def delete_all_speech_audio(
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete all speech audio files.
+
+    Parameters
+    ----------
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    """
+    display_progress("[~] Deleting all speech audio files...", percentage, progress_bar)
+    if SPEECH_DIR.is_dir():
+        shutil.rmtree(SPEECH_DIR)
 
 
 def delete_output_audio(

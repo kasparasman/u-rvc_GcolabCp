@@ -13,6 +13,7 @@ from ultimate_rvc.typing_extra import AudioExt, EmbedderModel, F0Method, SampleR
 from ultimate_rvc.web.common import (
     PROGRESS_BAR,
     exception_harness,
+    toggle_intermediate_audio,
     toggle_visibility,
     toggle_visible_component,
     update_cached_songs,
@@ -20,31 +21,10 @@ from ultimate_rvc.web.common import (
     update_song_cover_name,
     update_value,
 )
-from ultimate_rvc.web.typing_extra import ConcurrencyId, SourceType
+from ultimate_rvc.web.typing_extra import ConcurrencyId, SongSourceType
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-
-def _toggle_intermediate_audio(
-    visible: bool,
-) -> list[gr.Accordion]:
-    """
-    Toggle the visibility of intermediate audio accordions.
-
-    Parameters
-    ----------
-    visible : bool
-        Visibility status of the intermediate audio accordions.
-
-    Returns
-    -------
-    list[gr.Accordion]
-        The intermediate audio accordions.
-
-    """
-    accordions = [gr.Accordion(open=False) for _ in range(7)]
-    return [gr.Accordion(visible=visible, open=False), *accordions]
 
 
 def render(
@@ -62,16 +42,16 @@ def render(
     ----------
     song_dirs : Sequence[gr.Dropdown]
         Dropdowns for selecting song directories in the
-        "Multi-step generation" tab.
+        "Generate song cover - Multi-step generation" tab.
     cached_song_1click : gr.Dropdown
         Dropdown for selecting a cached song in the
-        "One-click generation" tab
+        "Generate song cover - One-click generation" tab
     cached_song_multi : gr.Dropdown
         Dropdown for selecting a cached song in the
-        "Multi-step generation" tab
+        "Generate song cover - Multi-step generation" tab
     model_1click : gr.Dropdown
         Dropdown for selecting voice model in the
-        "One-click generation" tab.
+        "Generate song cover - One-click generation" tab.
     intermediate_audio : gr.Dropdown
         Dropdown for selecting intermediate audio files to delete in the
         "Delete audio" tab.
@@ -85,8 +65,8 @@ def render(
             with gr.Row():
                 with gr.Column():
                     source_type = gr.Dropdown(
-                        list(SourceType),
-                        value=SourceType.PATH,
+                        list(SongSourceType),
+                        value=SongSourceType.PATH,
                         label="Source type",
                         type="index",
                         info="The type of source to retrieve a song from.",
@@ -476,7 +456,7 @@ def render(
                 backup_vocals_shifted_track.render()
 
         show_intermediate_audio.change(
-            _toggle_intermediate_audio,
+            partial(toggle_intermediate_audio, num_components=7),
             inputs=show_intermediate_audio,
             outputs=[
                 intermediate_audio_accordion,
