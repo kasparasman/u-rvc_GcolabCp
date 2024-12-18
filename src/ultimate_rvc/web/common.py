@@ -14,7 +14,7 @@ from ultimate_rvc.core.generate.song_cover import (
     get_named_song_dirs,
     get_song_cover_name,
 )
-from ultimate_rvc.core.generate.speech import get_speech_track_name
+from ultimate_rvc.core.generate.speech import get_mixed_speech_track_name
 from ultimate_rvc.core.manage.audio import (
     get_saved_output_audio,
     get_saved_speech_audio,
@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         DropdownChoices,
         DropdownValue,
         TextBoxKwArgs,
+        UpdateAudioKwArgs,
         UpdateDropdownKwArgs,
     )
 
@@ -491,19 +492,23 @@ def update_song_cover_name(
 def update_speech_track_name(
     text: str | None = None,
     model_name: str | None = None,
+    converted_speech_track: str | None = None,
     update_placeholder: bool = False,
 ) -> gr.Textbox:
     """
     Update a textbox component so that it displays a suitable name for a
-    speech track generated from a given text source.
+    speech track to be generated from text.
 
     Parameters
     ----------
     text : str, optional
-        The text to generate a speech track from.
+        The text to generate speech from.
     model_name : str, optional
-        The name of the voice model used for generating the speech
-        track.
+        The name of the voice model to use for converting speech
+        to another voice.
+    converted_speech_track : str, optional
+        The path to an audio track containing speech converted to
+        another voice.
     update_placeholder : bool, default=False
         Whether to update the placeholder text instead of the value of
         the textbox component.
@@ -516,9 +521,54 @@ def update_speech_track_name(
     """
     update_args: TextBoxKwArgs = {}
     update_key = "placeholder" if update_placeholder else "value"
-    if text or model_name:
-        speech_track_name = get_speech_track_name(text, model_name)
+    if text or model_name or converted_speech_track:
+        speech_track_name = get_mixed_speech_track_name(
+            source=text,
+            model_name=model_name,
+            converted_speech_track=converted_speech_track,
+        )
         update_args[update_key] = speech_track_name
     else:
         update_args[update_key] = None
     return gr.Textbox(**update_args)
+
+
+def update_audio(
+    num_components: int,
+    output_indices: Sequence[int],
+    track: str | None,
+    disallow_none: bool = True,
+) -> gr.Audio | tuple[gr.Audio, ...]:
+    """
+    Update the value of a subset of `Audio` components to the given
+    audio track.
+
+    Parameters
+    ----------
+    num_components : int
+        The total number of `Audio` components under consideration.
+    output_indices : Sequence[int]
+        Indices of `Audio` components to update the value for.
+    track : str
+        Path pointing to an audio track to update the value of the
+        indexed `Audio` components with.
+    disallow_none : bool, default=True
+        Whether to disallow the value of the indexed components to be
+        `None`.
+
+    Returns
+    -------
+    gr.Audio | tuple[gr.Audio, ...]
+        Each `Audio` component under consideration with the value of the
+        indexed components updated to the given audio track.
+
+    """
+    update_args_list: list[UpdateAudioKwArgs] = [{} for _ in range(num_components)]
+    for index in output_indices:
+        if track or not disallow_none:
+            update_args_list[index]["value"] = track
+    match update_args_list:
+        case [update_args]:
+            return gr.Audio(**update_args)
+        case _:
+            return tuple(gr.Audio(**update_args) for update_args in update_args_list)

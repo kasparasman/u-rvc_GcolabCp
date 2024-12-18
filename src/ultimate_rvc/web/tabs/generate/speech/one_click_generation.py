@@ -1,6 +1,6 @@
 """
-Module which defines the code for the "Generate Speech - One Click
-Generation" tab.
+Module which defines the code for the "Generate speech - one-click
+generation" tab.
 """
 
 from functools import partial
@@ -30,16 +30,16 @@ def render(
     output_audio: gr.Dropdown,
 ) -> None:
     """
-    Render "Generate Speech - One Click Generation" tab.
+    Render "Generate speech - one-click generation" tab.
 
     Parameters
     ----------
     edge_tts_voice : gr.Dropdown
-        Dropdown component for selecting a Edge TTS voice in the
-        "Generate Speech - One Click Generation" tab.
+        Dropdown component for selecting an Edge TTS voice in the
+        "Generate speech - one-click generation" tab.
     model_1click : gr.Dropdown
         Dropdown component for selecting a voice model in the
-        "Generate Speech - One Click Generation" tab.
+        "Generate speech - one-click generation" tab.
     speech_audio : gr.Dropdown
         Dropdown component for speech audio files to delete in the
         "Delete audio" tab.
@@ -131,7 +131,7 @@ def render(
                     step=1,
                     label="Octave shift",
                     info=(
-                        "The number of octaves to pitch-shift the converted voice by."
+                        "The number of octaves to pitch-shift the converted speech by."
                         " Use 1 for male-to-female and -1 for vice-versa."
                     ),
                 )
@@ -143,7 +143,7 @@ def render(
                     label="Semitone shift",
                     info=(
                         "The number of semi-tones to pitch-shift the converted"
-                        " voice by."
+                        " speech by."
                     ),
                 )
             with gr.Accordion("Voice synthesis settings", open=False):
@@ -180,7 +180,7 @@ def render(
                         info=(
                             "If >=3: apply median filtering to extracted pitch values."
                             " Can help reduce breathiness in the converted"
-                            " voice.<br><br>"
+                            " speech.<br><br>"
                         ),
                     )
                 with gr.Row():
@@ -219,7 +219,7 @@ def render(
                             " voice cracks, but better pitch accuracy."
                         ),
                     )
-            with gr.Accordion("Voice enrichment settings", open=False), gr.Row():
+            with gr.Accordion("Speech enrichment settings", open=False), gr.Row():
                 with gr.Column():
                     split_speech = gr.Checkbox(
                         value=True,
@@ -231,10 +231,10 @@ def render(
                         ),
                     )
                 with gr.Column():
-                    autotune_voice = gr.Checkbox(
-                        label="Autotune converted voice",
+                    autotune_speech = gr.Checkbox(
+                        label="Autotune converted speech",
                         info=(
-                            "Whether to apply autotune to the converted voice.<br><br>"
+                            "Whether to apply autotune to the converted speech.<br><br>"
                         ),
                     )
                     autotune_strength = gr.Slider(
@@ -249,10 +249,11 @@ def render(
                         visible=False,
                     )
                 with gr.Column():
-                    clean_voice = gr.Checkbox(
-                        label="Clean converted voice",
+                    clean_speech = gr.Checkbox(
+                        value=True,
+                        label="Clean converted speech",
                         info=(
-                            "Whether to clean the converted voice using noise"
+                            "Whether to clean the converted speech using noise"
                             " reduction algorithms.<br><br>"
                         ),
                     )
@@ -265,17 +266,17 @@ def render(
                             "Higher values result in stronger cleaning, but may"
                             " lead to a more compressed sound."
                         ),
-                        visible=False,
+                        visible=True,
                     )
-            autotune_voice.change(
+            autotune_speech.change(
                 partial(toggle_visibility, target=True),
-                inputs=autotune_voice,
+                inputs=autotune_speech,
                 outputs=autotune_strength,
                 show_progress="hidden",
             )
-            clean_voice.change(
+            clean_speech.change(
                 partial(toggle_visibility, target=True),
-                inputs=clean_voice,
+                inputs=clean_speech,
                 outputs=clean_strength,
                 show_progress="hidden",
             )
@@ -314,16 +315,13 @@ def render(
                     value=0,
                     step=1,
                     label="Output gain",
-                    info="The gain to apply to the converted voice.",
+                    info="The gain to apply to the converted speech during mixing.",
                 )
                 output_sr = gr.Dropdown(
                     choices=list(SampleRate),
                     value=SampleRate.HZ_44100,
                     label="Output sample rate",
-                    info=(
-                        "The sample rate of the mixed audio track containing the"
-                        " converted voice."
-                    ),
+                    info="The sample rate of the mixed speech track.",
                 )
             with gr.Row():
                 output_name = gr.Textbox(
@@ -344,10 +342,7 @@ def render(
                     list(AudioExt),
                     value=AudioExt.MP3,
                     label="Output format",
-                    info=(
-                        "The format of the mixed audio track containing the converted"
-                        " voice."
-                    ),
+                    info="The format of mixed speech track.",
                 )
             with gr.Row():
                 show_intermediate_audio = gr.Checkbox(
@@ -361,30 +356,30 @@ def render(
         intermediate_audio_accordions = [
             gr.Accordion(label, open=False, render=False)
             for label in [
-                "Step 1: Edge TTS conversion",
-                "Step 2: voice conversion",
+                "Step 1: text-to-speech conversion",
+                "Step 2: speech conversion",
             ]
         ]
-        edge_tts_accordion, voice_conversion_accordion = intermediate_audio_accordions
+        tts_accordion, speech_conversion_accordion = intermediate_audio_accordions
         intermediate_audio_tracks = [
             gr.Audio(label=label, type="filepath", interactive=False, render=False)
             for label in [
                 "Speech",
-                "Converted voice",
+                "Converted speech",
             ]
         ]
-        speech, converted_voice = intermediate_audio_tracks
+        speech, converted_speech = intermediate_audio_tracks
         with gr.Accordion(
             "Intermediate audio tracks",
             open=False,
             visible=False,
         ) as intermediate_audio_accordion:
-            edge_tts_accordion.render()
-            with edge_tts_accordion:
+            tts_accordion.render()
+            with tts_accordion:
                 speech.render()
-            voice_conversion_accordion.render()
-            with voice_conversion_accordion:
-                converted_voice.render()
+            speech_conversion_accordion.render()
+            with speech_conversion_accordion:
+                converted_speech.render()
         show_intermediate_audio.change(
             partial(toggle_intermediate_audio, num_components=2),
             inputs=show_intermediate_audio,
@@ -394,7 +389,7 @@ def render(
         with gr.Row(equal_height=True):
             reset_btn = gr.Button(value="Reeset settings", scale=2)
             generate_btn = gr.Button(value="Generate", scale=2, variant="primary")
-            converted_speech = gr.Audio(label="Converted Speech", scale=3)
+            mixed_speech = gr.Audio(label="Mixed speech", scale=3)
         generate_btn.click(
             partial(
                 exception_harness(
@@ -419,9 +414,9 @@ def render(
                 protect_rate,
                 hop_length,
                 split_speech,
-                autotune_voice,
+                autotune_speech,
                 autotune_strength,
-                clean_voice,
+                clean_speech,
                 clean_strength,
                 embedder_model,
                 embedder_model_custom,
@@ -431,7 +426,7 @@ def render(
                 output_format,
                 output_name,
             ],
-            outputs=[converted_speech, *intermediate_audio_tracks],
+            outputs=[mixed_speech, *intermediate_audio_tracks],
             concurrency_limit=1,
             concurrency_id=ConcurrencyId.GPU,
         ).success(
@@ -456,10 +451,10 @@ def render(
                 0.25,
                 0.33,
                 128,
-                False,
+                True,
                 False,
                 1.0,
-                False,
+                True,
                 0.7,
                 EmbedderModel.CONTENTVEC,
                 None,
@@ -482,9 +477,9 @@ def render(
                 protect_rate,
                 hop_length,
                 split_speech,
-                autotune_voice,
+                autotune_speech,
                 autotune_strength,
-                clean_voice,
+                clean_speech,
                 clean_strength,
                 embedder_model,
                 embedder_model_custom,
@@ -494,4 +489,5 @@ def render(
                 output_format,
                 show_intermediate_audio,
             ],
+            show_progress="hidden",
         )

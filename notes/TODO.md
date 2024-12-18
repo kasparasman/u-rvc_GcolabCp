@@ -1,5 +1,21 @@
 # TODO
 
+* move documentation on how to use webui from readme to dedicated website (like github based?)
+* also make youtube tutorials?
+* add support for downloading custom pretrained models (for training)
+  * must look in applio repo not rvc-cli repo
+* add support for extracting f0 curve file from audio track 
+  * must look in applio repo not rvc-cli repo
+  * with f0  curves files can then test the custom f0 curve file parameter for voice conversion
+* add support for blending voice models
+* add support for getting model information
+* add support for getting audio information
+* upgrade audio-separator to latest version
+  * then also update documentation as downloading diffq manually is no longer needed on windows
+* upgrade gradio to latest
+  * also remove gradio stub files as they are no longer needed
+  * but then need to make updates to gradio imports in web package
+* synchronize rvc backend package with latest changes from rvc-cli
 * support more input files for tts than just .txt
 * support other initial tts models than just edge tts
 * fix new problem with hot reload:

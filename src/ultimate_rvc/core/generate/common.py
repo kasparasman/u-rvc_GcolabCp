@@ -124,6 +124,7 @@ def validate_exists(
             | Entity.AUDIO_TRACK
             | Entity.VOCALS_TRACK
             | Entity.VOICE_TRACK
+            | Entity.SPEECH_TRACK
             | Entity.INSTRUMENTALS_TRACK
             | Entity.MAIN_VOCALS_TRACK
             | Entity.BACKUP_VOCALS_TRACK
@@ -460,6 +461,9 @@ def convert(
         case RVCContentType.VOICE:
             track_entity = Entity.VOICE_TRACK
             directory_entity = Entity.DIRECTORY
+        case RVCContentType.SPEECH:
+            track_entity = Entity.SPEECH_TRACK
+            directory_entity = Entity.DIRECTORY
         case RVCContentType.AUDIO:
             track_entity = Entity.AUDIO_TRACK
             directory_entity = Entity.DIRECTORY
@@ -678,9 +682,9 @@ def mix_audio(
         case MixedAudioType.AUDIO:
             directory_entity = Entity.DIRECTORY
             display_msg = "[~] Mixing audio tracks..."
-        case MixedAudioType.VOICE:
+        case MixedAudioType.SPEECH:
             directory_entity = Entity.DIRECTORY
-            display_msg = "[~] Mixing voice tracks..."
+            display_msg = "[~] Mixing speech track..."
         case MixedAudioType.SONG:
             directory_entity = Entity.SONG_DIR
             display_msg = "[~] Mixing main vocals, instrumentals, and backup vocals..."
