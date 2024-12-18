@@ -24,13 +24,27 @@ import typer
 
 from ultimate_rvc.common import AUDIO_DIR, MODELS_DIR, TEMP_DIR
 from ultimate_rvc.core.generate.song_cover import get_named_song_dirs
-from ultimate_rvc.core.manage.audio import get_saved_output_audio
+from ultimate_rvc.core.generate.speech import get_edge_tts_voice_names
+from ultimate_rvc.core.manage.audio import (
+    get_saved_output_audio,
+    get_saved_speech_audio,
+)
 from ultimate_rvc.core.manage.models import get_saved_model_names
-from ultimate_rvc.web.tabs.manage_audio import render as render_manage_audio_tab
-from ultimate_rvc.web.tabs.manage_models import render as render_manage_models_tab
-from ultimate_rvc.web.tabs.multi_step_generation import render as render_multi_step_tab
-from ultimate_rvc.web.tabs.one_click_generation import render as render_one_click_tab
-from ultimate_rvc.web.tabs.other_settings import render as render_other_settings_tab
+from ultimate_rvc.web.tabs.generate.song_cover.multi_step_generation import (
+    render as render_song_cover_multi_step_tab,
+)
+from ultimate_rvc.web.tabs.generate.song_cover.one_click_generation import (
+    render as render_song_cover_one_click_tab,
+)
+from ultimate_rvc.web.tabs.generate.speech.multi_step_generation import (
+    render as render_speech_multi_step_tab,
+)
+from ultimate_rvc.web.tabs.generate.speech.one_click_generation import (
+    render as render_speech_one_click_tab,
+)
+from ultimate_rvc.web.tabs.manage.audio import render as render_manage_audio_tab
+from ultimate_rvc.web.tabs.manage.models import render as render_manage_models_tab
+from ultimate_rvc.web.tabs.manage.settings import render as render_settings_tab
 
 app_wrapper = typer.Typer()
 
@@ -43,20 +57,25 @@ def _init_app() -> list[gr.Dropdown]:
     Returns
     -------
     tuple[gr.Dropdown, ...]
-        Updated dropdowns for selecting voice models, cached songs,
-        and output audio files.
+        Updated dropdowns for selecting edge tts voices, RVC voice
+        models, cached songs, and output audio files.
 
     """
     model_names = get_saved_model_names()
     named_song_dirs = get_named_song_dirs()
+
+    edge_tts_voice = gr.Dropdown(
+        choices=get_edge_tts_voice_names(),
+        value="en-US-ChristopherNeural",
+    )
     models = [
         gr.Dropdown(
             choices=model_names,
             value=None if not model_names else model_names[0],
         )
-        for _ in range(2)
+        for _ in range(4)
     ]
-    model_delete = [gr.Dropdown(choices=model_names)]
+    model_delete = gr.Dropdown(choices=model_names)
     cached_songs = [gr.Dropdown(choices=named_song_dirs) for _ in range(3)]
     song_dirs = [
         gr.Dropdown(
@@ -65,8 +84,17 @@ def _init_app() -> list[gr.Dropdown]:
         )
         for _ in range(5)
     ]
-    output_audio = [gr.Dropdown(choices=get_saved_output_audio())]
-    return models + model_delete + cached_songs + song_dirs + output_audio
+    speech_audio = gr.Dropdown(choices=get_saved_speech_audio())
+    output_audio = gr.Dropdown(choices=get_saved_output_audio())
+    return [
+        edge_tts_voice,
+        *models,
+        model_delete,
+        *cached_songs,
+        *song_dirs,
+        speech_audio,
+        output_audio,
+    ]
 
 
 def render_app() -> gr.Blocks:
@@ -127,13 +155,29 @@ def render_app() -> gr.Blocks:
             ),
             render=False,
         )
+        speech_audio = gr.Dropdown(
+            label="Speech audio files",
+            multiselect=True,
+            info="Select one or more speech audio files to delete.",
+            render=False,
+        )
         output_audio = gr.Dropdown(
             label="Output audio files",
             multiselect=True,
             info="Select one or more output audio files to delete.",
             render=False,
         )
-        model_1click, model_multi = [
+        edge_tts_voice = gr.Dropdown(
+            label="Edge TTS voice",
+            info="Select a voice to use for text to speech conversion.",
+            render=False,
+        )
+        (
+            song_cover_model_1click,
+            speech_model_1click,
+            song_cover_model_multi,
+            speech_model_multi,
+        ) = [
             gr.Dropdown(
                 # NOTE choices and value must be explicitly set like
                 # this to avoid caching issues when reloading the app
@@ -143,35 +187,54 @@ def render_app() -> gr.Blocks:
                 value=None,
                 label="Voice model",
                 render=False,
-                info="Select a voice model to use for converting vocals.",
+                info=info,
             )
-            for _ in range(2)
+            for info in [
+                "Select a voice model to use for converting vocals.",
+                "Select a voice model to use for speech conversion.",
+            ]
+            * 2
         ]
         model_delete = gr.Dropdown(label="Voice models", multiselect=True, render=False)
 
         # main tab
         with gr.Tab("Generate song covers"):
-            render_one_click_tab(
+            render_song_cover_one_click_tab(
                 song_dirs,
                 cached_song_1click,
                 cached_song_multi,
-                model_1click,
+                song_cover_model_1click,
                 intermediate_audio,
                 output_audio,
             )
-            render_multi_step_tab(
+            render_song_cover_multi_step_tab(
                 song_dirs,
                 cached_song_1click,
                 cached_song_multi,
-                model_multi,
+                song_cover_model_multi,
                 intermediate_audio,
+                output_audio,
+            )
+        with gr.Tab("Generate speech"):
+            render_speech_one_click_tab(
+                edge_tts_voice,
+                speech_model_1click,
+                speech_audio,
+                output_audio,
+            )
+            render_speech_multi_step_tab(
+                edge_tts_voice,
+                speech_model_multi,
+                speech_audio,
                 output_audio,
             )
         with gr.Tab("Manage models"):
             render_manage_models_tab(
                 model_delete,
-                model_1click,
-                model_multi,
+                song_cover_model_1click,
+                song_cover_model_multi,
+                speech_model_1click,
+                speech_model_multi,
             )
         with gr.Tab("Manage audio"):
             render_manage_audio_tab(
@@ -179,21 +242,26 @@ def render_app() -> gr.Blocks:
                 cached_song_1click,
                 cached_song_multi,
                 intermediate_audio,
+                speech_audio,
                 output_audio,
             )
-        with gr.Tab("Other settings"):
-            render_other_settings_tab()
+        with gr.Tab("Settings"):
+            render_settings_tab()
 
         app.load(
             _init_app,
             outputs=[
-                model_1click,
-                model_multi,
+                edge_tts_voice,
+                song_cover_model_1click,
+                song_cover_model_multi,
+                speech_model_1click,
+                speech_model_multi,
                 model_delete,
                 intermediate_audio,
                 cached_song_1click,
                 cached_song_multi,
                 *song_dirs,
+                speech_audio,
                 output_audio,
             ],
             show_progress="hidden",

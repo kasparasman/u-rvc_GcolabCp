@@ -34,7 +34,7 @@ from ultimate_rvc.web.common import (
     update_song_cover_name,
     update_value,
 )
-from ultimate_rvc.web.typing_extra import ConcurrencyId, SourceType
+from ultimate_rvc.web.typing_extra import ConcurrencyId, SongSourceType
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -298,8 +298,8 @@ def render(
             with gr.Row():
                 with gr.Column():
                     source_type = gr.Dropdown(
-                        list(SourceType),
-                        value=SourceType.PATH,
+                        list(SongSourceType),
+                        value=SongSourceType.PATH,
                         label="Source type",
                         type="index",
                         info="The type of source to retrieve a song from.",

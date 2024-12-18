@@ -1,4 +1,4 @@
-"""Module which defines the code for the "Other settings" tab."""
+"""Module which defines the code for the "Settings" tab."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from functools import partial
 
 import gradio as gr
 
-from ultimate_rvc.core.manage.other_settings import delete_temp_files
+from ultimate_rvc.core.manage.settings import delete_temp_files
 from ultimate_rvc.web.common import (
     PROGRESS_BAR,
     confirm_box_js,
@@ -16,7 +16,7 @@ from ultimate_rvc.web.common import (
 
 
 def render() -> None:
-    """Render "Other settings" tab."""
+    """Render "Settings" tab."""
     dummy_checkbox = gr.Checkbox(visible=False)
 
     gr.Markdown("")

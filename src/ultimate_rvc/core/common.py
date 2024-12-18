@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 RVC_DOWNLOAD_URL = "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/"
 INTERMEDIATE_AUDIO_BASE_DIR = AUDIO_DIR / "intermediate"
-TTS_AUDIO_BASE_DIR = AUDIO_DIR / "tts"
+SPEECH_DIR = AUDIO_DIR / "speech"
 OUTPUT_AUDIO_DIR = AUDIO_DIR / "output"
 FLAG_FILE = MODELS_DIR / ".initialized"
 

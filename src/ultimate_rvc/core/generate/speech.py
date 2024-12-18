@@ -14,7 +14,7 @@ import anyio
 from ultimate_rvc.common import lazy_import
 from ultimate_rvc.core.common import (
     OUTPUT_AUDIO_DIR,
-    TTS_AUDIO_BASE_DIR,
+    SPEECH_DIR,
     copy_file_safe,
     display_progress,
     json_dump,
@@ -26,7 +26,12 @@ from ultimate_rvc.core.generate.common import (
     mix_audio,
     validate_exists,
 )
-from ultimate_rvc.core.generate.typing_extra import EdgeTTSAudioMetaData, MixedAudioType
+from ultimate_rvc.core.generate.typing_extra import (
+    EdgeTTSAudioMetaData,
+    EdgeTTSVoiceKeys,
+    EdgeTTSVoiceTable,
+    MixedAudioType,
+)
 from ultimate_rvc.typing_extra import (
     AudioExt,
     EmbedderModel,
@@ -44,6 +49,120 @@ if TYPE_CHECKING:
 
 else:
     edge_tts = lazy_import("edge_tts")
+
+
+def list_edge_tts_voices(
+    locale: str | None = None,
+    content_categories: list[str] | None = None,
+    voice_personalities: list[str] | None = None,
+    offset: int = 0,
+    limit: int | None = None,
+    include_status_info: bool = False,
+    include_codec_info: bool = False,
+) -> tuple[EdgeTTSVoiceTable, EdgeTTSVoiceKeys]:
+    """
+    List Edge TTS voices based on provided filters.
+
+    Parameters
+    ----------
+    locale : str, optional
+        The locale to filter Edge TTS voices by.
+
+    content_categories : list[str], optional
+        The content categories to filter Edge TTS voices by.
+
+    voice_personalities : list[str], optional
+        The voice personalities to filter Edge TTS voices by.
+
+    offset : int, default=0
+        The offset to start listing Edge TTS voices from.
+
+    limit : int, optional
+        The limit on how many Edge TTS voices to list.
+
+    include_status_info : bool, default=False
+        Include status information for each Edge TTS voice.
+
+    include_codec_info : bool, default=False
+        Include codec information for each Edge TTS voice.
+
+    Returns
+    -------
+        table : list[list[str]]
+            A table containing information on the listed Edge TTS
+            voices.
+        keys : list[str]
+            The keys used to generate the table.
+
+
+    """
+    keys = [
+        "Name",
+        "FriendlyName",
+        "ShortName",
+        "Locale",
+        "ContentCategories",
+        "VoicePersonalities",
+    ]
+    if include_status_info:
+        keys.append("Status")
+    if include_codec_info:
+        keys.append("SuggestedCodec")
+
+    voices = anyio.run(edge_tts.list_voices)
+    filtered_voices = [
+        v
+        for v in voices
+        if (
+            (locale is None or locale in v["Locale"])
+            and (
+                content_categories is None
+                or any(
+                    c in ", ".join(v["VoiceTag"]["ContentCategories"])
+                    for c in content_categories
+                )
+            )
+            and (
+                voice_personalities is None
+                or any(
+                    p in ", ".join(v["VoiceTag"]["VoicePersonalities"])
+                    for p in voice_personalities
+                )
+            )
+        )
+    ]
+    if limit is not None:
+        limited_voices = filtered_voices[offset : offset + limit]
+    else:
+        limited_voices = filtered_voices[offset:]
+
+    table: list[list[str]] = []
+    for voice in limited_voices:
+
+        features = [
+            (
+                ", ".join(voice["VoiceTag"][key])
+                if key in {"ContentCategories", "VoicePersonalities"}
+                else voice[key]
+            )
+            for key in keys
+        ]
+        table.append(features)
+    return table, keys
+
+
+def get_edge_tts_voice_names() -> list[str]:
+    """
+    Get the the short names of all Edge TTS voices.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        The short names of all Edge TTS voices.
+
+    """
+    voices, keys = list_edge_tts_voices()
+    return [voice[keys.index("ShortName")] for voice in voices]
 
 
 async def run_edge_tts(
@@ -72,11 +191,11 @@ async def run_edge_tts(
         speaking the provided text.
 
     speed_change : int, default=0
-        The absolute change to the speed of the Edge TTS voice speaking
+        The percentual change to the speed of the Edge TTS voice speaking
         the provided text.
 
     volume_change : int, default=0
-        The absolute change to the volume of the Edge TTS voice speaking
+        The percentual change to the volume of the Edge TTS voice speaking
         the provided text.
 
     progress_bar : gr.Progress, optional
@@ -96,7 +215,7 @@ async def run_edge_tts(
 
     """
     if not source:
-        raise NotProvidedError(entity=Entity.SOURCE, ui_msg=UIMessage.NO_TTS_SOURCE)
+        raise NotProvidedError(entity=Entity.SOURCE, ui_msg=UIMessage.NO_TEXT_SOURCE)
 
     source_path = Path(source)
     source_is_file = source_path.is_file()
@@ -113,10 +232,10 @@ async def run_edge_tts(
         speed_change=speed_change,
         volume_change=volume_change,
     ).model_dump()
-    TTS_AUDIO_BASE_DIR.mkdir(parents=True, exist_ok=True)
+    SPEECH_DIR.mkdir(parents=True, exist_ok=True)
     paths = [
         get_unique_base_path(
-            TTS_AUDIO_BASE_DIR,
+            SPEECH_DIR,
             "1_EdgeTTS_Audio",
             args_dict,
         ).with_suffix(suffix)
@@ -149,6 +268,35 @@ async def run_edge_tts(
         json_dump(args_dict, converted_audio_json_path)
 
     return converted_audio_path
+
+
+def get_speech_track_name(
+    source: str | None = None,
+    model_name: str | None = None,
+) -> str:
+    """
+    Generate a suitable name for a TTS-RVC generated speech track based
+    on the source of input text and the model used for voice conversion.
+
+    Parameters
+    ----------
+    source : str
+        A string or path to a file containing the text converted
+        to speech.
+
+    model_name : str
+        The name of the model used for voice conversion.
+
+    Returns
+    -------
+    str
+        The name of the speech track.
+
+    """
+    model_name = model_name or "Unknown Speaker"
+    source_path = Path(source) if source else None
+    source_name = source_path.stem if source_path and source_path.is_file() else "Text"
+    return f"{source_name} (Spoken by {model_name})"
 
 
 def run_pipeline(
@@ -205,11 +353,11 @@ def run_pipeline(
         by Edge TTS.
 
     tts_speed_change : int, default=0
-        The absolute change to the speed of the speech generated by
+        The perecentual change to the speed of the speech generated by
         Edge TTS.
 
     tts_volume_change : int, default=0
-        The absolute change to the volume of the speech generated by
+        The percentual change to the volume of the speech generated by
         Edge TTS.
 
     n_octaves : int, default=0
@@ -279,7 +427,8 @@ def run_pipeline(
         voice.
 
     output_name : str, optional
-        The name of the mixed audio track containing the converted voice.
+        The name of the mixed audio track containing the converted
+        voice.
 
     progress_bar : gr.Progress, optional
         Gradio progress bar to update.
@@ -306,7 +455,7 @@ def run_pipeline(
     )
     converted_voice_track = convert(
         audio_track=speech_track,
-        directory=TTS_AUDIO_BASE_DIR,
+        directory=SPEECH_DIR,
         model_name=model_name,
         n_octaves=n_octaves,
         n_semitones=n_semitones,
@@ -331,7 +480,7 @@ def run_pipeline(
 
     mixed_voice_track = mix_audio(
         audio_track_gain_pairs=[(converted_voice_track, output_gain)],
-        directory=TTS_AUDIO_BASE_DIR,
+        directory=SPEECH_DIR,
         output_sr=output_sr,
         output_format=output_format,
         content_type=MixedAudioType.VOICE,
@@ -339,10 +488,7 @@ def run_pipeline(
         percentage=0.66,
     )
 
-    if output_name is None:
-        source_path = Path(source)
-        song_name = source_path.stem if source_path.is_file() else "Text"
-        output_name = f"{song_name} (Spoken by {model_name})"
+    output_name = output_name or get_speech_track_name(source, model_name)
 
     audio_path = OUTPUT_AUDIO_DIR / f"{output_name}.{output_format}"
     output_audio_track = copy_file_safe(mixed_voice_track, audio_path)

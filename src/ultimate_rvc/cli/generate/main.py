@@ -24,7 +24,7 @@ from ultimate_rvc.cli.generate.common import (
     complete_f0_method,
 )
 from ultimate_rvc.cli.generate.song_cover import app as song_cover_app
-from ultimate_rvc.cli.generate.speech import app as tts_app
+from ultimate_rvc.cli.generate.speech import app as speech_app
 from ultimate_rvc.cli.generate.typing_extra import PanelName
 from ultimate_rvc.core.generate.common import convert as _convert
 from ultimate_rvc.core.generate.common import wavify as _wavify
@@ -39,7 +39,7 @@ app = typer.Typer(
 
 
 app.add_typer(song_cover_app)
-app.add_typer(tts_app)
+app.add_typer(speech_app)
 
 
 @app.command(no_args_is_help=True)

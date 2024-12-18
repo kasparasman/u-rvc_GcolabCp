@@ -14,7 +14,11 @@ from ultimate_rvc.core.generate.song_cover import (
     get_named_song_dirs,
     get_song_cover_name,
 )
-from ultimate_rvc.core.manage.audio import get_saved_output_audio
+from ultimate_rvc.core.generate.speech import get_speech_track_name
+from ultimate_rvc.core.manage.audio import (
+    get_saved_output_audio,
+    get_saved_speech_audio,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -328,6 +332,41 @@ def update_output_audio(
     )
 
 
+def update_speech_audio(
+    num_components: int,
+    value: DropdownValue = None,
+    value_indices: Sequence[int] = [],
+) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
+    """
+    Update the choices of one or more dropdown components to the set of
+    currently saved speech audio files.
+
+    Optionally update the default value of one or more of these
+    components.
+
+    Parameters
+    ----------
+    num_components : int
+        Number of dropdown components to update.
+    value : DropdownValue, optional
+        New value for dropdown components.
+    value_indices : Sequence[int], default=[]
+        Indices of dropdown components to update the value for.
+
+    Returns
+    -------
+    gr.Dropdown | tuple[gr.Dropdown,...]
+        Updated dropdown component or components.
+
+    """
+    return update_dropdowns(
+        get_saved_speech_audio,
+        num_components,
+        value,
+        value_indices,
+    )
+
+
 def toggle_visible_component(
     num_components: int,
     visible_index: int,
@@ -371,6 +410,32 @@ def toggle_visible_component(
             return gr.update(**update_args)
         case _:
             return tuple(gr.update(**update_args) for update_args in update_args_list)
+
+
+def toggle_intermediate_audio(
+    visible: bool,
+    num_components: int,
+) -> list[gr.Accordion]:
+    """
+    Toggle the visibility of intermediate audio accordions.
+
+    Parameters
+    ----------
+    visible : bool
+        Visibility status of the intermediate audio accordions.
+
+    num_components : int
+        Number of intermediate audio accordions to toggle visibility
+        for.
+
+    Returns
+    -------
+    list[gr.Accordion]
+        The intermediate audio accordions.
+
+    """
+    accordions = [gr.Accordion(open=False) for _ in range(num_components)]
+    return [gr.Accordion(visible=visible, open=False), *accordions]
 
 
 def update_song_cover_name(
@@ -418,6 +483,42 @@ def update_song_cover_name(
             model_name,
         )
         update_args[update_key] = song_cover_name
+    else:
+        update_args[update_key] = None
+    return gr.Textbox(**update_args)
+
+
+def update_speech_track_name(
+    text: str | None = None,
+    model_name: str | None = None,
+    update_placeholder: bool = False,
+) -> gr.Textbox:
+    """
+    Update a textbox component so that it displays a suitable name for a
+    speech track generated from a given text source.
+
+    Parameters
+    ----------
+    text : str, optional
+        The text to generate a speech track from.
+    model_name : str, optional
+        The name of the voice model used for generating the speech
+        track.
+    update_placeholder : bool, default=False
+        Whether to update the placeholder text instead of the value of
+        the textbox component.
+
+    Returns
+    -------
+    gr.Textbox
+        Textbox component with updated value or placeholder text.
+
+    """
+    update_args: TextBoxKwArgs = {}
+    update_key = "placeholder" if update_placeholder else "value"
+    if text or model_name:
+        speech_track_name = get_speech_track_name(text, model_name)
+        update_args[update_key] = speech_track_name
     else:
         update_args[update_key] = None
     return gr.Textbox(**update_args)

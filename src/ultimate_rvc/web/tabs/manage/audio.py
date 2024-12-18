@@ -12,8 +12,10 @@ from ultimate_rvc.core.manage.audio import (
     delete_all_audio,
     delete_all_intermediate_audio,
     delete_all_output_audio,
+    delete_all_speech_audio,
     delete_intermediate_audio,
     delete_output_audio,
+    delete_speech_audio,
 )
 from ultimate_rvc.web.common import (
     PROGRESS_BAR,
@@ -22,6 +24,7 @@ from ultimate_rvc.web.common import (
     render_msg,
     update_cached_songs,
     update_output_audio,
+    update_speech_audio,
 )
 
 if TYPE_CHECKING:
@@ -33,6 +36,7 @@ def render(
     cached_song_1click: gr.Dropdown,
     cached_song_multi: gr.Dropdown,
     intermediate_audio: gr.Dropdown,
+    speech_audio: gr.Dropdown,
     output_audio: gr.Dropdown,
 ) -> None:
     """
@@ -51,6 +55,9 @@ def render(
         "Multi-step generation" tab
     intermediate_audio : gr.Dropdown
         Dropdown for selecting intermediate audio files to delete in the
+        "Delete audio" tab.
+    speech_audio : gr.Dropdown
+        Dropdown for selecting speech audio files to delete in the
         "Delete audio" tab.
     output_audio : gr.Dropdown
         Dropdown for selecting output audio files to delete in the
@@ -72,6 +79,22 @@ def render(
                 )
             with gr.Column():
                 intermediate_audio_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                )
+        with gr.Accordion("Speech audio", open=False), gr.Row():
+            with gr.Column():
+                speech_audio.render()
+                speech_audio_btn = gr.Button(
+                    "Delete selected",
+                    variant="secondary",
+                )
+                all_speech_audio_btn = gr.Button(
+                    "Delete all",
+                    variant="primary",
+                )
+            with gr.Column():
+                speech_audio_msg = gr.Textbox(
                     label="Output message",
                     interactive=False,
                 )
@@ -130,6 +153,41 @@ def render(
                 "[-] Successfully deleted all intermediate audio files!",
             ),
             outputs=intermediate_audio_msg,
+            show_progress="hidden",
+        )
+
+        speech_audio_click = speech_audio_btn.click(
+            partial(
+                confirmation_harness(delete_speech_audio),
+                progress_bar=PROGRESS_BAR,
+            ),
+            inputs=[dummy_checkbox, speech_audio],
+            outputs=speech_audio_msg,
+            js=confirm_box_js(
+                "Are you sure you want to delete the selected speech audio files?",
+            ),
+        ).success(
+            partial(
+                render_msg,
+                "[-] Successfully deleted the selected speech audio files!",
+            ),
+            outputs=speech_audio_msg,
+            show_progress="hidden",
+        )
+
+        all_speech_audio_click = all_speech_audio_btn.click(
+            partial(
+                confirmation_harness(delete_all_speech_audio),
+                progress_bar=PROGRESS_BAR,
+            ),
+            inputs=dummy_checkbox,
+            outputs=speech_audio_msg,
+            js=confirm_box_js(
+                "Are you sure you want to delete all speech audio files?",
+            ),
+        ).success(
+            partial(render_msg, "[-] Successfully deleted all speech audio files!"),
+            outputs=speech_audio_msg,
             show_progress="hidden",
         )
 
@@ -204,6 +262,17 @@ def render(
                 all_audio_click,
             ]
         ]
+
+        for click_event in [
+            speech_audio_click,
+            all_speech_audio_click,
+            all_audio_update,
+        ]:
+            click_event.success(
+                partial(update_speech_audio, 1, [], [0]),
+                outputs=[speech_audio],
+                show_progress="hidden",
+            )
 
         for click_event in [
             output_audio_click,

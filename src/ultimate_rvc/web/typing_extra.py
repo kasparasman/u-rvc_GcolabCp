@@ -25,12 +25,19 @@ class ConcurrencyId(StrEnum):
     GPU = auto()
 
 
-class SourceType(StrEnum):
+class SongSourceType(StrEnum):
     """The type of source providing the song to generate a cover of."""
 
     PATH = "YouTube link/local path"
     LOCAL_FILE = "Local file"
     CACHED_SONG = "Cached song"
+
+
+class SpeechSourceType(StrEnum):
+    """The type of source providing the text to generate speech from."""
+
+    TEXT = "Text"
+    LOCAL_FILE = "Local file"
 
 
 class ComponentVisibilityKwArgs(TypedDict):
