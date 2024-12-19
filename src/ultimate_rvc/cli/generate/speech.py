@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated
 
-import asyncio
 import time
 from pathlib import Path  # noqa: TC003
 
@@ -90,14 +89,12 @@ def run_edge_tts(
 
     rprint()
 
-    audio_path = asyncio.run(
-        generate_speech.run_edge_tts(
-            source,
-            voice,
-            pitch_shift,
-            speed_change,
-            volume_change,
-        ),
+    audio_path = generate_speech.run_edge_tts(
+        source,
+        voice,
+        pitch_shift,
+        speed_change,
+        volume_change,
     )
 
     rprint("[+] Text successfully converted to speech!")
@@ -199,7 +196,7 @@ def run_pipeline(
     model_name: Annotated[
         str,
         typer.Argument(
-            help="The name of the RVC model to use for voice conversion.",
+            help="The name of the RVC model to use for speech conversion.",
         ),
     ],
     tts_voice: Annotated[
@@ -245,7 +242,7 @@ def run_pipeline(
         int,
         typer.Option(
             help=(
-                "The number of octaves to shift the pitch of the voice converted using"
+                "The number of octaves to shift the pitch of the speech converted using"
                 " RVC. Use 1 for male-to-female and -1 for vice-versa."
             ),
             rich_help_panel=PanelName.RVC_MAIN_OPTIONS,
@@ -255,7 +252,7 @@ def run_pipeline(
         int,
         typer.Option(
             help=(
-                "The number of semitones to shift the pitch of the voice converted"
+                "The number of semitones to shift the pitch of the speech converted"
                 " using RVC. Altering this slightly reduces sound quality."
             ),
             rich_help_panel=PanelName.RVC_MAIN_OPTIONS,
@@ -297,7 +294,7 @@ def run_pipeline(
             help=(
                 "A number which, if greater than 3, applies median filtering to"
                 " pitch values extracted during the RVC process. Can help reduce"
-                " breathiness in the converted voice."
+                " breathiness in the converted speech."
             ),
         ),
     ] = 3,
@@ -308,7 +305,7 @@ def run_pipeline(
             max=1,
             rich_help_panel=PanelName.RVC_SYNTHESIS_OPTIONS,
             help=(
-                "Blending rate for the volume envelope of the voice converted using"
+                "Blending rate for the volume envelope of the speech converted using"
                 " RVC. Controls how much to mimic the loudness of the given Edge TTS"
                 " speech (0) or a fixed loudness (1)."
             ),
@@ -353,11 +350,11 @@ def run_pipeline(
             ),
         ),
     ] = True,
-    autotune_voice: Annotated[
+    autotune_speech: Annotated[
         bool,
         typer.Option(
             rich_help_panel=PanelName.RVC_ENRICHMENT_OPTIONS,
-            help="Whether to apply autotune to the voice converted using RVC.",
+            help="Whether to apply autotune to the speech converted using RVC.",
         ),
     ] = False,
     autotune_strength: Annotated[
@@ -367,22 +364,22 @@ def run_pipeline(
             max=1,
             rich_help_panel=PanelName.RVC_ENRICHMENT_OPTIONS,
             help=(
-                "The intensity of the autotune effect to apply to the voice converted"
+                "The intensity of the autotune effect to apply to the speech converted"
                 " using RVC. Higher values result in stronger snapping to the chromatic"
                 " grid."
             ),
         ),
     ] = 1.0,
-    clean_voice: Annotated[
+    clean_speech: Annotated[
         bool,
         typer.Option(
             rich_help_panel=PanelName.RVC_ENRICHMENT_OPTIONS,
             help=(
-                "Whether to clean the voice converted using RVC using noise reduction"
+                "Whether to clean the speech converted using RVC using noise reduction"
                 " algorithms"
             ),
         ),
-    ] = False,
+    ] = True,
     clean_strength: Annotated[
         float,
         typer.Option(
@@ -390,7 +387,7 @@ def run_pipeline(
             max=1,
             rich_help_panel=PanelName.RVC_ENRICHMENT_OPTIONS,
             help=(
-                "The intensity of the cleaning to apply to the voice converted using"
+                "The intensity of the cleaning to apply to the speech converted using"
                 " RVC. Higher values result in stronger cleaning, but may lead to a"
                 " more compressed sound."
             ),
@@ -434,17 +431,14 @@ def run_pipeline(
         int,
         typer.Option(
             rich_help_panel=PanelName.AUDIO_MIXING_OPTIONS,
-            help="The gain to apply to the converted voice.",
+            help="The gain to apply to the converted speech during mixing.",
         ),
     ] = 0,
     output_sr: Annotated[
         int,
         typer.Option(
             rich_help_panel=PanelName.AUDIO_MIXING_OPTIONS,
-            help=(
-                "The sample rate of the mixed audio track containing the converted"
-                " voice."
-            ),
+            help="The sample rate of the mixed speech track.",
         ),
     ] = 44100,
     output_format: Annotated[
@@ -453,14 +447,14 @@ def run_pipeline(
             case_sensitive=False,
             rich_help_panel=PanelName.AUDIO_MIXING_OPTIONS,
             autocompletion=complete_audio_ext,
-            help="The format of the mixed audio track containing the converted voice.",
+            help="The format of the mixed speech track.",
         ),
     ] = AudioExt.MP3,
     output_name: Annotated[
         str | None,
         typer.Option(
             rich_help_panel=PanelName.AUDIO_MIXING_OPTIONS,
-            help="The name of the mixed audio track containing the converted voice.",
+            help="The name of the mixed speech track.",
         ),
     ] = None,
 ) -> None:
@@ -489,9 +483,9 @@ def run_pipeline(
         protect_rate=protect_rate,
         hop_length=hop_length,
         split_speech=split_speech,
-        autotune_voice=autotune_voice,
+        autotune_speech=autotune_speech,
         autotune_strength=autotune_strength,
-        clean_voice=clean_voice,
+        clean_speech=clean_speech,
         clean_strength=clean_strength,
         embedder_model=embedder_model,
         embedder_model_custom=embedder_model_custom,

@@ -1,4 +1,7 @@
-"""Module which defines the code for the "One-click generation" tab."""
+"""
+Module which defines the code for the
+"Generate song covers - one-click generation" tab.
+"""
 
 from __future__ import annotations
 
@@ -36,7 +39,7 @@ def render(
     output_audio: gr.Dropdown,
 ) -> None:
     """
-    Render "One-click generation" tab.
+    Render "Generate song covers - One-click generation" tab.
 
     Parameters
     ----------

@@ -54,6 +54,7 @@ class RVCContentType(StrEnum):
 
     VOCALS = "vocals"
     VOICE = "voice"
+    SPEECH = "speech"
     AUDIO = "audio"
 
 
