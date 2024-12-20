@@ -44,7 +44,6 @@ dependencies = [
     # Version of onnxruntime-gpu needs to align with what 
     # version audio-separator package uses.
     "onnxruntime-gpu==1.19.2", 
-    "local-attention",
     "einops",
     "transformers",
     "diffq==0.2.4",
@@ -53,7 +52,8 @@ dependencies = [
     # "tensorboard",
     # "torchfcpe",
     # "libf0",
-
+    #"local-attention",
+    
     # Audio
     "static-ffmpeg==2.7",
     "static-sox==1.0.1",

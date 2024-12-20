@@ -7,7 +7,7 @@ from torch.nn.utils import remove_weight_norm
 from torch.nn.utils.parametrizations import weight_norm
 
 from ultimate_rvc.rvc.lib.algorithm.commons import init_weights
-from ultimate_rvc.rvc.lib.algorithm.generators import SineGen
+from ultimate_rvc.rvc.lib.algorithm.generators import SineGenerator
 from ultimate_rvc.rvc.lib.algorithm.residuals import LRELU_SLOPE, ResBlock1, ResBlock2
 
 
@@ -40,7 +40,7 @@ class SourceModuleHnNSF(torch.nn.Module):
         self.noise_std = add_noise_std
         self.is_half = is_half
 
-        self.l_sin_gen = SineGen(
+        self.l_sin_gen = SineGenerator(
             sample_rate,
             harmonic_num,
             sine_amp,
@@ -121,7 +121,7 @@ class GeneratorNSF(torch.nn.Module):
         ]
 
         for i, (u, k) in enumerate(
-            zip(upsample_rates, upsample_kernel_sizes, strict=False)
+            zip(upsample_rates, upsample_kernel_sizes, strict=False),
         ):
             self.ups.append(
                 weight_norm(
@@ -150,7 +150,9 @@ class GeneratorNSF(torch.nn.Module):
                 resblock_cls(channels[i], k, d)
                 for i in range(len(self.ups))
                 for k, d in zip(
-                    resblock_kernel_sizes, resblock_dilation_sizes, strict=False
+                    resblock_kernel_sizes,
+                    resblock_dilation_sizes,
+                    strict=False,
                 )
             ],
         )
@@ -173,7 +175,7 @@ class GeneratorNSF(torch.nn.Module):
             x = x + self.cond(g)
 
         for i, (ups, noise_convs) in enumerate(
-            zip(self.ups, self.noise_convs, strict=False)
+            zip(self.ups, self.noise_convs, strict=False),
         ):
             x = torch.nn.functional.leaky_relu(x, self.lrelu_slope)
             x = ups(x)
