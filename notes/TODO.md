@@ -1,5 +1,7 @@
 # TODO
-
+* add something like an agreement to the top of the readme that says that the user agrees to the terms and conditions
+   * something like: This software is open source under the MIT license. The author does not have any control over the software. Users who use the software and distribute the sounds exported by the software are solely responsible.
+If you do not agree with this clause, you cannot use or reference any codes and files within the software package. See the root directory Agreement-LICENSE.txt for details.
 * move documentation on how to use webui from readme to dedicated website (like github based?)
 * also make youtube tutorials?
 * add support for downloading custom pretrained models (for training)
@@ -15,9 +17,9 @@
 * upgrade gradio to latest
   * also remove gradio stub files as they are no longer needed
   * but then need to make updates to gradio imports in web package
-* synchronize rvc backend package with latest changes from rvc-cli
 * support more input files for tts than just .txt
 * support other initial tts models than just edge tts
+  * coqui tts
 * fix new problem with hot reload:
 
   ```python
@@ -246,6 +248,8 @@
 
 ## Audio separation
 
+* support using multiple models in parallel and combining results
+  * median, mean, min, maxx
 * expand back-end function(s) so that they are parametrized by both model type as well as model settings
   * Need to decide whether we only want to support common model settings or also settings that are unique to each model
     * It will probably be the latter, which will then require some extra checks.
@@ -346,7 +350,7 @@
   * two pitch shifts operations that are currently executed sequentially should be executed in parallel because they are done on cpu.
   * application of different f0 extraction methods should also be done in parallel.
 
-* Add more pitch detection methods
+* Add more pitch extraction methods
   * pm
   * harvest
   * dio
@@ -354,8 +358,9 @@
 
   * add harvest, pm, dio f0 methods back in?
 
-* support arbitrary combination of pitch detection algorithms
+* support arbitrary combination of pitch extraction algorithms
   * use different method than median for combining extracted f0 values?
+    * mean, min, max
 
 * formant shifting currently does not make a difference because
   * under the hood `tftPitchShift.shiftpitch` is called to pitch shift input audio with `quefrency` multiplied by `1e-3` which makes it almost equal to `0`. that might be too a value to have any effect

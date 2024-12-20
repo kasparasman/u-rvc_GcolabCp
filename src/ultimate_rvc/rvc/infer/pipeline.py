@@ -305,7 +305,7 @@ class Pipeline:
         f0_computation_stack = []
         logger.info(
             "Calculating f0 pitch estimations for methods: %s",
-            methods,
+            ", ".join(methods),
         )
         # x = x.astype(np.float32)
         # x /= np.quantile(np.abs(x), 0.999)

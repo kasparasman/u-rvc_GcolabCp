@@ -17,7 +17,6 @@ def generate_config(rvc_version: str, sample_rate: int, model_path: str):
 
 
 def generate_filelist(
-    pitch_guidance: bool,
     model_path: str,
     rvc_version: str,
     sample_rate: int,
