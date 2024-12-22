@@ -12,7 +12,7 @@ from rich import print as rprint
 from ultimate_rvc.common import VOICE_MODELS_DIR
 from ultimate_rvc.core.common import FLAG_FILE
 from ultimate_rvc.core.generate.song_cover import initialize_audio_separator
-from ultimate_rvc.core.manage.models import download_model
+from ultimate_rvc.core.manage.models import download_voice_model
 from ultimate_rvc.rvc.lib.tools.prerequisites_download import (
     prequisites_download_pipeline,
 )
@@ -35,7 +35,7 @@ def download_sample_models() -> None:
         if not Path(VOICE_MODELS_DIR / model_name).is_dir():
             rprint(f"Downloading {model_name}...")
             try:
-                download_model(model_url, model_name)
+                download_voice_model(model_url, model_name)
             except Exception as e:
                 rprint(f"Failed to download {model_name}: {e}")
 

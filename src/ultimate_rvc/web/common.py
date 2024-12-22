@@ -16,9 +16,12 @@ from ultimate_rvc.core.generate.song_cover import (
 )
 from ultimate_rvc.core.generate.speech import get_mixed_speech_track_name
 from ultimate_rvc.core.manage.audio import (
+    get_audio_datasets,
+    get_named_audio_datasets,
     get_saved_output_audio,
     get_saved_speech_audio,
 )
+from ultimate_rvc.core.manage.models import get_training_model_names
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -362,6 +365,106 @@ def update_speech_audio(
     """
     return update_dropdowns(
         get_saved_speech_audio,
+        num_components,
+        value,
+        value_indices,
+    )
+
+
+def update_audio_datasets(
+    num_components: int,
+    value: DropdownValue = None,
+    value_indices: Sequence[int] = [],
+) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
+    """
+    Update the choices of one or more dropdown components to the set of
+    paths to the currently saved audio datasets.
+
+    Optionally update the default value of one or more of these
+    components.
+
+    Parameters
+    ----------
+    num_components : int
+        Number of dropdown components to update.
+    value : DropdownValue, optional
+        New value for dropdown components.
+    value_indices : Sequence[int], default=[]
+        Indices of dropdown components to update the value for.
+
+    Returns
+    -------
+    gr.Dropdown | tuple[gr.Dropdown,...]
+        Updated dropdown component or components.
+
+    """
+    return update_dropdowns(get_audio_datasets, num_components, value, value_indices)
+
+
+def update_named_audio_datasets(
+    num_components: int,
+    value: DropdownValue = None,
+    value_indices: Sequence[int] = [],
+) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
+    """
+    Update the choices of one or more dropdown components to the set of
+    currently saved audio datasets.
+
+    Optionally update the default value of one or more of these
+    components.
+
+    Parameters
+    ----------
+    num_components : int
+        Number of dropdown components to update.
+    value : DropdownValue, optional
+        New value for dropdown components.
+    value_indices : Sequence[int], default=[]
+        Indices of dropdown components to update the value for.
+
+    Returns
+    -------
+    gr.Dropdown | tuple[gr.Dropdown,...]
+        Updated dropdown component or components.
+
+    """
+    return update_dropdowns(
+        get_named_audio_datasets,
+        num_components,
+        value,
+        value_indices,
+    )
+
+
+def update_training_models(
+    num_components: int,
+    value: DropdownValue = None,
+    value_indices: Sequence[int] = [],
+) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
+    """
+    Update the choices of one or more dropdown components to the set of
+    currently saved training models.
+
+    Optionally updates the default value of one or more of these
+    components.
+
+    Parameters
+    ----------
+    num_components : int
+        Number of dropdown components to update.
+    value : DropdownValue, optional
+        New value for dropdown components.
+    value_indices : Sequence[int], default=[]
+        Indices of dropdown components to update the value for.
+
+    Returns
+    -------
+    gr.Dropdown | tuple[gr.Dropdown, ...]
+        Updated dropdown component or components.
+
+    """
+    return update_dropdowns(
+        get_training_model_names,
         num_components,
         value,
         value_indices,

@@ -10,9 +10,11 @@ import gradio as gr
 
 from ultimate_rvc.core.manage.audio import (
     delete_all_audio,
+    delete_all_dataset_audio,
     delete_all_intermediate_audio,
     delete_all_output_audio,
     delete_all_speech_audio,
+    delete_dataset_audio,
     delete_intermediate_audio,
     delete_output_audio,
     delete_speech_audio,
@@ -22,7 +24,9 @@ from ultimate_rvc.web.common import (
     confirm_box_js,
     confirmation_harness,
     render_msg,
+    update_audio_datasets,
     update_cached_songs,
+    update_named_audio_datasets,
     update_output_audio,
     update_speech_audio,
 )
@@ -38,6 +42,8 @@ def render(
     intermediate_audio: gr.Dropdown,
     speech_audio: gr.Dropdown,
     output_audio: gr.Dropdown,
+    dataset: gr.Dropdown,
+    dataset_audio: gr.Dropdown,
 ) -> None:
     """
     Render "Manage audio" tab.
@@ -61,6 +67,12 @@ def render(
         "Delete audio" tab.
     output_audio : gr.Dropdown
         Dropdown for selecting output audio files to delete in the
+        "Delete audio" tab.
+    dataset : gr.Dropdown
+        Dropdown to display available datasets in the "Train models -
+        multi-step generation" tab.
+    dataset_audio : gr.Dropdown
+        Dropdown for selecting dataset audio files to delete in the
         "Delete audio" tab.
 
     """
@@ -114,6 +126,23 @@ def render(
                     label="Output message",
                     interactive=False,
                 )
+        with gr.Accordion("Dataset audio", open=False), gr.Row():
+            with gr.Column():
+                dataset_audio.render()
+                dataset_audio_btn = gr.Button(
+                    "Delete selected",
+                    variant="secondary",
+                )
+                all_dataset_audio_btn = gr.Button(
+                    "Delete all",
+                    variant="primary",
+                )
+            with gr.Column():
+                dataset_audio_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                )
+
         with gr.Accordion("All audio", open=True), gr.Row(equal_height=True):
             all_audio_btn = gr.Button("Delete", variant="primary")
             all_audio_msg = gr.Textbox(label="Output message", interactive=False)
@@ -226,6 +255,41 @@ def render(
             show_progress="hidden",
         )
 
+        dataset_audio_click = dataset_audio_btn.click(
+            partial(
+                confirmation_harness(delete_dataset_audio),
+                progress_bar=PROGRESS_BAR,
+            ),
+            inputs=[dummy_checkbox, dataset_audio],
+            outputs=dataset_audio_msg,
+            js=confirm_box_js(
+                "Are you sure you want to delete the selected datasets?",
+            ),
+        ).success(
+            partial(
+                render_msg,
+                "[-] Successfully deleted the selected datasets!",
+            ),
+            outputs=dataset_audio_msg,
+            show_progress="hidden",
+        )
+
+        all_dataset_audio_click = all_dataset_audio_btn.click(
+            partial(
+                confirmation_harness(delete_all_dataset_audio),
+                progress_bar=PROGRESS_BAR,
+            ),
+            inputs=dummy_checkbox,
+            outputs=dataset_audio_msg,
+            js=confirm_box_js(
+                "Are you sure you want to delete all dataset audio files?",
+            ),
+        ).success(
+            partial(render_msg, "[-] Successfully deleted all dataset audio files!"),
+            outputs=dataset_audio_msg,
+            show_progress="hidden",
+        )
+
         all_audio_click = all_audio_btn.click(
             partial(
                 confirmation_harness(delete_all_audio),
@@ -263,24 +327,43 @@ def render(
             ]
         ]
 
-        for click_event in [
-            speech_audio_click,
-            all_speech_audio_click,
-            all_audio_update,
-        ]:
+        _, _, all_audio_update = [
             click_event.success(
                 partial(update_speech_audio, 1, [], [0]),
-                outputs=[speech_audio],
+                outputs=speech_audio,
                 show_progress="hidden",
             )
+            for click_event in [
+                speech_audio_click,
+                all_speech_audio_click,
+                all_audio_update,
+            ]
+        ]
+
+        _, _, all_audio_update = [
+            click_event.success(
+                partial(update_output_audio, 1, [], [0]),
+                outputs=output_audio,
+                show_progress="hidden",
+            )
+            for click_event in [
+                output_audio_click,
+                all_output_audio_click,
+                all_audio_update,
+            ]
+        ]
 
         for click_event in [
-            output_audio_click,
-            all_output_audio_click,
+            dataset_audio_click,
+            all_dataset_audio_click,
             all_audio_update,
         ]:
             click_event.success(
-                partial(update_output_audio, 1, [], [0]),
-                outputs=[output_audio],
+                partial(update_named_audio_datasets, 1, [], [0]),
+                outputs=dataset_audio,
+                show_progress="hidden",
+            ).then(
+                partial(update_audio_datasets, 1, [], [0]),
+                outputs=dataset,
                 show_progress="hidden",
             )

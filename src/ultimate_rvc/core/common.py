@@ -7,17 +7,21 @@ from typing import TYPE_CHECKING
 import hashlib
 import json
 import shutil
+from itertools import starmap
 from pathlib import Path
 
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 
 from rich import print as rprint
 
-from ultimate_rvc.common import AUDIO_DIR, MODELS_DIR
+from ultimate_rvc.common import AUDIO_DIR, MODELS_DIR, RVC_MODELS_DIR, VOICE_MODELS_DIR
 from ultimate_rvc.core.exceptions import (
     Entity,
     HttpUrlError,
     NotFoundError,
+    NotProvidedError,
+    UIMessage,
+    VoiceModelNotFoundError,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +36,8 @@ INTERMEDIATE_AUDIO_BASE_DIR = AUDIO_DIR / "intermediate"
 SPEECH_DIR = AUDIO_DIR / "speech"
 OUTPUT_AUDIO_DIR = AUDIO_DIR / "output"
 FLAG_FILE = MODELS_DIR / ".initialized"
+TRAINING_AUDIO_DIR = AUDIO_DIR / "training"
+TRAINING_MODELS_DIR = RVC_MODELS_DIR / "training"
 
 
 def display_progress(
@@ -243,6 +249,100 @@ def get_file_hash(file: StrPath, size: int = 5) -> str:
             lambda: hashlib.blake2b(digest_size=size),  # type: ignore[reportArgumentType]
         )
     return file_hash.hexdigest()
+
+
+def validate_exists(
+    identifier: StrPath | None,
+    entity: Entity,
+) -> Path:
+    """
+    Validate that the provided identifier is not none and that it
+    identifies an existing supported entity.
+
+    Parameters
+    ----------
+    identifier : StrPath | None
+        The identifier to validate.
+    entity : Entity
+        The entity that the identifier should identify.
+
+    Returns
+    -------
+    Path
+        The path to the identified entity.
+
+    Raises
+    ------
+    NotProvidedError
+        If the identifier is None.
+    NotFoundError
+        If the identifier does not identify an existing entity.
+    VoiceModelNotFoundError
+        If the identifier does not identify an existing voice model.
+    NotImplementedError
+        If the provided entity is not supported.
+
+    """
+    match entity:
+        case Entity.MODEL_NAME:
+            if not identifier:
+                raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_VOICE_MODEL)
+            path = VOICE_MODELS_DIR / identifier
+            if not path.is_dir():
+                raise VoiceModelNotFoundError(str(identifier))
+        case (
+            Entity.SONG_DIR
+            | Entity.EMBEDDER_MODEL_CUSTOM
+            | Entity.DIRECTORY
+            | Entity.DATASET
+        ):
+            ui_msg = UIMessage.NO_SONG_DIR if entity == Entity.SONG_DIR else None
+            if not identifier:
+                raise NotProvidedError(entity=entity, ui_msg=ui_msg)
+            path = Path(identifier)
+            if not path.is_dir():
+                raise NotFoundError(entity=entity, location=path)
+        case (
+            Entity.SONG
+            | Entity.AUDIO_TRACK
+            | Entity.VOCALS_TRACK
+            | Entity.VOICE_TRACK
+            | Entity.SPEECH_TRACK
+            | Entity.INSTRUMENTALS_TRACK
+            | Entity.MAIN_VOCALS_TRACK
+            | Entity.BACKUP_VOCALS_TRACK
+            | Entity.FILE
+        ):
+            if not identifier:
+                raise NotProvidedError(entity=entity)
+            path = Path(identifier)
+            if not path.is_file():
+                raise NotFoundError(entity=entity, location=path)
+        case _:
+            error_msg = f"Entity {entity} not supported."
+            raise NotImplementedError(error_msg)
+    return path
+
+
+def validate_all_exist(
+    identifier_entity_pairs: Sequence[tuple[StrPath | None, Entity]],
+) -> list[Path]:
+    """
+    Validate that all provided identifiers are not none and that they
+    identify existing supported entities.
+
+    Parameters
+    ----------
+    identifier_entity_pairs : Sequence[tuple[StrPath, Entity]]
+        The pairs of identifiers and entities to validate.
+
+    Returns
+    -------
+    list[Path]
+        The paths to the identified entities.
+
+    """
+    return list(starmap(validate_exists, identifier_entity_pairs))
 
 
 def validate_url(url: str) -> None:

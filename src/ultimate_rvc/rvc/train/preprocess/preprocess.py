@@ -1,4 +1,5 @@
 import concurrent.futures
+import hashlib
 import json
 import multiprocessing
 import os
@@ -23,10 +24,13 @@ import logging
 
 from ultimate_rvc.rvc.lib.utils import load_audio
 from ultimate_rvc.rvc.train.preprocess.slicer import Slicer
+from ultimate_rvc.typing_extra import AudioExt
 
 logging.getLogger("numba.core.byteflow").setLevel(logging.WARNING)
 logging.getLogger("numba.core.ssa").setLevel(logging.WARNING)
 logging.getLogger("numba.core.interpreter").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 # Constants
 OVERLAP = 0.3
@@ -75,7 +79,7 @@ class PreProcess:
         idx1: int,
     ):
         if normalized_audio is None:
-            print(f"{sid}-{idx0}-{idx1}-filtered")
+            logger.info("%d-%d-%d-filtered", sid, idx0, idx1)
             return
         wavfile.write(
             os.path.join(self.gt_wavs_dir, f"{sid}_{idx0}_{idx1}.wav"),
@@ -152,7 +156,11 @@ class PreProcess:
                     idx1,
                 )
         except Exception as error:
-            print(f"Error processing audio: {error}")
+            logger.error(  # noqa: TRY400
+                "Error processing audio: %s. One or more audio files may not be"
+                " included as pre-processed data.",
+                error,
+            )
         return audio_length
 
 
@@ -197,6 +205,16 @@ def process_audio_wrapper(args):
     )
 
 
+def get_file_hash(file: str, size: int = 5) -> str:
+
+    with open(file, "rb") as fp:
+        file_hash = hashlib.file_digest(
+            fp,
+            lambda: hashlib.blake2b(digest_size=size),  # type: ignore[reportArgumentType]
+        )
+    return file_hash.hexdigest()
+
+
 def preprocess_training_set(
     input_root: str,
     sr: int,
@@ -208,9 +226,12 @@ def preprocess_training_set(
     noise_reduction: bool,
     reduction_strength: float,
 ):
+    import ffmpeg
+    import pydub.utils as pydub_utils
+
     start_time = time.time()
     pp = PreProcess(sr, exp_dir, per)
-    print(f"Starting preprocess with {num_processes} processes...")
+    logger.info("Starting preprocess with %d processes...", num_processes)
 
     files = []
     idx = 0
@@ -219,13 +240,50 @@ def preprocess_training_set(
         try:
             sid = 0 if root == input_root else int(os.path.basename(root))
             for f in filenames:
-                if f.lower().endswith((".wav", ".mp3", ".flac", ".ogg")):
-                    files.append((os.path.join(root, f), idx, sid))
+                f_path = os.path.join(root, f)
+                audio_info = pydub_utils.mediainfo(f_path)
+                if audio_info["format_name"] in {
+                    AudioExt.WAV,
+                    AudioExt.FLAC,
+                    AudioExt.MP3,
+                    AudioExt.OGG,
+                }:
+                    files.append((f_path, idx, sid))
                     idx += 1
+                elif (
+                    AudioExt.M4A in audio_info["format_name"]
+                    or audio_info["format_name"] == AudioExt.AAC
+                ):
+                    base_path = os.path.splitext(f_path)[0]
+                    file_hash = get_file_hash(f_path)
+                    wav_path = f"{base_path}_{file_hash}.wav"
+                    if not os.path.exists(wav_path):
+                        logger.info("[~] Converting audio file: %s to wav format...", f)
+                        _, stderr = (
+                            ffmpeg.input(f_path)
+                            .output(filename=wav_path, f="wav")
+                            .run(
+                                overwrite_output=True,
+                                quiet=True,
+                            )
+                        )
+                        logger.info("FFmpeg stderr:\n%s", stderr.decode("utf-8"))
+
+                        files.append((wav_path, idx, sid))
+                        idx += 1
+                else:
+
+                    logger.error(
+                        "File %s is not an audio file with a valid format. Skipping"
+                        " file.",
+                        f,
+                    )
+
         except ValueError:
-            print(
-                "Speaker ID folder is expected to be integer, got"
-                f' "{os.path.basename(root)}" instead.',
+            logger.error(  # noqa: TRY400
+                "Speaker ID folder is expected to be integer, got '%s' instead."
+                " Skipping folder.",
+                os.path.basename(root),
             )
 
     # print(f"Number of files: {len(files)}")
@@ -258,9 +316,10 @@ def preprocess_training_set(
         dataset_duration=audio_length,
     )
     elapsed_time = time.time() - start_time
-    print(
-        f"Preprocess completed in {elapsed_time:.2f} seconds on"
-        f" {format_duration(audio_length)} seconds of audio.",
+    logger.info(
+        "Preprocess completed in %.2f seconds on %s seconds of audio.",
+        elapsed_time,
+        format_duration(audio_length),
     )
 
 

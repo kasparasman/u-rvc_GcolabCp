@@ -9,12 +9,11 @@ from typing import TYPE_CHECKING
 
 import logging
 from functools import cache, reduce
-from itertools import starmap
 from pathlib import Path
 
 from rich import print as rprint
 
-from ultimate_rvc.common import VOICE_MODELS_DIR, lazy_import
+from ultimate_rvc.common import lazy_import
 from ultimate_rvc.core.common import (
     display_progress,
     get_file_hash,
@@ -22,13 +21,14 @@ from ultimate_rvc.core.common import (
     json_dump,
     json_dumps,
     json_load,
+    validate_all_exist,
+    validate_exists,
 )
 from ultimate_rvc.core.exceptions import (
     Entity,
     NotFoundError,
     NotProvidedError,
     UIMessage,
-    VoiceModelNotFoundError,
 )
 from ultimate_rvc.core.generate.typing_extra import (
     AudioExtInternal,
@@ -71,94 +71,6 @@ else:
     static_sox = lazy_import("static_sox")
 
 logger = logging.getLogger(__name__)
-
-
-def validate_exists(
-    identifier: StrPath | None,
-    entity: Entity,
-) -> Path:
-    """
-    Validate that the provided identifier is not none and that it
-    identifies an existing supported entity.
-
-    Parameters
-    ----------
-    identifier : StrPath | None
-        The identifier to validate.
-    entity : Entity
-        The entity that the identifier should identify.
-
-    Returns
-    -------
-    Path
-        The path to the identified entity.
-
-    Raises
-    ------
-    NotProvidedError
-        If the identifier is None.
-    NotFoundError
-        If the identifier does not identify an existing entity.
-    VoiceModelNotFoundError
-        If the identifier does not identify an existing voice model.
-    NotImplementedError
-        If the provided entity is not supported.
-
-    """
-    match entity:
-        case Entity.MODEL_NAME:
-            if not identifier:
-                raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_VOICE_MODEL)
-            path = VOICE_MODELS_DIR / identifier
-            if not path.is_dir():
-                raise VoiceModelNotFoundError(str(identifier))
-        case Entity.SONG_DIR | Entity.EMBEDDER_MODEL_CUSTOM | Entity.DIRECTORY:
-            ui_msg = UIMessage.NO_SONG_DIR if entity == Entity.SONG_DIR else None
-            if not identifier:
-                raise NotProvidedError(entity=entity, ui_msg=ui_msg)
-            path = Path(identifier)
-            if not path.is_dir():
-                raise NotFoundError(entity=entity, location=path)
-        case (
-            Entity.SONG
-            | Entity.AUDIO_TRACK
-            | Entity.VOCALS_TRACK
-            | Entity.VOICE_TRACK
-            | Entity.SPEECH_TRACK
-            | Entity.INSTRUMENTALS_TRACK
-            | Entity.MAIN_VOCALS_TRACK
-            | Entity.BACKUP_VOCALS_TRACK
-        ):
-            if not identifier:
-                raise NotProvidedError(entity=entity)
-            path = Path(identifier)
-            if not path.is_file():
-                raise NotFoundError(entity=entity, location=path)
-        case _:
-            error_msg = f"Entity {entity} not supported."
-            raise NotImplementedError(error_msg)
-    return path
-
-
-def validate_all_exist(
-    identifier_entity_pairs: Sequence[tuple[StrPath | None, Entity]],
-) -> list[Path]:
-    """
-    Validate that all provided identifiers are not none and that they
-    identify existing supported entities.
-
-    Parameters
-    ----------
-    identifier_entity_pairs : Sequence[tuple[StrPath, Entity]]
-        The pairs of identifiers and entities to validate.
-
-    Returns
-    -------
-    list[Path]
-        The paths to the identified entities.
-
-    """
-    return list(starmap(validate_exists, identifier_entity_pairs))
 
 
 # NOTE consider increasing hash_size to 16. Otherwise

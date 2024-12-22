@@ -18,6 +18,9 @@ class Entity(StrEnum):
 
     DIRECTORY = "directory"
     DIRECTORIES = "directories"
+    DATASET = "dataset"
+    DATASETS = "datasets"
+    DATASET_NAME = "dataset name"
     FILE = "file"
     FILES = "files"
     URL = "URL"
@@ -42,6 +45,7 @@ class Location(StrEnum):
     """Enumeration of locations where entities can be found."""
 
     INTERMEDIATE_AUDIO_ROOT = "the root of the intermediate audio base directory"
+    TRAINING_AUDIO_ROOT = "the root of the training audio directory"
     SPEECH_AUDIO_ROOT = "the root of the speech audio directory"
     OUTPUT_AUDIO_ROOT = "the root of the output audio directory"
     EXTRACTED_ZIP_FILE = "extracted zip file"
@@ -59,6 +63,10 @@ class UIMessage(StrEnum):
         "No song directories selected. Please select one or more song directories"
         " containing intermediate audio files to delete."
     )
+    NO_DATASETS = (
+        "No datasets selected. Please select one or more datasets containing audio"
+        " files to delete."
+    )
     NO_OUTPUT_AUDIO_FILES = (
         "No files selected. Please select one or more output audio files to delete."
     )
@@ -68,6 +76,7 @@ class UIMessage(StrEnum):
     NO_UPLOADED_FILES = "No files selected."
     NO_VOICE_MODEL = "No voice model selected."
     NO_VOICE_MODELS = "No voice models selected."
+    NO_TRAINING_MODELS = "No training models selected."
     NO_AUDIO_SOURCE = (
         "No source provided. Please provide a valid Youtube URL, local audio file"
         " or song directory."
@@ -115,7 +124,7 @@ class NotFoundError(OSError):
 
         Exception message will be formatted as:
 
-        "`<entity>` not found `(`in `|` as:`)` `<location>`."
+        "`<entity>` not found `(`in `|` at:`)` `<location>`."
 
         Parameters
         ----------
@@ -134,7 +143,29 @@ class NotFoundError(OSError):
         )
 
 
-class VoiceModelNotFoundError(OSError):
+class ModelNotFoundError(OSError):
+    """Raised when a model is not found."""
+
+    def __init__(self, type_: str, name: str) -> None:
+        r"""
+        Initialize a ModelNotFoundError instance.
+
+        Exception message will be formatted as:
+
+        '`<type_>` with name "`<name>`" not found.'
+
+        Parameters
+        ----------
+        type_ : str
+            The type of model that was not found.
+        name : str
+            The name of the model that was not found.
+
+        """
+        super().__init__(f"{type_} with name '{name}' not found.")
+
+
+class VoiceModelNotFoundError(ModelNotFoundError):
     """Raised when a voice model is not found."""
 
     def __init__(self, name: str) -> None:
@@ -151,7 +182,49 @@ class VoiceModelNotFoundError(OSError):
             The name of the voice model that was not found.
 
         """
-        super().__init__(f'Voice model with name "{name}" not found.')
+        super().__init__("Voice model", name)
+
+
+class TrainingModelNotFoundError(ModelNotFoundError):
+    """Raised when a training model is not found."""
+
+    def __init__(self, name: str) -> None:
+        r"""
+        Initialize a TrainingModelNotFoundError instance.
+
+        Exception message will be formatted as:
+
+        'Training model with name "`<name>`" not found.'
+
+        Parameters
+        ----------
+        name : str
+            The name of the training model that was not found.
+
+        """
+        super().__init__("Training model", name)
+
+
+class ProtectedModelError(OSError):
+    """Raised when a protected model is attempted to be deleted."""
+
+    def __init__(self, name: str) -> None:
+        r"""
+        Initialize a ProtectedModelError instance.
+
+        Exception message will be formatted as:
+
+        'Model with name "`<name>`" is protected and cannot be deleted.'
+
+        Parameters
+        ----------
+        name : str
+            The name of the protected model.
+
+        """
+        super().__init__(
+            f"Model with name '{name}' is protected and cannot be deleted.",
+        )
 
 
 class VoiceModelExistsError(OSError):
@@ -308,5 +381,31 @@ class UploadFormatError(ValueError):
         suffix = "by themselves" if not multiple else "together (at most one of each)"
         super().__init__(
             f"Only {entity} with the following formats can be uploaded {suffix}:"
+            f" {', '.join(formats)}.",
+        )
+
+
+class InvalidAudioFormatError(ValueError):
+    """Raised when an audio file has an invalid format."""
+
+    def __init__(self, path: StrPath, formats: list[str]) -> None:
+        """
+        Initialize an InvalidAudioFormatError instance.
+
+        Exception message will be formatted as:
+
+        "Invalid audio file format: `<path>`. Supported formats are:
+        `<formats>`."
+
+        Parameters
+        ----------
+        path : StrPath
+            The path to the audio file with an invalid format.
+        formats : list[str]
+            Supported audio formats.
+
+        """
+        super().__init__(
+            f"Invalid audio file format: {path}. Supported formats are:"
             f" {', '.join(formats)}.",
         )
