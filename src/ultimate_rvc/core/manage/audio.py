@@ -13,6 +13,7 @@ from ultimate_rvc.core.common import (
     INTERMEDIATE_AUDIO_BASE_DIR,
     OUTPUT_AUDIO_DIR,
     SPEECH_DIR,
+    TRAINING_AUDIO_DIR,
     display_progress,
 )
 from ultimate_rvc.core.exceptions import (
@@ -72,6 +73,40 @@ def get_saved_speech_audio() -> list[tuple[str, str]]:
     return []
 
 
+def get_audio_datasets() -> list[str]:
+    """
+    Get the paths of all saved audio datasets.
+
+    Returns
+    -------
+    list[str]
+        A list of the paths of all saved audio datasets.
+
+    """
+    if TRAINING_AUDIO_DIR.is_dir():
+        return sorted([str(dataset) for dataset in TRAINING_AUDIO_DIR.iterdir()])
+    return []
+
+
+def get_named_audio_datasets() -> list[tuple[str, str]]:
+    """
+    Get the name and path of all saved audio datasets.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        A list of tuples containing the name and path of each saved
+        audio dataset.
+
+    """
+    if TRAINING_AUDIO_DIR.is_dir():
+        named_datasets = [
+            (dataset.name, str(dataset)) for dataset in TRAINING_AUDIO_DIR.iterdir()
+        ]
+        return sorted(named_datasets, key=operator.itemgetter(0))
+    return []
+
+
 def delete_intermediate_audio(
     directories: Sequence[StrPath],
     progress_bar: gr.Progress | None = None,
@@ -106,11 +141,8 @@ def delete_intermediate_audio(
     """
     if not directories:
         raise NotProvidedError(entity=Entity.DIRECTORIES, ui_msg=UIMessage.NO_SONG_DIRS)
-    display_progress(
-        "[~] Deleting directories ...",
-        percentage,
-        progress_bar,
-    )
+
+    dir_paths: list[Path] = []
     for directory in directories:
         dir_path = Path(directory)
         if not dir_path.is_dir():
@@ -121,6 +153,14 @@ def delete_intermediate_audio(
                 location=Location.INTERMEDIATE_AUDIO_ROOT,
                 path=dir_path,
             )
+        dir_paths.append(dir_path)
+
+    display_progress(
+        "[~] Deleting directories ...",
+        percentage,
+        progress_bar,
+    )
+    for dir_path in dir_paths:
         shutil.rmtree(dir_path)
 
 
@@ -184,11 +224,9 @@ def delete_speech_audio(
             entity=Entity.FILES,
             ui_msg=UIMessage.NO_SPEECH_AUDIO_FILES,
         )
-    display_progress(
-        "[~] Deleting speech audio files...",
-        percentage,
-        progress_bar,
-    )
+
+    file_paths: list[Path] = []
+    json_file_paths: list[Path] = []
     for file in files:
         file_path = Path(file)
         json_file_path = file_path.with_suffix(".json")
@@ -200,6 +238,15 @@ def delete_speech_audio(
                 location=Location.SPEECH_AUDIO_ROOT,
                 path=file_path,
             )
+        file_paths.append(file_path)
+        json_file_paths.append(json_file_path)
+
+    display_progress(
+        "[~] Deleting speech audio files...",
+        percentage,
+        progress_bar,
+    )
+    for file_path, json_file_path in zip(file_paths, json_file_paths, strict=True):
         file_path.unlink()
         json_file_path.unlink(missing_ok=True)
 
@@ -260,11 +307,8 @@ def delete_output_audio(
             entity=Entity.FILES,
             ui_msg=UIMessage.NO_OUTPUT_AUDIO_FILES,
         )
-    display_progress(
-        "[~] Deleting output audio files...",
-        percentage,
-        progress_bar,
-    )
+
+    file_paths: list[Path] = []
     for file in files:
         file_path = Path(file)
         if not file_path.is_file():
@@ -275,6 +319,14 @@ def delete_output_audio(
                 location=Location.OUTPUT_AUDIO_ROOT,
                 path=file_path,
             )
+        file_paths.append(file_path)
+
+    display_progress(
+        "[~] Deleting output audio files...",
+        percentage,
+        progress_bar,
+    )
+    for file_path in file_paths:
         file_path.unlink()
 
 
@@ -296,6 +348,86 @@ def delete_all_output_audio(
     display_progress("[~] Deleting all output audio files...", percentage, progress_bar)
     if OUTPUT_AUDIO_DIR.is_dir():
         shutil.rmtree(OUTPUT_AUDIO_DIR)
+
+
+def delete_dataset_audio(
+    datasets: Sequence[StrPath],
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete provided datasets containing audio files.
+
+    The provided datasets must be located in the root of the training
+    audio directory.
+
+    Parameters
+    ----------
+    datasets : Sequence[StrPath]
+        Paths to the datasets to delete.
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    Raises
+    ------
+    NotProvidedError
+        If no paths are provided.
+    NotFoundError
+        If a provided path does not point to an existing directory.
+    InvalidLocationError
+        If a provided path does not point to a location in the root of
+        the training audio directory.
+
+    """
+    if not datasets:
+        raise NotProvidedError(entity=Entity.DATASETS, ui_msg=UIMessage.NO_DATASETS)
+
+    dataset_paths: list[Path] = []
+    for dataset in datasets:
+        dataset_path = Path(dataset)
+        if not dataset_path.is_dir():
+            raise NotFoundError(entity=Entity.DATASET, location=dataset_path)
+        if dataset_path.parent != TRAINING_AUDIO_DIR:
+            raise InvalidLocationError(
+                entity=Entity.DATASET,
+                location=Location.TRAINING_AUDIO_ROOT,
+                path=dataset_path,
+            )
+        dataset_paths.append(dataset_path)
+
+    display_progress(
+        "[~] Deleting datasets...",
+        percentage,
+        progress_bar,
+    )
+    for dataset_path in dataset_paths:
+        shutil.rmtree(dataset_path)
+
+
+def delete_all_dataset_audio(
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete all dataset audio files.
+
+    Parameters
+    ----------
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    """
+    display_progress(
+        "[~] Deleting all dataset audio files...",
+        percentage,
+        progress_bar,
+    )
+    if TRAINING_AUDIO_DIR.is_dir():
+        shutil.rmtree(TRAINING_AUDIO_DIR)
 
 
 def delete_all_audio(

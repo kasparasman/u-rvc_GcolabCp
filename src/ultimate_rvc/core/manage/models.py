@@ -12,6 +12,7 @@ from pathlib import Path
 
 from ultimate_rvc.common import VOICE_MODELS_DIR
 from ultimate_rvc.core.common import (
+    TRAINING_MODELS_DIR,
     copy_files_to_new_dir,
     display_progress,
     json_load,
@@ -22,6 +23,8 @@ from ultimate_rvc.core.exceptions import (
     Location,
     NotFoundError,
     NotProvidedError,
+    ProtectedModelError,
+    TrainingModelNotFoundError,
     UIMessage,
     UploadFormatError,
     UploadLimitError,
@@ -47,7 +50,7 @@ PUBLIC_MODELS_JSON = json_load(Path(__file__).parent / "public_models.json")
 PUBLIC_MODELS_TABLE = ModelMetaDataTable.model_validate(PUBLIC_MODELS_JSON)
 
 
-def get_saved_model_names() -> list[str]:
+def get_voice_model_names() -> list[str]:
     """
     Get the names of all saved voice models.
 
@@ -61,6 +64,27 @@ def get_saved_model_names() -> list[str]:
         model_paths = VOICE_MODELS_DIR.iterdir()
         return sorted(
             [model_path.name for model_path in model_paths],
+        )
+    return []
+
+
+def get_training_model_names() -> list[str]:
+    """
+    Get the names of all saved training models.
+
+    Returns
+    -------
+    list[str]
+        A list of the names of all saved training models.
+
+    """
+    if TRAINING_MODELS_DIR.is_dir():
+        return sorted(
+            [
+                model.name
+                for model in TRAINING_MODELS_DIR.iterdir()
+                if model.name not in {"zips", "mute", "reference"}
+            ],
         )
     return []
 
@@ -100,7 +124,7 @@ def load_public_models_table(
 
 def get_public_model_tags() -> list[ModelTagName]:
     """
-    get the names of all valid public voice model tags.
+    Get the names of all valid public voice model tags.
 
     Returns
     -------
@@ -159,7 +183,7 @@ def filter_public_models_table(
     return load_public_models_table(filter_fns)
 
 
-def _extract_model(
+def _extract_voice_model(
     zip_file: StrPath,
     extraction_dir: StrPath,
     remove_incomplete: bool = True,
@@ -227,7 +251,7 @@ def _extract_model(
             zip_path.unlink()
 
 
-def download_model(
+def download_voice_model(
     url: str,
     name: str,
     progress_bar: gr.Progress | None = None,
@@ -285,10 +309,10 @@ def download_model(
     urllib.request.urlretrieve(url, zip_name)  # noqa: S310
 
     display_progress("[~] Extracting zip file...", percentages[1], progress_bar)
-    _extract_model(zip_name, extraction_path, remove_zip=True)
+    _extract_voice_model(zip_name, extraction_path, remove_zip=True)
 
 
-def upload_model(
+def upload_voice_model(
     files: Sequence[StrPath],
     name: str,
     progress_bar: gr.Progress | None = None,
@@ -339,7 +363,7 @@ def upload_model(
             # NOTE a .pth file is actually itself a zip file
             elif zipfile.is_zipfile(file_path):
                 display_progress("[~] Extracting zip file...", percentage, progress_bar)
-                _extract_model(file_path, model_dir_path)
+                _extract_voice_model(file_path, model_dir_path)
             else:
                 raise UploadFormatError(
                     entity=Entity.FILES,
@@ -364,7 +388,7 @@ def upload_model(
             raise UploadLimitError(entity=Entity.FILES, limit="two")
 
 
-def delete_models(
+def delete_voice_models(
     names: Sequence[str],
     progress_bar: gr.Progress | None = None,
     percentage: float = 0.5,
@@ -394,19 +418,22 @@ def delete_models(
             entity=Entity.MODEL_NAMES,
             ui_msg=UIMessage.NO_VOICE_MODELS,
         )
+    model_dir_paths: list[Path] = []
+    for name in names:
+        model_dir_path = VOICE_MODELS_DIR / name
+        if not model_dir_path.is_dir():
+            raise VoiceModelNotFoundError(name)
+        model_dir_paths.append(model_dir_path)
     display_progress(
         "[~] Deleting voice models ...",
         percentage,
         progress_bar,
     )
-    for name in names:
-        model_dir_path = VOICE_MODELS_DIR / name
-        if not model_dir_path.is_dir():
-            raise VoiceModelNotFoundError(name)
+    for model_dir_path in model_dir_paths:
         shutil.rmtree(model_dir_path)
 
 
-def delete_all_models(
+def delete_all_voice_models(
     progress_bar: gr.Progress | None = None,
     percentage: float = 0.5,
 ) -> None:
@@ -422,4 +449,98 @@ def delete_all_models(
 
     """
     display_progress("[~] Deleting all voice models ...", percentage, progress_bar)
-    shutil.rmtree(VOICE_MODELS_DIR)
+    if VOICE_MODELS_DIR.is_dir():
+        shutil.rmtree(VOICE_MODELS_DIR)
+
+
+def delete_training_models(
+    names: Sequence[str],
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete one or more training models.
+
+    Parameters
+    ----------
+    names : Sequence[str]
+        Names of the training models to delete.
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    Raises
+    ------
+    NotProvidedError
+        If no names are provided.
+    ProtectedModelError
+        If a protected training model is attempted to be deleted.
+    TrainingModelNotFoundError
+        If a training model with a provided name does not exist.
+
+    """
+    if not names:
+        raise NotProvidedError(
+            entity=Entity.MODEL_NAMES,
+            ui_msg=UIMessage.NO_TRAINING_MODELS,
+        )
+
+    model_dir_paths: list[Path] = []
+    for name in names:
+        if name in {"zips", "mute", "reference"}:
+            raise ProtectedModelError(name)
+        model_dir_path = TRAINING_MODELS_DIR / name
+        if not model_dir_path.is_dir():
+            raise TrainingModelNotFoundError(name)
+        model_dir_paths.append(model_dir_path)
+
+    display_progress(
+        "[~] Deleting training models ...",
+        percentage,
+        progress_bar,
+    )
+    for model_dir_path in model_dir_paths:
+        shutil.rmtree(model_dir_path)
+
+
+def delete_all_training_models(
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete all training models.
+
+    Parameters
+    ----------
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    """
+    display_progress("[~] Deleting all training models ...", percentage, progress_bar)
+    if TRAINING_MODELS_DIR.is_dir():
+        for model_path in TRAINING_MODELS_DIR.iterdir():
+            if model_path.name not in {"zips", "mute", "reference"}:
+                shutil.rmtree(model_path)
+
+
+def delete_all_models(
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete all voice and training models.
+
+    Parameters
+    ----------
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    """
+    display_progress("[~] Deleting all models ...", percentage, progress_bar)
+    delete_all_voice_models(progress_bar, percentage)
+    delete_all_training_models(progress_bar, percentage)

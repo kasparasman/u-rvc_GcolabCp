@@ -1,7 +1,35 @@
 # TODO
+
+* consider moving sample rate, model name into general/global accordion under multi-step train tab
+* also consider implementing a one-click training tab
+* fix progress bar so they are dynamic like in applio
+  * just requires not supplying any actual progress bar -- hence giving the default behaviour
+
+* consider fixing step 0: dataset population so that completion message is more clear
+  * instead of having a button and text component for completion message instead 
+  just have automatically add files as they are added via upload component and then 
+  show a pop up message with completion status
+
+* should remove input validation from modules from core package
+  * typer handles this on the cli part
+  * for gradio we should make a wrapper functio nthat provides the needed validation
+
+* add feature for comparing two models using their  cosine similarity or other metric?
+
+* add to ui feature for extracting specific weigth from specific epoch of training 
+  * wrapper around  run_model_extract_script
+
+* for fusion also have weights for each model -- so that the combination is weighted by cusotm values (default 0.5 and 0.5)
+  * or can have custom fusion methods
+  * add weight sum
+  * add difference
+
+* for training have a option to enhance training audio
+  * using resemble enhance
+
 * add something like an agreement to the top of the readme that says that the user agrees to the terms and conditions
-   * something like: This software is open source under the MIT license. The author does not have any control over the software. Users who use the software and distribute the sounds exported by the software are solely responsible.
-If you do not agree with this clause, you cannot use or reference any codes and files within the software package. See the root directory Agreement-LICENSE.txt for details.
+  * something like:
+  "This software is open source under the MIT license. The author does not have any control over the software. Users who use the software and distribute the sounds exported by the software are solely responsible.If you do not agree with this clause, you cannot use or reference any codes and files within the software package. See the root directory Agreement-LICENSE.txt for details."
 * move documentation on how to use webui from readme to dedicated website (like github based?)
 * also make youtube tutorials?
 * add support for downloading custom pretrained models (for training)
@@ -33,9 +61,6 @@ If you do not agree with this clause, you cannot use or reference any codes and 
                   ^^^^^^^^^^^^^^^^^^^
   RuntimeError: dictionary changed size during iteration
   ```
-
-
-* should rename instances of "models" to "voice models"
 * make subsections under accorditions under one click generation tab into sub accordions ?
   * applies for voice conversion options and audio mixing options
 * fix problem with audio components restarting if play button is pressed too fast after loading new audio

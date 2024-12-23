@@ -77,3 +77,11 @@ class AudioExt(StrEnum):
     OGG = "ogg"
     M4A = "m4a"
     AAC = "aac"
+
+
+class TrainingSampleRate(IntEnum):
+    """Valid sample rates for training voice models."""
+
+    HZ_32000 = 32000
+    HZ_40000 = 40000
+    HZ_48000 = 48000
