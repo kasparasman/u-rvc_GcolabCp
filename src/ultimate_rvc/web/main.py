@@ -32,6 +32,7 @@ from ultimate_rvc.core.manage.audio import (
     get_saved_speech_audio,
 )
 from ultimate_rvc.core.manage.models import (
+    get_custom_embedder_model_names,
     get_training_model_names,
     get_voice_model_names,
 )
@@ -69,9 +70,7 @@ def _init_app() -> list[gr.Dropdown]:
         models, cached songs, and output audio files.
 
     """
-    voice_model_names = get_voice_model_names()
-    named_song_dirs = get_named_song_dirs()
-
+    # Initialize model dropdowns
     edge_tts_voice_1click, edge_tts_voice_multi = [
         gr.Dropdown(
             choices=get_edge_tts_voice_names(),
@@ -79,6 +78,7 @@ def _init_app() -> list[gr.Dropdown]:
         )
         for _ in range(2)
     ]
+    voice_model_names = get_voice_model_names()
     voice_models = [
         gr.Dropdown(
             choices=voice_model_names,
@@ -87,6 +87,15 @@ def _init_app() -> list[gr.Dropdown]:
         for _ in range(4)
     ]
     voice_model_delete = gr.Dropdown(choices=voice_model_names)
+    custom_embedder_models = [
+        gr.Dropdown(choices=get_custom_embedder_model_names()) for _ in range(6)
+    ]
+    training_models = [
+        gr.Dropdown(choices=get_training_model_names()) for _ in range(3)
+    ]
+
+    # Initialize audio dropdowns
+    named_song_dirs = get_named_song_dirs()
     cached_songs = [gr.Dropdown(choices=named_song_dirs) for _ in range(3)]
     song_dirs = [
         gr.Dropdown(
@@ -97,24 +106,21 @@ def _init_app() -> list[gr.Dropdown]:
     ]
     speech_audio = gr.Dropdown(choices=get_saved_speech_audio())
     output_audio = gr.Dropdown(choices=get_saved_output_audio())
-
     dataset = gr.Dropdown(choices=get_audio_datasets())
     dataset_audio = gr.Dropdown(choices=get_named_audio_datasets())
-    training_models = [
-        gr.Dropdown(choices=get_training_model_names()) for _ in range(2)
-    ]
     return [
         edge_tts_voice_1click,
         edge_tts_voice_multi,
         *voice_models,
         voice_model_delete,
+        *custom_embedder_models,
+        *training_models,
         *cached_songs,
         *song_dirs,
         speech_audio,
         output_audio,
         dataset,
         dataset_audio,
-        *training_models,
     ]
 
 
@@ -140,54 +146,9 @@ def render_app() -> gr.Blocks:
         delete_cache=(cache_delete_frequency, cache_delete_cutoff),
     ) as app:
         gr.HTML("<h1>Ultimate RVC 🧡</h1>")
-        song_dirs = [
-            gr.Dropdown(
-                # NOTE choices and value must be explicitly set like
-                # this to avoid caching issues when reloading the app
-                # (and hence calling _init_app) in both production and
-                # development modes
-                choices=get_named_song_dirs(),
-                value=None,
-                label="Song directory",
-                info=(
-                    "Directory where intermediate audio files are stored and loaded"
-                    " from locally. When a new song is retrieved, its directory is"
-                    " chosen by default."
-                ),
-                render=False,
-            )
-            for _ in range(5)
-        ]
-        cached_song_1click, cached_song_multi = [
-            gr.Dropdown(
-                label="Source",
-                info="Select a song from the list of cached songs.",
-                visible=False,
-                render=False,
-            )
-            for _ in range(2)
-        ]
-        intermediate_audio = gr.Dropdown(
-            label="Song directories",
-            multiselect=True,
-            info=(
-                "Select one or more song directories containing intermediate audio"
-                " files to delete."
-            ),
-            render=False,
-        )
-        speech_audio = gr.Dropdown(
-            label="Speech audio files",
-            multiselect=True,
-            info="Select one or more speech audio files to delete.",
-            render=False,
-        )
-        output_audio = gr.Dropdown(
-            label="Output audio files",
-            multiselect=True,
-            info="Select one or more output audio files to delete.",
-            render=False,
-        )
+
+        # Define model dropdown components
+
         edge_tts_voice_1click, edge_tts_voice_multi = [
             gr.Dropdown(
                 label="Edge TTS voice",
@@ -197,10 +158,10 @@ def render_app() -> gr.Blocks:
             for _ in range(2)
         ]
         (
-            song_cover_model_1click,
-            speech_model_1click,
-            song_cover_model_multi,
-            speech_model_multi,
+            song_cover_voice_model_1click,
+            speech_voice_model_1click,
+            song_cover_voice_model_multi,
+            speech_voice_model_multi,
         ) = [
             gr.Dropdown(
                 # NOTE choices and value must be explicitly set like
@@ -224,12 +185,109 @@ def render_app() -> gr.Blocks:
             multiselect=True,
             render=False,
         )
+        (
+            song_cover_embedder_1click,
+            song_cover_embedder_multi,
+            speech_embedder_1click,
+            speech_embedder_multi,
+            training_embedder_multi,
+        ) = [
+            gr.Dropdown(
+                label="Custom embedder model",
+                info="Select a custom embedder model from the dropdown.",
+                render=False,
+                visible=False,
+            )
+            for _ in range(5)
+        ]
+        embedder_delete = gr.Dropdown(
+            label="Custom embedder models",
+            multiselect=True,
+            render=False,
+        )
+        preprocess_model_multi = gr.Dropdown(
+            label="Model name",
+            info=(
+                "Name of the model to preprocess the given dataset for. Either"
+                " select an existing model from the dropdown or provide the"
+                " name of a new model.<br><br>"
+            ),
+            value="My model",
+            allow_custom_value=True,
+            render=False,
+        )
+        extract_model_multi = gr.Dropdown(
+            label="Model name",
+            info=(
+                "Name of the model with an associated preprocessed dataset to extract"
+                " training features from. When a new dataset is preprocessed, its"
+                " associated model is selected by default."
+            ),
+            render=False,
+        )
+
+        training_model_delete = gr.Dropdown(
+            label="Training models",
+            multiselect=True,
+            render=False,
+        )
+
+        # Define audio dropdown components
+        cached_song_1click, cached_song_multi = [
+            gr.Dropdown(
+                label="Source",
+                info="Select a song from the list of cached songs.",
+                visible=False,
+                render=False,
+            )
+            for _ in range(2)
+        ]
+        intermediate_audio = gr.Dropdown(
+            label="Song directories",
+            multiselect=True,
+            info=(
+                "Select one or more song directories containing intermediate audio"
+                " files to delete."
+            ),
+            render=False,
+        )
+        song_dirs = [
+            gr.Dropdown(
+                # NOTE choices and value must be explicitly set like
+                # this to avoid caching issues when reloading the app
+                # (and hence calling _init_app) in both production and
+                # development modes
+                choices=get_named_song_dirs(),
+                value=None,
+                label="Song directory",
+                info=(
+                    "Directory where intermediate audio files are stored and loaded"
+                    " from locally. When a new song is retrieved, its directory is"
+                    " chosen by default."
+                ),
+                render=False,
+            )
+            for _ in range(5)
+        ]
+        speech_audio = gr.Dropdown(
+            label="Speech audio files",
+            multiselect=True,
+            info="Select one or more speech audio files to delete.",
+            render=False,
+        )
+        output_audio = gr.Dropdown(
+            label="Output audio files",
+            multiselect=True,
+            info="Select one or more output audio files to delete.",
+            render=False,
+        )
 
         dataset = gr.Dropdown(
             label="Dataset",
             info=(
                 "The path to a dataset to preprocess. Either select an existing dataset"
-                " from the dropdown or provide the path to a new dataset."
+                " from the dropdown or provide the path to a new dataset. When a"
+                " new dataset is populated, its path is selected by default."
             ),
             allow_custom_value=True,
             render=False,
@@ -241,81 +299,78 @@ def render_app() -> gr.Blocks:
             info="Select one or more datasets containing audio files to delete.",
             render=False,
         )
-        training_model_multi = gr.Dropdown(
-            label="Model name",
-            info=(
-                "Name of the model to preprocess the given dataset for. Either"
-                " select an existing model from the dropdown or provide the"
-                " name of a new model."
-            ),
-            value="My model",
-            allow_custom_value=True,
-            render=False,
-        )
-        training_model_delete = gr.Dropdown(
-            label="Training models",
-            multiselect=True,
-            render=False,
-        )
 
         # main tab
         with gr.Tab("Generate song covers"):
             render_song_cover_one_click_tab(
-                song_dirs,
+                song_cover_voice_model_1click,
+                song_cover_embedder_1click,
                 cached_song_1click,
                 cached_song_multi,
-                song_cover_model_1click,
+                song_dirs,
                 intermediate_audio,
                 output_audio,
             )
             render_song_cover_multi_step_tab(
+                song_cover_voice_model_multi,
+                song_cover_embedder_multi,
+                cached_song_multi,
                 song_dirs,
                 cached_song_1click,
-                cached_song_multi,
-                song_cover_model_multi,
                 intermediate_audio,
                 output_audio,
             )
         with gr.Tab("Generate speech"):
             render_speech_one_click_tab(
                 edge_tts_voice_1click,
-                speech_model_1click,
+                speech_voice_model_1click,
+                speech_embedder_1click,
                 speech_audio,
                 output_audio,
             )
             render_speech_multi_step_tab(
                 edge_tts_voice_multi,
-                speech_model_multi,
+                speech_voice_model_multi,
+                speech_embedder_multi,
                 speech_audio,
                 output_audio,
             )
         with gr.Tab("Train models"):
             render_train_multi_step_tab(
                 dataset,
-                dataset_audio,
-                training_model_multi,
+                preprocess_model_multi,
+                training_embedder_multi,
+                extract_model_multi,
                 training_model_delete,
+                dataset_audio,
             )
         with gr.Tab("Manage models"):
             render_manage_models_tab(
                 voice_model_delete,
-                song_cover_model_1click,
-                song_cover_model_multi,
-                speech_model_1click,
-                speech_model_multi,
+                embedder_delete,
                 training_model_delete,
-                training_model_multi,
+                song_cover_voice_model_1click,
+                song_cover_voice_model_multi,
+                speech_voice_model_1click,
+                speech_voice_model_multi,
+                song_cover_embedder_1click,
+                song_cover_embedder_multi,
+                speech_embedder_1click,
+                speech_embedder_multi,
+                preprocess_model_multi,
+                training_embedder_multi,
+                extract_model_multi,
             )
         with gr.Tab("Manage audio"):
             render_manage_audio_tab(
-                song_dirs,
-                cached_song_1click,
-                cached_song_multi,
                 intermediate_audio,
                 speech_audio,
                 output_audio,
-                dataset,
                 dataset_audio,
+                cached_song_1click,
+                cached_song_multi,
+                song_dirs,
+                dataset,
             )
         with gr.Tab("Settings"):
             render_settings_tab()
@@ -325,11 +380,20 @@ def render_app() -> gr.Blocks:
             outputs=[
                 edge_tts_voice_1click,
                 edge_tts_voice_multi,
-                song_cover_model_1click,
-                song_cover_model_multi,
-                speech_model_1click,
-                speech_model_multi,
+                song_cover_voice_model_1click,
+                song_cover_voice_model_multi,
+                speech_voice_model_1click,
+                speech_voice_model_multi,
                 voice_model_delete,
+                song_cover_embedder_1click,
+                song_cover_embedder_multi,
+                speech_embedder_1click,
+                speech_embedder_multi,
+                training_embedder_multi,
+                embedder_delete,
+                preprocess_model_multi,
+                extract_model_multi,
+                training_model_delete,
                 intermediate_audio,
                 cached_song_1click,
                 cached_song_multi,
@@ -338,8 +402,6 @@ def render_app() -> gr.Blocks:
                 output_audio,
                 dataset,
                 dataset_audio,
-                training_model_multi,
-                training_model_delete,
             ],
             show_progress="hidden",
         )

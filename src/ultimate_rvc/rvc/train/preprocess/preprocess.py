@@ -1,12 +1,11 @@
+from typing import TYPE_CHECKING
+
 import concurrent.futures
 import hashlib
 import json
-import multiprocessing
 import os
 import sys
 import time
-
-from distutils.util import strtobool
 
 import numpy as np
 from scipy import signal
@@ -22,10 +21,17 @@ sys.path.append(now_directory)
 # Remove colab logs
 import logging
 
+from ultimate_rvc.common import lazy_import
 from ultimate_rvc.rvc.lib.utils import load_audio
 from ultimate_rvc.rvc.train.preprocess.slicer import Slicer
 from ultimate_rvc.typing_extra import AudioExt
 
+if TYPE_CHECKING:
+    import ffmpeg
+    import static_ffmpeg
+else:
+    ffmpeg = lazy_import("ffmpeg")
+    static_ffmpeg = lazy_import("static_ffmpeg")
 logging.getLogger("numba.core.byteflow").setLevel(logging.WARNING)
 logging.getLogger("numba.core.ssa").setLevel(logging.WARNING)
 logging.getLogger("numba.core.interpreter").setLevel(logging.WARNING)
@@ -226,8 +232,10 @@ def preprocess_training_set(
     noise_reduction: bool,
     reduction_strength: float,
 ):
-    import ffmpeg
-    import pydub.utils as pydub_utils
+
+    static_ffmpeg.add_paths()
+
+    import pydub.utils as pydub_utils  # noqa: PLC0415
 
     start_time = time.time()
     pp = PreProcess(sr, exp_dir, per)
@@ -320,32 +328,4 @@ def preprocess_training_set(
         "Preprocess completed in %.2f seconds on %s seconds of audio.",
         elapsed_time,
         format_duration(audio_length),
-    )
-
-
-if __name__ == "__main__":
-    experiment_directory = str(sys.argv[1])
-    input_root = str(sys.argv[2])
-    sample_rate = int(sys.argv[3])
-    percentage = float(sys.argv[4])
-    num_processes = sys.argv[5]
-    if num_processes.lower() == "none":
-        num_processes = multiprocessing.cpu_count()
-    else:
-        num_processes = int(num_processes)
-    cut_preprocess = strtobool(sys.argv[6])
-    process_effects = strtobool(sys.argv[7])
-    noise_reduction = strtobool(sys.argv[8])
-    reduction_strength = float(sys.argv[9])
-
-    preprocess_training_set(
-        input_root,
-        sample_rate,
-        num_processes,
-        experiment_directory,
-        percentage,
-        cut_preprocess,
-        process_effects,
-        noise_reduction,
-        reduction_strength,
     )

@@ -8,6 +8,7 @@ from functools import partial
 
 import gradio as gr
 
+from ultimate_rvc.core.generate.song_cover import get_named_song_dirs
 from ultimate_rvc.core.manage.audio import (
     delete_all_audio,
     delete_all_dataset_audio,
@@ -18,17 +19,17 @@ from ultimate_rvc.core.manage.audio import (
     delete_intermediate_audio,
     delete_output_audio,
     delete_speech_audio,
+    get_audio_datasets,
+    get_named_audio_datasets,
+    get_saved_output_audio,
+    get_saved_speech_audio,
 )
 from ultimate_rvc.web.common import (
     PROGRESS_BAR,
     confirm_box_js,
     confirmation_harness,
     render_msg,
-    update_audio_datasets,
-    update_cached_songs,
-    update_named_audio_datasets,
-    update_output_audio,
-    update_speech_audio,
+    update_dropdowns,
 )
 
 if TYPE_CHECKING:
@@ -36,29 +37,20 @@ if TYPE_CHECKING:
 
 
 def render(
-    song_dirs: Sequence[gr.Dropdown],
-    cached_song_1click: gr.Dropdown,
-    cached_song_multi: gr.Dropdown,
     intermediate_audio: gr.Dropdown,
     speech_audio: gr.Dropdown,
     output_audio: gr.Dropdown,
-    dataset: gr.Dropdown,
     dataset_audio: gr.Dropdown,
+    cached_song_1click: gr.Dropdown,
+    cached_song_multi: gr.Dropdown,
+    song_dirs: Sequence[gr.Dropdown],
+    dataset: gr.Dropdown,
 ) -> None:
     """
     Render "Manage audio" tab.
 
     Parameters
     ----------
-    song_dirs : Sequence[gr.Dropdown]
-        Dropdown components for selecting song directories in the
-        "Multi-step generation" tab.
-    cached_song_1click : gr.Dropdown
-        Dropdown for selecting a cached song in the
-        "One-click generation" tab
-    cached_song_multi : gr.Dropdown
-        Dropdown for selecting a cached song in the
-        "Multi-step generation" tab
     intermediate_audio : gr.Dropdown
         Dropdown for selecting intermediate audio files to delete in the
         "Delete audio" tab.
@@ -68,12 +60,21 @@ def render(
     output_audio : gr.Dropdown
         Dropdown for selecting output audio files to delete in the
         "Delete audio" tab.
-    dataset : gr.Dropdown
-        Dropdown to display available datasets in the "Train models -
-        multi-step generation" tab.
     dataset_audio : gr.Dropdown
         Dropdown for selecting dataset audio files to delete in the
         "Delete audio" tab.
+    cached_song_1click : gr.Dropdown
+        Dropdown for selecting a cached song in the
+        "Generate song covers - one-click generation" tab
+    cached_song_multi : gr.Dropdown
+        Dropdown for selecting a cached song in the
+        "Generate song covers - multi-step generation" tab
+    song_dirs : Sequence[gr.Dropdown]
+        Dropdown components for selecting song directories in the
+        "Generate song covers - multi-step generation" tab.
+    dataset : gr.Dropdown
+        Dropdown to display available datasets in the "Train models -
+        multi-step generation" tab.
 
     """
     dummy_checkbox = gr.Checkbox(visible=False)
@@ -307,7 +308,8 @@ def render(
         _, _, all_audio_update = [
             click_event.success(
                 partial(
-                    update_cached_songs,
+                    update_dropdowns,
+                    get_named_song_dirs,
                     3 + len(song_dirs),
                     [],
                     [0],
@@ -329,7 +331,7 @@ def render(
 
         _, _, all_audio_update = [
             click_event.success(
-                partial(update_speech_audio, 1, [], [0]),
+                partial(update_dropdowns, get_saved_speech_audio, 1, [], [0]),
                 outputs=speech_audio,
                 show_progress="hidden",
             )
@@ -342,7 +344,7 @@ def render(
 
         _, _, all_audio_update = [
             click_event.success(
-                partial(update_output_audio, 1, [], [0]),
+                partial(update_dropdowns, get_saved_output_audio, 1, [], [0]),
                 outputs=output_audio,
                 show_progress="hidden",
             )
@@ -359,11 +361,11 @@ def render(
             all_audio_update,
         ]:
             click_event.success(
-                partial(update_named_audio_datasets, 1, [], [0]),
+                partial(update_dropdowns, get_named_audio_datasets, 1, [], [0]),
                 outputs=dataset_audio,
                 show_progress="hidden",
             ).then(
-                partial(update_audio_datasets, 1, [], [0]),
+                partial(update_dropdowns, get_audio_datasets, 1, [], [0]),
                 outputs=dataset,
                 show_progress="hidden",
             )

@@ -17,11 +17,11 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from ultimate_rvc.cli.common import format_duration
-from ultimate_rvc.cli.generate.common import (
+from ultimate_rvc.cli.common import (
     complete_audio_ext,
     complete_embedder_model,
     complete_f0_method,
+    format_duration,
 )
 from ultimate_rvc.cli.generate.song_cover import app as song_cover_app
 from ultimate_rvc.cli.generate.speech import app as speech_app
@@ -305,19 +305,14 @@ def convert_voice(
             help="The model to use for generating speaker embeddings.",
         ),
     ] = EmbedderModel.CONTENTVEC,
-    embedder_model_custom: Annotated[
-        Path | None,
+    custom_embedder_model: Annotated[
+        str | None,
         typer.Option(
             rich_help_panel=PanelName.SPEAKER_EMBEDDINGS_OPTIONS,
             help=(
-                "The path to a directory with a custom model to use for generating"
-                " speaker embeddings. Only applicable if `embedder_model` is set to"
-                " `custom`."
+                "The name of a custom embedder model to use for generating speaker"
+                " embeddings. Only applicable if `embedder-model` is set to `custom`."
             ),
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            resolve_path=True,
         ),
     ] = None,
     sid: Annotated[
@@ -351,7 +346,7 @@ def convert_voice(
         clean_audio=clean_voice,
         clean_strength=clean_strength,
         embedder_model=embedder_model,
-        embedder_model_custom=embedder_model_custom,
+        custom_embedder_model=custom_embedder_model,
         sid=sid,
         content_type=RVCContentType.VOICE,
     )

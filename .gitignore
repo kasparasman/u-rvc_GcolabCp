@@ -1,16 +1,9 @@
 # Ultimate RVC project
-audio
+audio/*
 models/*
-!models/rvc
-models/rvc/embedders
-models/rvc/predictors
-models/rvc/voice_models
-models/rvc/training/*
-!models/rvc/training/mute
-!models/rvc/training/reference
 
-temp
-uv
+temp/*
+uv/*
 uv.lock
 !src/ultimate_rvc/rvc/lib/*
 

@@ -144,8 +144,8 @@ class RVCAudioMetaData(BaseModel):
         audio.
     embedder_model : EmbedderModel
         The model used for generating speaker embeddings.
-    embedder_model_custom : DirectoryMetaData | None
-        The path to a custom model used for generating speaker
+    custom_embedder_model : str | None
+        The name of a custom embedder model used for generating speaker
         embeddings.
     sid : int
         The speaker id used for multi-speaker conversion.
@@ -167,7 +167,7 @@ class RVCAudioMetaData(BaseModel):
     clean_audio: bool
     clean_strength: float
     embedder_model: EmbedderModel
-    embedder_model_custom: DirectoryMetaData | None
+    custom_embedder_model: str | None
     sid: int
 
     model_config = ConfigDict(protected_namespaces=())

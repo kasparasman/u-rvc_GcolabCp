@@ -7,7 +7,11 @@ from functools import partial
 
 import gradio as gr
 
-from ultimate_rvc.core.generate.speech import run_pipeline
+from ultimate_rvc.core.generate.speech import get_mixed_speech_track_name, run_pipeline
+from ultimate_rvc.core.manage.audio import (
+    get_saved_output_audio,
+    get_saved_speech_audio,
+)
 from ultimate_rvc.typing_extra import AudioExt, EmbedderModel, F0Method, SampleRate
 from ultimate_rvc.web.common import (
     PROGRESS_BAR,
@@ -15,9 +19,8 @@ from ultimate_rvc.web.common import (
     toggle_intermediate_audio,
     toggle_visibility,
     toggle_visible_component,
-    update_output_audio,
-    update_speech_audio,
-    update_speech_track_name,
+    update_dropdowns,
+    update_output_name,
     update_value,
 )
 from ultimate_rvc.web.typing_extra import ConcurrencyId, SpeechSourceType
@@ -25,7 +28,8 @@ from ultimate_rvc.web.typing_extra import ConcurrencyId, SpeechSourceType
 
 def render(
     edge_tts_voice: gr.Dropdown,
-    model_1click: gr.Dropdown,
+    voice_model: gr.Dropdown,
+    custom_embedder_model: gr.Dropdown,
     speech_audio: gr.Dropdown,
     output_audio: gr.Dropdown,
 ) -> None:
@@ -37,8 +41,11 @@ def render(
     edge_tts_voice : gr.Dropdown
         Dropdown component for selecting an Edge TTS voice in the
         "Generate speech - one-click generation" tab.
-    model_1click : gr.Dropdown
+    voice_model : gr.Dropdown
         Dropdown component for selecting a voice model in the
+        "Generate speech - one-click generation" tab.
+    custom_embedder_model : gr.Dropdown
+        Dropdown component for selecting a custom embedder model in the
         "Generate speech - one-click generation" tab.
     speech_audio : gr.Dropdown
         Dropdown component for speech audio files to delete in the
@@ -85,7 +92,7 @@ def render(
                 )
             with gr.Row():
                 edge_tts_voice.render()
-                model_1click.render()
+                voice_model.render()
         with gr.Accordion("Edge TTS options", open=False), gr.Row():
             tts_pitch_shift = gr.Slider(
                 -100,
@@ -269,13 +276,13 @@ def render(
                         visible=True,
                     )
             autotune_speech.change(
-                partial(toggle_visibility, target=True),
+                partial(toggle_visibility, targets={True}),
                 inputs=autotune_speech,
                 outputs=autotune_strength,
                 show_progress="hidden",
             )
             clean_speech.change(
-                partial(toggle_visibility, target=True),
+                partial(toggle_visibility, targets={True}),
                 inputs=clean_speech,
                 outputs=clean_strength,
                 show_progress="hidden",
@@ -288,23 +295,16 @@ def render(
                         label="Embedder model",
                         info="The model to use for generating speaker embeddings.",
                     )
-                    embedder_model_custom = gr.Textbox(
-                        label="Custom embedder model",
-                        info=(
-                            "The path to a directory with a custom model to use for"
-                            " generating speaker embeddings."
-                        ),
-                        visible=False,
-                    )
+                    custom_embedder_model.render()
                 sid = gr.Number(
                     label="Speaker ID",
                     info="Speaker ID for multi-speaker-models.",
                     precision=0,
                 )
             embedder_model.change(
-                partial(toggle_visibility, target=EmbedderModel.CUSTOM),
+                partial(toggle_visibility, targets={EmbedderModel.CUSTOM}),
                 inputs=embedder_model,
-                outputs=embedder_model_custom,
+                outputs=custom_embedder_model,
                 show_progress="hidden",
             )
         with gr.Accordion("Audio output options", open=False):
@@ -326,10 +326,11 @@ def render(
             with gr.Row():
                 output_name = gr.Textbox(
                     value=partial(
-                        update_speech_track_name,
-                        update_placeholder=True,
+                        update_output_name,
+                        get_mixed_speech_track_name,
+                        True,  # noqa: FBT003,,
                     ),
-                    inputs=[source, model_1click],
+                    inputs=[source, voice_model],
                     label="Output name",
                     info=(
                         "If no name is provided, a suitable name will be generated"
@@ -400,7 +401,7 @@ def render(
             ),
             inputs=[
                 source,
-                model_1click,
+                voice_model,
                 edge_tts_voice,
                 tts_pitch_shift,
                 tts_speed_change,
@@ -419,7 +420,7 @@ def render(
                 clean_speech,
                 clean_strength,
                 embedder_model,
-                embedder_model_custom,
+                custom_embedder_model,
                 sid,
                 output_gain,
                 output_sr,
@@ -430,11 +431,11 @@ def render(
             concurrency_limit=1,
             concurrency_id=ConcurrencyId.GPU,
         ).success(
-            partial(update_speech_audio, 1),
+            partial(update_dropdowns, get_saved_speech_audio, 1),
             outputs=speech_audio,
             show_progress="hidden",
         ).then(
-            partial(update_output_audio, 1),
+            partial(update_dropdowns, get_saved_output_audio, 1),
             outputs=output_audio,
             show_progress="hidden",
         )
@@ -482,7 +483,7 @@ def render(
                 clean_speech,
                 clean_strength,
                 embedder_model,
-                embedder_model_custom,
+                custom_embedder_model,
                 sid,
                 output_gain,
                 output_sr,

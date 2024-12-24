@@ -1,13 +1,11 @@
 import concurrent.futures
 import glob
 import json
+import logging
 import multiprocessing as mp
 import os
-import shutil
 import sys
 import time
-
-from distutils.util import strtobool
 
 import numpy as np
 import tqdm
@@ -24,10 +22,8 @@ from ultimate_rvc.common import RVC_MODELS_DIR
 from ultimate_rvc.rvc.configs.config import Config
 from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
 from ultimate_rvc.rvc.lib.utils import load_audio, load_embedding
-from ultimate_rvc.rvc.train.extract.preparing_files import (
-    generate_config,
-    generate_filelist,
-)
+
+logger = logging.getLogger(__name__)
 
 # Load config
 config = Config()
@@ -52,11 +48,13 @@ class FeatureInput:
         """Extract F0 using the specified method."""
         if f0_method == "crepe":
             return self.get_crepe(np_arr, hop_length)
+        if f0_method == "crepe-tiny":
+            return self.get_crepe(np_arr, hop_length, model="tiny")
         if f0_method == "rmvpe":
             return self.model_rmvpe.infer_from_audio(np_arr, thred=0.03)
         raise ValueError(f"Unknown F0 method: {f0_method}")
 
-    def get_crepe(self, x, hop_length):
+    def get_crepe(self, x, hop_length, model="full"):
         """Extract F0 using CREPE."""
         audio = torch.from_numpy(x.astype(np.float32)).to(self.device)
         audio /= torch.quantile(torch.abs(audio), 0.999)
@@ -67,7 +65,7 @@ class FeatureInput:
             hop_length,
             self.f0_min,
             self.f0_max,
-            "full",
+            model,
             batch_size=hop_length * 2,
             device=audio.device,
             pad=True,
@@ -109,9 +107,11 @@ class FeatureInput:
             coarse_pit = self.coarse_f0(feature_pit)
             np.save(opt_path1, coarse_pit, allow_pickle=False)
         except Exception as error:
-            print(
-                f"An error occurred extracting file {inp_path} on {self.device}:"
-                f" {error}",
+            logger.error(  # noqa: TRY400
+                "An error occurred extracting file %s on %s: %s",
+                inp_path,
+                self.device,
+                error,
             )
 
     def process_files(
@@ -152,11 +152,19 @@ class FeatureInput:
                     pbar.update(1)
 
 
-def run_pitch_extraction(files, devices, f0_method, hop_length, num_processes):
+def run_pitch_extraction(
+    files: list[list[str]],
+    devices: list[str],
+    f0_method: str,
+    hop_length: int,
+    num_processes: int,
+) -> None:
     devices_str = ", ".join(devices)
-    print(
-        f"Starting pitch extraction with {num_processes} cores on {devices_str} using"
-        f" {f0_method}...",
+    logger.info(
+        "Starting pitch extraction with %d cores on %s using %s...",
+        num_processes,
+        devices_str,
+        f0_method,
     )
     start_time = time.time()
     fe = FeatureInput()
@@ -181,7 +189,7 @@ def run_pitch_extraction(files, devices, f0_method, hop_length, num_processes):
         ps[i].join()
 
     elapsed_time = time.time() - start_time
-    print(f"Pitch extraction completed in {elapsed_time:.2f} seconds.")
+    logger.info("Pitch extraction completed in %.2f seconds.", elapsed_time)
 
 
 def process_file_embedding(
@@ -212,7 +220,7 @@ def process_file_embedding(
         if not np.isnan(feats).any():
             np.save(out_file_path, feats, allow_pickle=False)
         else:
-            print(f"{file} contains NaN values and will be skipped.")
+            logger.error("%s contains NaN values and will be skipped.", wav_file_path)
 
     with tqdm.tqdm(total=len(files), leave=True, position=device_num) as pbar:
         # using multi-threading
@@ -226,16 +234,19 @@ def process_file_embedding(
 
 
 def run_embedding_extraction(
-    files,
-    devices,
-    version,
-    embedder_model,
-    embedder_model_custom,
-):
+    files: list[list[str]],
+    devices: list[str],
+    version: str,
+    embedder_model: str,
+    embedder_model_custom: str | None,
+    num_processes: int,
+) -> None:
     start_time = time.time()
     devices_str = ", ".join(devices)
-    print(
-        f"Starting embedding extraction with {num_processes} cores on {devices_str}...",
+    logger.info(
+        "Starting embedding extraction with %d cores on %s...",
+        num_processes,
+        devices_str,
     )
     # split the task between devices
     ps = []
@@ -258,31 +269,42 @@ def run_embedding_extraction(
     for i, device in enumerate(devices):
         ps[i].join()
     elapsed_time = time.time() - start_time
-    print(f"Embedding extraction completed in {elapsed_time:.2f} seconds.")
+    logger.info("Embedding extraction completed in %.2f seconds.", elapsed_time)
 
 
-if __name__ == "__main__":
-
-    exp_dir = sys.argv[1]
-    f0_method = sys.argv[2]
-    hop_length = int(sys.argv[3])
-    num_processes = int(sys.argv[4])
-    gpus = sys.argv[5]
-    version = sys.argv[6]
-    sample_rate = sys.argv[7]
-    embedder_model = sys.argv[8]
-    embedder_model_custom = sys.argv[9] if len(sys.argv) > 9 else None
-
-    # prep
+def initialize_extraction(
+    exp_dir: str,
+    version: str,
+    f0_method: str,
+    embedder_model: str,
+) -> list[list[str]]:
     wav_path = os.path.join(exp_dir, "sliced_audios_16k")
-    os.makedirs(os.path.join(exp_dir, "f0"), exist_ok=True)
-    os.makedirs(os.path.join(exp_dir, "f0_voiced"), exist_ok=True)
-    os.makedirs(os.path.join(exp_dir, version + "_extracted"), exist_ok=True)
-    # write to model_info.json
-    chosen_embedder_model = (
-        embedder_model_custom if embedder_model == "custom" else embedder_model
+    os.makedirs(os.path.join(exp_dir, f"f0_{f0_method}"), exist_ok=True)
+    os.makedirs(os.path.join(exp_dir, f"f0_{f0_method}_voiced"), exist_ok=True)
+    os.makedirs(
+        os.path.join(exp_dir, f"{version}_{embedder_model}_extracted"),
+        exist_ok=True,
     )
 
+    files: list[list[str]] = []
+    for file in glob.glob(os.path.join(wav_path, "*.wav")):
+        file_name = os.path.basename(file)
+        file_info = [
+            file,  # full path to sliced 16k wav
+            os.path.join(exp_dir, f"f0_{f0_method}_voiced", file_name + ".npy"),
+            os.path.join(exp_dir, f"f0_{f0_method}", file_name + ".npy"),
+            os.path.join(
+                exp_dir,
+                f"{version}_{embedder_model}_extracted",
+                file_name.replace("wav", "npy"),
+            ),
+        ]
+        files.append(file_info)
+
+    return files
+
+
+def update_model_info(exp_dir: str, embedder_model: str) -> None:
     file_path = os.path.join(exp_dir, "model_info.json")
     if os.path.exists(file_path):
         with open(file_path) as f:
@@ -291,40 +313,8 @@ if __name__ == "__main__":
         data = {}
     data.update(
         {
-            "embedder_model": chosen_embedder_model,
+            "embedder_model": embedder_model,
         },
     )
     with open(file_path, "w") as f:
         json.dump(data, f, indent=4)
-
-    files = []
-    for file in glob.glob(os.path.join(wav_path, "*.wav")):
-        file_name = os.path.basename(file)
-        file_info = [
-            file,  # full path to sliced 16k wav
-            os.path.join(exp_dir, "f0", file_name + ".npy"),
-            os.path.join(exp_dir, "f0_voiced", file_name + ".npy"),
-            os.path.join(
-                exp_dir,
-                version + "_extracted",
-                file_name.replace("wav", "npy"),
-            ),
-        ]
-        files.append(file_info)
-
-    devices = ["cpu"] if gpus == "-" else [f"cuda:{idx}" for idx in gpus.split("-")]
-    # Run Pitch Extraction
-    run_pitch_extraction(files, devices, f0_method, hop_length, num_processes)
-
-    # Run Embedding Extraction
-    run_embedding_extraction(
-        files,
-        devices,
-        version,
-        embedder_model,
-        embedder_model_custom,
-    )
-
-    # Run Preparing Files
-    generate_config(version, sample_rate, exp_dir)
-    generate_filelist(exp_dir, version, sample_rate)

@@ -14,10 +14,24 @@ from pathlib import Path  # noqa: TC003
 import typer
 from rich import print as rprint
 from rich.panel import Panel
+from rich.table import Table
 
-from ultimate_rvc.cli.common import format_duration
+from ultimate_rvc.cli.common import (
+    complete_embedder_model,
+    complete_f0_method,
+    complete_rvc_version,
+    format_duration,
+)
+from ultimate_rvc.core.train.common import get_gpu_info as _get_gpu_info
+from ultimate_rvc.core.train.extract import extract_features as _extract_features
 from ultimate_rvc.core.train.prepare import populate_dataset as _populate_dataset
 from ultimate_rvc.core.train.prepare import preprocess_dataset as _preprocess_dataset
+from ultimate_rvc.typing_extra import (
+    EmbedderModel,
+    RVCVersion,
+    TrainingF0Method,
+    TrainingSampleRate,
+)
 
 app = typer.Typer(
     name="train",
@@ -52,8 +66,6 @@ def populate_dataset(
     """
     start_time = time.perf_counter()
 
-    rprint()
-
     dataset_path = _populate_dataset(name, audio_files)
 
     rprint("[+] Dataset succesfully populated with the provided audio files!")
@@ -66,7 +78,12 @@ def populate_dataset(
 def preprocess_dataset(
     model_name: Annotated[
         str,
-        typer.Argument(help="The name of the model to train"),
+        typer.Argument(
+            help=(
+                "The name of the model to train. If the model does not exist, it will"
+                " be created."
+            ),
+        ),
     ],
     dataset: Annotated[
         Path,
@@ -79,11 +96,11 @@ def preprocess_dataset(
         ),
     ],
     sample_rate: Annotated[
-        int,
+        TrainingSampleRate,
         typer.Option(
             help="The target sample rate for the audio files in the provided dataset",
         ),
-    ] = 40000,
+    ] = TrainingSampleRate.HZ_40K,
     cpu_cores: Annotated[
         int,
         typer.Option(
@@ -132,10 +149,11 @@ def preprocess_dataset(
         ),
     ] = 0.7,
 ) -> None:
-    """Preprocess a dataset of audio files for training."""
+    """
+    Preprocess a dataset of audio files for training a given
+    model.
+    """
     start_time = time.perf_counter()
-
-    rprint()
 
     _preprocess_dataset(
         model_name,
@@ -149,5 +167,127 @@ def preprocess_dataset(
     )
 
     rprint("[+] Dataset succesfully preprocessed!")
+    rprint()
+    rprint("Elapsed time:", format_duration(time.perf_counter() - start_time))
+
+
+@app.command()
+def get_gpu_information() -> None:
+    """Retrieve information on locally available GPUs."""
+    start_time = time.perf_counter()
+    rprint("[+] Retrieving GPU Information...")
+    gpu_infos = _get_gpu_info()
+
+    rprint("[+] GPU Information successfully retrieved!")
+    rprint()
+    rprint("Elapsed time:", format_duration(time.perf_counter() - start_time))
+
+    table = Table()
+    table.add_column("Name", style="green")
+    table.add_column("Index", style="green")
+
+    for gpu_name, gpu_index in gpu_infos:
+        table.add_row(gpu_name, str(gpu_index))
+
+    rprint(table)
+
+
+@app.command(no_args_is_help=True)
+def extract_features(
+    model_name: Annotated[
+        str,
+        typer.Argument(help="The name of the model to be trained."),
+    ],
+    rvc_version: Annotated[
+        RVCVersion,
+        typer.Option(
+            case_sensitive=False,
+            autocompletion=complete_rvc_version,
+            help="Version of RVC to use for training the model.",
+        ),
+    ] = RVCVersion.V2,
+    f0_method: Annotated[
+        TrainingF0Method,
+        typer.Option(
+            case_sensitive=False,
+            autocompletion=complete_f0_method,
+            help="The method to use for extracting pitch features.",
+        ),
+    ] = TrainingF0Method.RMVPE,
+    hop_length: Annotated[
+        int,
+        typer.Option(
+            min=1,
+            max=512,
+            help=(
+                "The hop length to use for extracting pitch features. Only used"
+                " with the CREPE pitch extraction method."
+            ),
+        ),
+    ] = 128,
+    cpu_cores: Annotated[
+        int,
+        typer.Option(
+            help="The number of CPU cores to use for feature extraction.",
+            min=1,
+            max=cpu_count(),
+        ),
+    ] = cpu_count(),
+    gpus: Annotated[
+        list[int] | None,
+        typer.Option(
+            min=0,
+            help="The device ids of the GPUs to use for extracting audio embeddings.",
+        ),
+    ] = None,
+    sample_rate: Annotated[
+        TrainingSampleRate,
+        typer.Option(
+            help=(
+                "The sample rate of the audio files in the preprocessed dataset"
+                " associated with the model to be trained."
+            ),
+            min=1,
+        ),
+    ] = TrainingSampleRate.HZ_40K,
+    embedder_model: Annotated[
+        EmbedderModel,
+        typer.Option(
+            autocompletion=complete_embedder_model,
+            help="The model to use for extracting audio embeddings.",
+            case_sensitive=False,
+        ),
+    ] = EmbedderModel.CONTENTVEC,
+    custom_embedder_model: Annotated[
+        str | None,
+        typer.Option(
+            exists=True,
+            resolve_path=True,
+            dir_okay=True,
+            file_okay=False,
+            help="The path to a custom model to use for extracting audio embeddings.",
+        ),
+    ] = None,
+) -> None:
+    """
+    Extract features from the preprocessed dataset associated with a
+    model to be trained.
+    """
+    start_time = time.perf_counter()
+
+    gpu_set = set(gpus) if gpus is not None else None
+    _extract_features(
+        model_name,
+        rvc_version,
+        f0_method,
+        hop_length,
+        cpu_cores,
+        gpu_set,
+        sample_rate,
+        embedder_model,
+        custom_embedder_model,
+    )
+
+    rprint("[+] Dataset features succesfully extracted!")
     rprint()
     rprint("Elapsed time:", format_duration(time.perf_counter() - start_time))

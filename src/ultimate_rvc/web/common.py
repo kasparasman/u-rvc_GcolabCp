@@ -10,18 +10,6 @@ from typing import TYPE_CHECKING, Any, Concatenate
 import gradio as gr
 
 from ultimate_rvc.core.exceptions import NotProvidedError
-from ultimate_rvc.core.generate.song_cover import (
-    get_named_song_dirs,
-    get_song_cover_name,
-)
-from ultimate_rvc.core.generate.speech import get_mixed_speech_track_name
-from ultimate_rvc.core.manage.audio import (
-    get_audio_datasets,
-    get_named_audio_datasets,
-    get_saved_output_audio,
-    get_saved_speech_audio,
-)
-from ultimate_rvc.core.manage.models import get_training_model_names
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -184,17 +172,35 @@ def update_value(x: str) -> dict[str, Any]:
     return gr.update(value=x)
 
 
-def toggle_visibility[T](value: T, target: T) -> dict[str, Any]:
+def update_values(*xs: str) -> tuple[dict[str, Any], ...]:
+    """
+    Update the values of multiple components.
+
+    Parameters
+    ----------
+    xs : str
+        New values for the components.
+
+    Returns
+    -------
+    tuple[dict[str, Any], ...]
+        Tuple of dictionaries which update the values of the components.
+
+    """
+    return tuple(gr.update(value=x) for x in xs)
+
+
+def toggle_visibility[T](value: T, targets: set[T]) -> dict[str, Any]:
     """
     Toggle the visibility of a component based on equality of
-    a value and a target.
+    a value and one of a set of targets.
 
     Parameters
     ----------
     value : T
         The value to compare against the target.
-    target : T
-        The target to compare the value against.
+    targets : set[T]
+        The set of targets to compare the value against.
 
     Returns
     -------
@@ -202,7 +208,52 @@ def toggle_visibility[T](value: T, target: T) -> dict[str, Any]:
         Dictionary which updates the visibility of the component.
 
     """
-    return gr.update(visible=value == target)
+    return gr.update(visible=value in targets, value=None)
+
+
+def toggle_visible_component(
+    num_components: int,
+    visible_index: int,
+) -> dict[str, Any] | tuple[dict[str, Any], ...]:
+    """
+    Reveal a single component from a set of components. All other
+    components are hidden.
+
+    Parameters
+    ----------
+    num_components : int
+        Number of components to set visibility for.
+    visible_index : int
+        Index of the component to reveal.
+
+    Returns
+    -------
+    dict[str, Any] | tuple[dict[str, Any], ...]
+        A single dictionary or a tuple of dictionaries that update the
+        visibility of the components.
+
+    Raises
+    ------
+    ValueError
+        If the visible index exceeds or is equal to the number of
+        components to set visibility for.
+
+    """
+    if visible_index >= num_components:
+        err_msg = (
+            "Visible index must be less than the number of components to set visibility"
+            " for."
+        )
+        raise ValueError(err_msg)
+    update_args_list: list[ComponentVisibilityKwArgs] = [
+        {"visible": False, "value": None} for _ in range(num_components)
+    ]
+    update_args_list[visible_index]["visible"] = True
+    match update_args_list:
+        case [update_args]:
+            return gr.update(**update_args)
+        case _:
+            return tuple(gr.update(**update_args) for update_args in update_args_list)
 
 
 def update_dropdowns[**P](
@@ -271,251 +322,6 @@ def update_dropdowns[**P](
             return tuple(gr.Dropdown(**update_args) for update_args in update_args_list)
 
 
-def update_cached_songs(
-    num_components: int,
-    value: DropdownValue = None,
-    value_indices: Sequence[int] = [],
-) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
-    """
-    Update the choices of one or more dropdown components to the set of
-    currently cached songs.
-
-    Optionally update the default value of one or more of these
-    components.
-
-    Parameters
-    ----------
-    num_components : int
-        Number of dropdown components to update.
-    value : DropdownValue, optional
-        New value for the dropdown components.
-    value_indices : Sequence[int], default=[]
-        Indices of dropdown components to update the value for.
-
-    Returns
-    -------
-    gr.Dropdown | tuple[gr.Dropdown,...]
-        Updated dropdown component or components.
-
-    """
-    return update_dropdowns(get_named_song_dirs, num_components, value, value_indices)
-
-
-def update_output_audio(
-    num_components: int,
-    value: DropdownValue = None,
-    value_indices: Sequence[int] = [],
-) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
-    """
-    Update the choices of one or more dropdown components to the set of
-    currently saved output audio files.
-
-    Optionally update the default value of one or more of these
-    components.
-
-    Parameters
-    ----------
-    num_components : int
-        Number of dropdown components to update.
-    value : DropdownValue, optional
-        New value for dropdown components.
-    value_indices : Sequence[int], default=[]
-        Indices of dropdown components to update the value for.
-
-    Returns
-    -------
-    gr.Dropdown | tuple[gr.Dropdown,...]
-        Updated dropdown component or components.
-
-    """
-    return update_dropdowns(
-        get_saved_output_audio,
-        num_components,
-        value,
-        value_indices,
-    )
-
-
-def update_speech_audio(
-    num_components: int,
-    value: DropdownValue = None,
-    value_indices: Sequence[int] = [],
-) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
-    """
-    Update the choices of one or more dropdown components to the set of
-    currently saved speech audio files.
-
-    Optionally update the default value of one or more of these
-    components.
-
-    Parameters
-    ----------
-    num_components : int
-        Number of dropdown components to update.
-    value : DropdownValue, optional
-        New value for dropdown components.
-    value_indices : Sequence[int], default=[]
-        Indices of dropdown components to update the value for.
-
-    Returns
-    -------
-    gr.Dropdown | tuple[gr.Dropdown,...]
-        Updated dropdown component or components.
-
-    """
-    return update_dropdowns(
-        get_saved_speech_audio,
-        num_components,
-        value,
-        value_indices,
-    )
-
-
-def update_audio_datasets(
-    num_components: int,
-    value: DropdownValue = None,
-    value_indices: Sequence[int] = [],
-) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
-    """
-    Update the choices of one or more dropdown components to the set of
-    paths to the currently saved audio datasets.
-
-    Optionally update the default value of one or more of these
-    components.
-
-    Parameters
-    ----------
-    num_components : int
-        Number of dropdown components to update.
-    value : DropdownValue, optional
-        New value for dropdown components.
-    value_indices : Sequence[int], default=[]
-        Indices of dropdown components to update the value for.
-
-    Returns
-    -------
-    gr.Dropdown | tuple[gr.Dropdown,...]
-        Updated dropdown component or components.
-
-    """
-    return update_dropdowns(get_audio_datasets, num_components, value, value_indices)
-
-
-def update_named_audio_datasets(
-    num_components: int,
-    value: DropdownValue = None,
-    value_indices: Sequence[int] = [],
-) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
-    """
-    Update the choices of one or more dropdown components to the set of
-    currently saved audio datasets.
-
-    Optionally update the default value of one or more of these
-    components.
-
-    Parameters
-    ----------
-    num_components : int
-        Number of dropdown components to update.
-    value : DropdownValue, optional
-        New value for dropdown components.
-    value_indices : Sequence[int], default=[]
-        Indices of dropdown components to update the value for.
-
-    Returns
-    -------
-    gr.Dropdown | tuple[gr.Dropdown,...]
-        Updated dropdown component or components.
-
-    """
-    return update_dropdowns(
-        get_named_audio_datasets,
-        num_components,
-        value,
-        value_indices,
-    )
-
-
-def update_training_models(
-    num_components: int,
-    value: DropdownValue = None,
-    value_indices: Sequence[int] = [],
-) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
-    """
-    Update the choices of one or more dropdown components to the set of
-    currently saved training models.
-
-    Optionally updates the default value of one or more of these
-    components.
-
-    Parameters
-    ----------
-    num_components : int
-        Number of dropdown components to update.
-    value : DropdownValue, optional
-        New value for dropdown components.
-    value_indices : Sequence[int], default=[]
-        Indices of dropdown components to update the value for.
-
-    Returns
-    -------
-    gr.Dropdown | tuple[gr.Dropdown, ...]
-        Updated dropdown component or components.
-
-    """
-    return update_dropdowns(
-        get_training_model_names,
-        num_components,
-        value,
-        value_indices,
-    )
-
-
-def toggle_visible_component(
-    num_components: int,
-    visible_index: int,
-) -> dict[str, Any] | tuple[dict[str, Any], ...]:
-    """
-    Reveal a single component from a set of components. All other
-    components are hidden.
-
-    Parameters
-    ----------
-    num_components : int
-        Number of components to set visibility for.
-    visible_index : int
-        Index of the component to reveal.
-
-    Returns
-    -------
-    dict[str, Any] | tuple[dict[str, Any], ...]
-        A single dictionary or a tuple of dictionaries that update the
-        visibility of the components.
-
-    Raises
-    ------
-    ValueError
-        If the visible index exceeds or is equal to the number of
-        components to set visibility for.
-
-    """
-    if visible_index >= num_components:
-        err_msg = (
-            "Visible index must be less than the number of components to set visibility"
-            " for."
-        )
-        raise ValueError(err_msg)
-    update_args_list: list[ComponentVisibilityKwArgs] = [
-        {"visible": False, "value": None} for _ in range(num_components)
-    ]
-    update_args_list[visible_index]["visible"] = True
-    match update_args_list:
-        case [update_args]:
-            return gr.update(**update_args)
-        case _:
-            return tuple(gr.update(**update_args) for update_args in update_args_list)
-
-
 def toggle_intermediate_audio(
     visible: bool,
     num_components: int,
@@ -542,35 +348,29 @@ def toggle_intermediate_audio(
     return [gr.Accordion(visible=visible, open=False), *accordions]
 
 
-def update_song_cover_name(
-    effected_vocals_track: str | None = None,
-    song_dir: str | None = None,
-    model_name: str | None = None,
+def update_output_name[**P](
+    fn: Callable[..., str],
     update_placeholder: bool = False,
+    *args: P.args,
+    **kwargs: P.kwargs,
 ) -> gr.Textbox:
     """
-    Update a textbox component so that it displays a suitable name for a
-    cover of a given song.
-
-    If the path of an existing song directory is provided, the name of
-    the song is inferred from that directory. If the name of a voice
-    model is not provided but the path of an existing song directory
-    and the path of an effected vocals track in that directory are
-    provided, then the voice model is inferred from the effected vocals
-    track.
-
+    Update a textbox component so that it displays a suitable name for
+    an output audio file.
 
     Parameters
     ----------
-    effected_vocals_track : str, optional
-        The path to an effected vocals track.
-    song_dir : str, optional
-        The path to a song directory.
-    model_name : str, optional
-        The name of a voice model.
+    fn : Callable[..., str]
+        Function to generate the output name.
     update_placeholder : bool, default=False
         Whether to update the placeholder text instead of the value of
         the textbox component.
+    args : P.args
+        Positional arguments to pass to the function used to generate
+        the output name.
+    kwargs : P.kwargs
+        Keyword arguments to pass to the function used to generate the
+        output name.
 
     Returns
     -------
@@ -580,57 +380,9 @@ def update_song_cover_name(
     """
     update_args: TextBoxKwArgs = {}
     update_key = "placeholder" if update_placeholder else "value"
-    if effected_vocals_track or song_dir or model_name:
-        song_cover_name = get_song_cover_name(
-            effected_vocals_track,
-            song_dir,
-            model_name,
-        )
-        update_args[update_key] = song_cover_name
-    else:
-        update_args[update_key] = None
-    return gr.Textbox(**update_args)
-
-
-def update_speech_track_name(
-    text: str | None = None,
-    model_name: str | None = None,
-    converted_speech_track: str | None = None,
-    update_placeholder: bool = False,
-) -> gr.Textbox:
-    """
-    Update a textbox component so that it displays a suitable name for a
-    speech track to be generated from text.
-
-    Parameters
-    ----------
-    text : str, optional
-        The text to generate speech from.
-    model_name : str, optional
-        The name of the voice model to use for converting speech
-        to another voice.
-    converted_speech_track : str, optional
-        The path to an audio track containing speech converted to
-        another voice.
-    update_placeholder : bool, default=False
-        Whether to update the placeholder text instead of the value of
-        the textbox component.
-
-    Returns
-    -------
-    gr.Textbox
-        Textbox component with updated value or placeholder text.
-
-    """
-    update_args: TextBoxKwArgs = {}
-    update_key = "placeholder" if update_placeholder else "value"
-    if text or model_name or converted_speech_track:
-        speech_track_name = get_mixed_speech_track_name(
-            source=text,
-            model_name=model_name,
-            converted_speech_track=converted_speech_track,
-        )
-        update_args[update_key] = speech_track_name
+    if (args and any(args)) or (kwargs and any(kwargs)):
+        output_name = fn(*args, **kwargs)
+        update_args[update_key] = output_name
     else:
         update_args[update_key] = None
     return gr.Textbox(**update_args)

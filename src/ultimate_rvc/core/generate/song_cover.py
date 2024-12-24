@@ -41,8 +41,9 @@ from ultimate_rvc.core.generate.common import (
     convert,
     get_unique_base_path,
     mix_audio,
-    validate_all_exist,
-    validate_exists,
+    validate_audio_dir_exists,
+    validate_audio_file_exists,
+    validate_model_exists,
     wavify,
 )
 from ultimate_rvc.core.generate.typing_extra import (
@@ -75,7 +76,6 @@ if TYPE_CHECKING:
     import pedalboard._pedalboard as pedalboard_
     import pedalboard.io as pedalboard_io
     import soundfile as sf
-    import sox
     import static_ffmpeg
     import static_sox
 
@@ -90,7 +90,6 @@ else:
     pedalboard_ = lazy_import("pedalboard._pedalboard")
     pedalboard_io = lazy_import("pedalboard.io")
     sf = lazy_import("soundfile")
-    sox = lazy_import("sox")
     static_ffmpeg = lazy_import("static_ffmpeg")
     static_sox = lazy_import("static_sox")
 
@@ -105,7 +104,6 @@ def _get_audio_separator(
     sample_rate: int = 44100,
 ) -> Separator:
     static_ffmpeg.add_paths()
-    static_sox.add_paths()
     from audio_separator.separator import Separator  # noqa: PLC0415
 
     """
@@ -618,9 +616,8 @@ def separate_audio(
         The path to the separated secondary stem.
 
     """
-    audio_path, song_dir_path = validate_all_exist(
-        [(audio_track, Entity.AUDIO_TRACK), (song_dir, Entity.SONG_DIR)],
-    )
+    audio_path = validate_audio_file_exists(audio_track, Entity.AUDIO_TRACK)
+    song_dir_path = validate_audio_dir_exists(song_dir, Entity.SONG_DIR)
 
     args_dict = SeparatedAudioMetaData(
         audio_track=FileMetaData(
@@ -763,9 +760,8 @@ def postprocess(
         The path to the effected vocals track.
 
     """
-    vocals_path, song_dir_path = validate_all_exist(
-        [(vocals_track, Entity.VOCALS_TRACK), (song_dir, Entity.SONG_DIR)],
-    )
+    vocals_path = validate_audio_file_exists(vocals_track, Entity.VOCALS_TRACK)
+    song_dir_path = validate_audio_dir_exists(song_dir, Entity.SONG_DIR)
 
     vocals_path = wavify(
         vocals_path,
@@ -831,6 +827,10 @@ def _pitch_shift(audio_track: StrPath, output_file: StrPath, n_semi_tones: int) 
 
     """
     static_sox.add_paths()
+    # NOTE The lazy_import function does not work with sox
+    # so we import it here manually
+    import sox  # noqa: PLC0415
+
     y, sr = sf.read(audio_track)
     tfm = sox.Transformer()
     tfm.pitch(n_semi_tones)
@@ -871,9 +871,8 @@ def pitch_shift(
         The path to the pitch-shifted audio track.
 
     """
-    audio_path, song_dir_path = validate_all_exist(
-        [(audio_track, Entity.AUDIO_TRACK), (song_dir, Entity.SONG_DIR)],
-    )
+    audio_path = validate_audio_file_exists(audio_track, Entity.AUDIO_TRACK)
+    song_dir_path = validate_audio_dir_exists(song_dir, Entity.SONG_DIR)
 
     audio_path = wavify(
         audio_path,
@@ -985,7 +984,7 @@ def run_pipeline(
     clean_vocals: bool = False,
     clean_strength: float = 0.7,
     embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
-    embedder_model_custom: StrPath | None = None,
+    custom_embedder_model: str | None = None,
     sid: int = 0,
     room_size: float = 0.15,
     wet_level: float = 0.2,
@@ -1043,9 +1042,9 @@ def run_pipeline(
     embedder_model : EmbedderModel, default=EmbedderModel.CONTENTVEC
         The model to use for generating speaker embeddings during vocal
         conversion.
-    embedder_model_custom : StrPath, optional
-        The path to a directory with a custom model to use for
-        generating speaker embeddings during vocal conversion.
+    custom_embedder_model : StrPath, optional
+        The name of a custom embedder model to use for generating
+        speaker embeddings during vocal conversion.
     sid : int, default=0
         The speaker id to use for multi-speaker models during vocal
         conversion.
@@ -1083,7 +1082,7 @@ def run_pipeline(
         intermediate audio files that were generated.
 
     """
-    validate_exists(model_name, Entity.MODEL_NAME)
+    validate_model_exists(model_name, Entity.VOICE_MODEL)
     display_progress("[~] Starting song cover generation pipeline...", 0, progress_bar)
     song, song_dir = retrieve_song(
         source,
@@ -1136,7 +1135,7 @@ def run_pipeline(
         clean_audio=clean_vocals,
         clean_strength=clean_strength,
         embedder_model=embedder_model,
-        embedder_model_custom=embedder_model_custom,
+        custom_embedder_model=custom_embedder_model,
         sid=sid,
         content_type=RVCContentType.VOCALS,
         progress_bar=progress_bar,

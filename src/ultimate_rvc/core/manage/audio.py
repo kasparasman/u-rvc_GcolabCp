@@ -164,30 +164,6 @@ def delete_intermediate_audio(
         shutil.rmtree(dir_path)
 
 
-def delete_all_intermediate_audio(
-    progress_bar: gr.Progress | None = None,
-    percentage: float = 0.5,
-) -> None:
-    """
-    Delete all intermediate audio files.
-
-    Parameters
-    ----------
-    progress_bar : gr.Progress, optional
-        Gradio progress bar to update.
-    percentage : float, default=0.5
-        Percentage to display in the progress bar.
-
-    """
-    display_progress(
-        "[~] Deleting all intermediate audio files...",
-        percentage,
-        progress_bar,
-    )
-    if INTERMEDIATE_AUDIO_BASE_DIR.is_dir():
-        shutil.rmtree(INTERMEDIATE_AUDIO_BASE_DIR)
-
-
 def delete_speech_audio(
     files: Sequence[StrPath],
     progress_bar: gr.Progress | None = None,
@@ -251,26 +227,6 @@ def delete_speech_audio(
         json_file_path.unlink(missing_ok=True)
 
 
-def delete_all_speech_audio(
-    progress_bar: gr.Progress | None = None,
-    percentage: float = 0.5,
-) -> None:
-    """
-    Delete all speech audio files.
-
-    Parameters
-    ----------
-    progress_bar : gr.Progress, optional
-        Gradio progress bar to update.
-    percentage : float, default=0.5
-        Percentage to display in the progress bar.
-
-    """
-    display_progress("[~] Deleting all speech audio files...", percentage, progress_bar)
-    if SPEECH_DIR.is_dir():
-        shutil.rmtree(SPEECH_DIR)
-
-
 def delete_output_audio(
     files: Sequence[StrPath],
     progress_bar: gr.Progress | None = None,
@@ -330,26 +286,6 @@ def delete_output_audio(
         file_path.unlink()
 
 
-def delete_all_output_audio(
-    progress_bar: gr.Progress | None = None,
-    percentage: float = 0.5,
-) -> None:
-    """
-    Delete all output audio files.
-
-    Parameters
-    ----------
-    progress_bar : gr.Progress, optional
-        Gradio progress bar to update.
-    percentage : float, default=0.5
-        Percentage to display in the progress bar.
-
-    """
-    display_progress("[~] Deleting all output audio files...", percentage, progress_bar)
-    if OUTPUT_AUDIO_DIR.is_dir():
-        shutil.rmtree(OUTPUT_AUDIO_DIR)
-
-
 def delete_dataset_audio(
     datasets: Sequence[StrPath],
     progress_bar: gr.Progress | None = None,
@@ -404,6 +340,70 @@ def delete_dataset_audio(
     )
     for dataset_path in dataset_paths:
         shutil.rmtree(dataset_path)
+
+
+def delete_all_intermediate_audio(
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete all intermediate audio files.
+
+    Parameters
+    ----------
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    """
+    display_progress(
+        "[~] Deleting all intermediate audio files...",
+        percentage,
+        progress_bar,
+    )
+    if INTERMEDIATE_AUDIO_BASE_DIR.is_dir():
+        shutil.rmtree(INTERMEDIATE_AUDIO_BASE_DIR)
+
+
+def delete_all_speech_audio(
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete all speech audio files.
+
+    Parameters
+    ----------
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    """
+    display_progress("[~] Deleting all speech audio files...", percentage, progress_bar)
+    if SPEECH_DIR.is_dir():
+        shutil.rmtree(SPEECH_DIR)
+
+
+def delete_all_output_audio(
+    progress_bar: gr.Progress | None = None,
+    percentage: float = 0.5,
+) -> None:
+    """
+    Delete all output audio files.
+
+    Parameters
+    ----------
+    progress_bar : gr.Progress, optional
+        Gradio progress bar to update.
+    percentage : float, default=0.5
+        Percentage to display in the progress bar.
+
+    """
+    display_progress("[~] Deleting all output audio files...", percentage, progress_bar)
+    if OUTPUT_AUDIO_DIR.is_dir():
+        shutil.rmtree(OUTPUT_AUDIO_DIR)
 
 
 def delete_all_dataset_audio(

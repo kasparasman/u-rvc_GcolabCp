@@ -7,21 +7,29 @@ from typing import TYPE_CHECKING
 import hashlib
 import json
 import shutil
-from itertools import starmap
 from pathlib import Path
 
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 
 from rich import print as rprint
 
-from ultimate_rvc.common import AUDIO_DIR, MODELS_DIR, RVC_MODELS_DIR, VOICE_MODELS_DIR
+from ultimate_rvc.common import (
+    AUDIO_DIR,
+    CUSTOM_EMBEDDER_MODELS_DIR,
+    MODELS_DIR,
+    TRAINING_MODELS_DIR,
+    VOICE_MODELS_DIR,
+)
 from ultimate_rvc.core.exceptions import (
+    AudioDirectoryEntity,
+    AudioFileEntity,
     Entity,
     HttpUrlError,
+    ModelEntity,
+    ModelNotFoundError,
     NotFoundError,
     NotProvidedError,
     UIMessage,
-    VoiceModelNotFoundError,
 )
 
 if TYPE_CHECKING:
@@ -37,7 +45,6 @@ SPEECH_DIR = AUDIO_DIR / "speech"
 OUTPUT_AUDIO_DIR = AUDIO_DIR / "output"
 FLAG_FILE = MODELS_DIR / ".initialized"
 TRAINING_AUDIO_DIR = AUDIO_DIR / "training"
-TRAINING_MODELS_DIR = RVC_MODELS_DIR / "training"
 
 
 def display_progress(
@@ -251,98 +258,158 @@ def get_file_hash(file: StrPath, size: int = 5) -> str:
     return file_hash.hexdigest()
 
 
-def validate_exists(
-    identifier: StrPath | None,
-    entity: Entity,
-) -> Path:
+def get_combined_file_hash(files: Sequence[StrPath], size: int = 5) -> str:
     """
-    Validate that the provided identifier is not none and that it
-    identifies an existing supported entity.
+    Get the combined hash of a sequence of files.
 
     Parameters
     ----------
-    identifier : StrPath | None
-        The identifier to validate.
-    entity : Entity
-        The entity that the identifier should identify.
+    files : Sequence[StrPath]
+        A sequence of paths to the files to hash.
+    size : int, default=5
+        The size of each hash in bytes.
+
+    Returns
+    -------
+    str
+        The combined hash of the files.
+
+    """
+    hasher = hashlib.blake2b(digest_size=size)
+
+    for file in files:
+        with Path(file).open("rb") as fp:
+            for chunk in iter(lambda: fp.read(4096), b""):
+                hasher.update(chunk)
+
+    return hasher.hexdigest()
+
+
+def validate_audio_file_exists(
+    audio_file: StrPath | None,
+    entity: AudioFileEntity,
+) -> Path:
+    """
+    Validate that the provided audio file path is defined and that it
+    points to an existing instance of the provided audio file entity.
+
+    Parameters
+    ----------
+    audio_file : StrPath, optional
+        The audio file path to validate.
+    entity : AudioFileEntity
+        The entity that the audio file path should point to.
 
     Returns
     -------
     Path
-        The path to the identified entity.
+        The validated audio file path.
 
     Raises
     ------
     NotProvidedError
-        If the identifier is None.
+        If the audio file path is not defined.
     NotFoundError
-        If the identifier does not identify an existing entity.
-    VoiceModelNotFoundError
-        If the identifier does not identify an existing voice model.
-    NotImplementedError
-        If the provided entity is not supported.
+        If the audio file path does not point to an existing instance
+        of the provided audio file entity.
 
     """
-    match entity:
-        case Entity.MODEL_NAME:
-            if not identifier:
-                raise NotProvidedError(entity=entity, ui_msg=UIMessage.NO_VOICE_MODEL)
-            path = VOICE_MODELS_DIR / identifier
-            if not path.is_dir():
-                raise VoiceModelNotFoundError(str(identifier))
-        case (
-            Entity.SONG_DIR
-            | Entity.EMBEDDER_MODEL_CUSTOM
-            | Entity.DIRECTORY
-            | Entity.DATASET
-        ):
-            ui_msg = UIMessage.NO_SONG_DIR if entity == Entity.SONG_DIR else None
-            if not identifier:
-                raise NotProvidedError(entity=entity, ui_msg=ui_msg)
-            path = Path(identifier)
-            if not path.is_dir():
-                raise NotFoundError(entity=entity, location=path)
-        case (
-            Entity.SONG
-            | Entity.AUDIO_TRACK
-            | Entity.VOCALS_TRACK
-            | Entity.VOICE_TRACK
-            | Entity.SPEECH_TRACK
-            | Entity.INSTRUMENTALS_TRACK
-            | Entity.MAIN_VOCALS_TRACK
-            | Entity.BACKUP_VOCALS_TRACK
-            | Entity.FILE
-        ):
-            if not identifier:
-                raise NotProvidedError(entity=entity)
-            path = Path(identifier)
-            if not path.is_file():
-                raise NotFoundError(entity=entity, location=path)
-        case _:
-            error_msg = f"Entity {entity} not supported."
-            raise NotImplementedError(error_msg)
-    return path
+    if not audio_file:
+        raise NotProvidedError(entity=entity)
+    audio_file_path = Path(audio_file)
+    if not audio_file_path.is_file():
+        raise NotFoundError(entity=entity, location=audio_file_path)
+    return audio_file_path
 
 
-def validate_all_exist(
-    identifier_entity_pairs: Sequence[tuple[StrPath | None, Entity]],
-) -> list[Path]:
+def validate_audio_dir_exists(
+    audio_directory: StrPath | None,
+    entity: AudioDirectoryEntity,
+) -> Path:
     """
-    Validate that all provided identifiers are not none and that they
-    identify existing supported entities.
+    Validate that the provided audio directory path is defined and that
+    it points to an existing instance of the provided audio directory
+    entity.
 
     Parameters
     ----------
-    identifier_entity_pairs : Sequence[tuple[StrPath, Entity]]
-        The pairs of identifiers and entities to validate.
+    audio_directory : StrPath, optional
+        The audio directory path to validate.
+    entity : AudioDirectoryEntity
+        The entity that the audio directory path should point to.
 
     Returns
     -------
-    list[Path]
-        The paths to the identified entities.
+    Path
+        The validated audio directory path.
+
+    Raises
+    ------
+    NotProvidedError
+        If the audio directory path is not defined.
+    NotFoundError
+        If the audio directory path does not point to an existing
+        instance of the provided audio directory entity.
 
     """
-    return list(starmap(validate_exists, identifier_entity_pairs))
+    match entity:
+        case Entity.SONG_DIR:
+            ui_msg = UIMessage.NO_SONG_DIR
+        case _:
+            ui_msg = None
+    if not audio_directory:
+        raise NotProvidedError(entity=entity, ui_msg=ui_msg)
+    audio_dir_path = Path(audio_directory)
+    if not audio_dir_path.is_dir():
+        raise NotFoundError(entity=entity, location=audio_dir_path)
+    return audio_dir_path
+
+
+def validate_model_exists(name: str | None, entity: ModelEntity) -> Path:
+    """
+    Validate that the provided name is defined and that it identifies
+    an existing instance of the provided model entity.
+
+    Parameters
+    ----------
+    name : str | None
+        The name of the model to validate.
+    entity : Entity
+        The entity that the name should identify.
+
+    Returns
+    -------
+    Path
+        The path to the model entity identified by the provided name.
+
+    Raises
+    ------
+    NotProvidedError
+        If the model name is not defined.
+    ModelNotFoundError
+        If the model name does not point to an existing instance of the
+        provided model entity.
+
+    """
+    match entity:
+        case Entity.VOICE_MODEL:
+            ui_msg = UIMessage.NO_VOICE_MODEL
+            directory = VOICE_MODELS_DIR
+        case Entity.CUSTOM_EMBEDDER_MODEL:
+            ui_msg = UIMessage.NO_CUSTOM_EMBEDDER_MODEL
+            directory = CUSTOM_EMBEDDER_MODELS_DIR
+        case Entity.TRAINING_MODEL:
+            ui_msg = None
+            directory = TRAINING_MODELS_DIR
+
+    directory_path = Path(directory)
+    if not name:
+        raise NotProvidedError(entity=Entity.MODEL_NAME, ui_msg=ui_msg)
+    model_path = directory_path / name
+    if not model_path.is_dir():
+        raise ModelNotFoundError(entity, name=name)
+
+    return model_path
 
 
 def validate_url(url: str) -> None:
