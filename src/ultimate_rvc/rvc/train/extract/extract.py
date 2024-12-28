@@ -152,6 +152,32 @@ class FeatureInput:
                     pbar.update(1)
 
 
+def remove_from_ld_preload(prefix: str) -> None:
+    """
+    Remove entries from the LD_PRELOAD environment variable that start
+    with the given prefix.
+
+    Parameters
+    ----------
+    prefix : str
+        The prefix to match entries in LD_PRELOAD.
+
+    """
+    # Get the current LD_PRELOAD value
+    ld_preload = os.environ.get("LD_PRELOAD", "")
+
+    # Split the LD_PRELOAD into a list of entries
+    preload_entries = ld_preload.split(os.pathsep)
+
+    # Remove the entries that start with the given prefix
+    preload_entries = [
+        entry for entry in preload_entries if not entry.startswith(prefix)
+    ]
+
+    # Join the list back into a string and update LD_PRELOAD
+    os.environ["LD_PRELOAD"] = os.pathsep.join(preload_entries)
+
+
 def run_pitch_extraction(
     files: list[list[str]],
     devices: list[str],
@@ -171,6 +197,17 @@ def run_pitch_extraction(
     # split the task between devices
     ps = []
     num_devices = len(devices)
+
+    # NOTE On ubuntu 24.04 the static_sox module does not work with
+    # multiprocessing using the spawn method due to a
+    # "version `GLIBC_2.38' not found" error. This is a workaround,
+    # which removes all sox binaries (in particular **/libm.so.6) from
+    # the LD_PRELOAD environment variable.
+    import static_sox.run as static_sox_run  # noqa: PLC0415
+
+    sox_exe = static_sox_run.get_or_fetch_platform_executables_else_raise()
+    remove_from_ld_preload(os.path.join(os.path.dirname(sox_exe), "libm.so.6"))
+
     for i, device in enumerate(devices):
         p = mp.Process(
             target=fe.process_files,

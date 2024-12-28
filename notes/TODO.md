@@ -1,9 +1,11 @@
 # TODO
 
 * need to update initialize function so that static_sox is also downloaded
-* need to fix the error:
-```/home/jackismyshephard/ultimate-rvc/uv/.venv/lib/python3.12/site-packages/static_sox/bin/sox-14.4.2-linux/libm.so.6: version `GLIBC_2.38' not found (required by /home/jackismyshephard/ultimate-rvc/uv/.venv/bin/python3)```
-which occurs on linux the first time one tries to perform feature extraction.
+* we should fix static_ffmpeg and static_sox so that the weak parameter works.
+  * other we will keep adding values to environment variables each time their add_paths()function is called
+  * add the same time we should also try and fix static_sox.add_paths so that it works with spawn multiprocessing on ubuntu 24.04. Currently a "version `GLIBC_2.38' not found" error is raised because static_sox.add_paths adds a ../sox_folder/libm.so.6 to LD_PRELOAD, but libm.so.6 requires GLIBC_2.38 which is below the default which is GLIBC_2.39 on ubuntu 24.04.
+  * But sox still seems to work (at least the pitch shifting ) without libm.so.6 being preloaded so we can probably just remove it from the LD_PRELOAD list in static_sox.add_paths?
+    * as a matter of fact, for pitch shifting only "libgsm.so.1","libltdl.so.7","libsox.so.3" seem to be needed.
 * lazy importing torch (either manually or with lazy_import function) does not work for the get_gpu_info function. Need to fix this as CLI is too slow on windows without lazy import.
 * lazy_import function also does not seem to work with static_ffmpeg and yt_dlp. If we instead delay import them manually, then we can get the CLI startup time down to 0.5 sec from 1.1 sec.
 * instead of having custom embedder models, just allow users to download new embedder models which will be shown in the main embedder models dropdown (and perhaps also saved in the main embedder models dir?)
