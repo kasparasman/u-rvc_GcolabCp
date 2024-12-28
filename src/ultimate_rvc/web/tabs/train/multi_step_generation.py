@@ -20,6 +20,7 @@ from ultimate_rvc.core.train.prepare import (
 )
 from ultimate_rvc.typing_extra import (
     AudioExt,
+    AudioSplitMethod,
     EmbedderModel,
     RVCVersion,
     TrainingF0Method,
@@ -29,6 +30,7 @@ from ultimate_rvc.web.common import (
     PROGRESS_BAR,
     exception_harness,
     render_msg,
+    toggle_visibilities,
     toggle_visibility,
     update_dropdowns,
     update_values,
@@ -150,17 +152,50 @@ def render(
                         info="The number of CPU cores to use for preprocessing.",
                     )
                 with gr.Row():
-                    with gr.Column():
-                        split_audio = gr.Checkbox(
-                            value=True,
-                            label="Split audio",
-                            info=(
-                                "Whether to split the audio files in the provided"
-                                " dataset into smaller segments before pre-processing."
-                                " This help can improve the pre-processing speed for"
-                                " large audio files."
-                            ),
-                        )
+                    split_method = gr.Radio(
+                        choices=list(AudioSplitMethod),
+                        value=AudioSplitMethod.AUTOMATIC,
+                        label="Audio splitting method",
+                        info=(
+                            "The method to use for splitting the audio files in the"
+                            " provided dataset. Use the Skip method to skip"
+                            " splitting if the audio files are already split. Use"
+                            " the Simple method if excessive silence has already"
+                            " been removed from the audio files. Use the"
+                            " Automatic method for automatic silence detection"
+                            " and splitting around it."
+                        ),
+                    )
+                with gr.Row():
+                    chunk_len = gr.Slider(
+                        0.5,
+                        5.0,
+                        3.0,
+                        step=0.1,
+                        label="Chunk length",
+                        info="Length of split audio chunks.",
+                        visible=False,
+                    )
+                    overlap_len = gr.Slider(
+                        0.0,
+                        0.4,
+                        0.3,
+                        step=0.1,
+                        label="Overlap length",
+                        info="Length of overlap between split audio chunks.",
+                        visible=False,
+                    )
+                split_method.change(
+                    partial(
+                        toggle_visibilities,
+                        targets={AudioSplitMethod.SIMPLE},
+                        defaults=[3.0, 0.3],
+                    ),
+                    inputs=split_method,
+                    outputs=[chunk_len, overlap_len],
+                    show_progress="hidden",
+                )
+                with gr.Row():
                     with gr.Column():
                         filter_audio = gr.Checkbox(
                             value=True,
@@ -207,7 +242,9 @@ def render(
                         dataset,
                         sample_rate_preprocess,
                         cpu_cores_preprocess,
-                        split_audio,
+                        split_method,
+                        chunk_len,
+                        overlap_len,
                         filter_audio,
                         clean_audio,
                         clean_strength,
@@ -263,6 +300,23 @@ def render(
                         info="The GPU(s) to use for feature extraction.",
                         multiselect=True,
                     )
+                with gr.Row():
+                    with gr.Column():
+                        include_mutes = gr.Slider(
+                            0,
+                            10,
+                            2,
+                            step=1,
+                            label="Include mutes",
+                            info=(
+                                "The number of mute audio files to include in the"
+                                " generated training file list. Adding silent files"
+                                " enables the model to handle pure silence in inferred"
+                                " audio files. If the preprocessed audio dataset"
+                                " already contains segments of pure silence, set this"
+                                " to 0."
+                            ),
+                        )
                 with gr.Row():
                     with gr.Column():
                         f0_method = gr.Dropdown(
@@ -330,6 +384,7 @@ def render(
                         sample_rate_extract,
                         embedder_model,
                         custom_embedder_model,
+                        include_mutes,
                     ],
                     outputs=extract_msg,
                 ).success(

@@ -8,12 +8,10 @@ from torch import nn
 
 from librosa.filters import mel
 
-# Constants for readability
 N_MELS = 128
 N_CLASS = 360
 
 
-# Define a helper function for creating convolutional blocks
 class ConvBlockRes(nn.Module):
     """
     A convolutional block with residual connection.
@@ -61,7 +59,6 @@ class ConvBlockRes(nn.Module):
         return self.conv(x) + x
 
 
-# Define a class for residual encoder blocks
 class ResEncoderBlock(nn.Module):
     """
     A residual encoder block.
@@ -101,7 +98,6 @@ class ResEncoderBlock(nn.Module):
         return x
 
 
-# Define a class for the encoder
 class Encoder(nn.Module):
     """
     The encoder part of the DeepUnet.
@@ -158,7 +154,6 @@ class Encoder(nn.Module):
         return x, concat_tensors
 
 
-# Define a class for the intermediate layer
 class Intermediate(nn.Module):
     """
     The intermediate layer of the DeepUnet.
@@ -190,7 +185,6 @@ class Intermediate(nn.Module):
         return x
 
 
-# Define a class for residual decoder blocks
 class ResDecoderBlock(nn.Module):
     """
     A residual decoder block.
@@ -234,7 +228,6 @@ class ResDecoderBlock(nn.Module):
         return x
 
 
-# Define a class for the decoder
 class Decoder(nn.Module):
     """
     The decoder part of the DeepUnet.
@@ -265,7 +258,6 @@ class Decoder(nn.Module):
         return x
 
 
-# Define a class for the DeepUnet architecture
 class DeepUnet(nn.Module):
     """
     The DeepUnet architecture.
@@ -318,7 +310,6 @@ class DeepUnet(nn.Module):
         return x
 
 
-# Define a class for the end-to-end model
 class E2E(nn.Module):
     """
     The end-to-end model.
@@ -375,7 +366,6 @@ class E2E(nn.Module):
         return x
 
 
-# Define a class for the MelSpectrogram extractor
 class MelSpectrogram(torch.nn.Module):
     """
     Extracts Mel-spectrogram features from audio.
@@ -460,7 +450,6 @@ class MelSpectrogram(torch.nn.Module):
         return log_mel_spec
 
 
-# Define a class for the RMVPE0 predictor
 class RMVPE0Predictor:
     """
     A predictor for fundamental frequency (F0) based on the RMVPE0 model.
@@ -577,7 +566,6 @@ class RMVPE0Predictor:
         return devided
 
 
-# Define a class for BiGRU (bidirectional GRU)
 class BiGRU(nn.Module):
     """
     A bidirectional GRU layer.

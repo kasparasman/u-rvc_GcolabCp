@@ -41,6 +41,7 @@ def extract_features(
     sample_rate: TrainingSampleRate = TrainingSampleRate.HZ_40K,
     embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
     custom_embedder_model: str | None = None,
+    include_mutes: int = 2,
     progress_bar: gr.Progress | None = None,
     percentage: tuple[float, float] = (0.0, 0.5),
 ) -> None:
@@ -72,6 +73,12 @@ def extract_features(
     custom_embedder_model : StrPath, optional
         The name of the custom embedder model to use for extracting
         audio embeddings.
+    include_mutes : int, default=2
+        The number of mute audio files to include in the generated
+        training file list. Adding silent files enables the model to
+        handle pure silence in inferred audio files. If the preprocessed
+        audio dataset already contains segments of pure silence, set
+        this to 0.
     progress_bar : gr.Progress, optional
         The progress bar to update as the features are extracted.
     percentage : float, optional
@@ -140,6 +147,7 @@ def extract_features(
         str(model_path),
         rvc_version,
         int(sample_rate),
+        include_mutes,
         f0_method_id,
         embedder_model_id,
     )

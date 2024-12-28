@@ -1,6 +1,13 @@
 """Common utilities for the CLI."""
 
-from ultimate_rvc.typing_extra import AudioExt, EmbedderModel, F0Method, RVCVersion
+from ultimate_rvc.typing_extra import (
+    AudioExt,
+    AudioSplitMethod,
+    EmbedderModel,
+    F0Method,
+    RVCVersion,
+    TrainingSampleRate,
+)
 
 
 def format_duration(seconds: float) -> str:
@@ -121,3 +128,43 @@ def complete_rvc_version(incomplete: str) -> list[str]:
 
     """
     return complete_name(incomplete, list(RVCVersion))
+
+
+def complete_audio_split_method(incomplete: str) -> list[str]:
+    """
+    Return a list of audio split methods that start with the incomplete
+    string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of audio split methods that start with the incomplete
+        string.
+
+    """
+    return complete_name(incomplete, list(AudioSplitMethod))
+
+
+def complete_training_sample_rate(incomplete: str) -> list[str]:
+    """
+    Return a list of training sample rates that start with the
+    incomplete string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of training sample rates that start with the incomplete
+        string.
+
+    """
+    return complete_name(incomplete, list(TrainingSampleRate))

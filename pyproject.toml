@@ -20,7 +20,7 @@ dependencies = [
     
     # Networking
     "requests==2.32.3",
-    "yt_dlp==2024.12.6",
+    "yt_dlp==2024.12.23",
     "nodejs-wheel-binaries==22.11.0",
     "wget",
     # TODO potentially add these later
@@ -61,6 +61,7 @@ dependencies = [
     "soundfile==0.12.1",
     "librosa==0.10.2",
     "sox==1.5.0",
+    "soxr==0.5.0.post1",
     "pydub==0.25.1",
     "pydub-stubs==0.25.1.2",
     "pedalboard==0.9.16",

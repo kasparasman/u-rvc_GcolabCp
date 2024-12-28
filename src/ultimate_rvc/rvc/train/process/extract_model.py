@@ -35,9 +35,9 @@ def extract_model(
     version,
     hps,
     overtrain_info,
+    vocoder,
 ):
     try:
-        print(f"Saved model '{model_dir}' (epoch {epoch} and step {step})")
 
         model_dir_path = os.path.dirname(model_dir)
         os.makedirs(model_dir_path, exist_ok=True)
@@ -56,11 +56,11 @@ def extract_model(
         if os.path.exists(os.path.join(model_dir_path, "model_info.json")):
             with open(os.path.join(model_dir_path, "model_info.json")) as f:
                 data = json.load(f)
-                dataset_lenght = data.get("total_dataset_duration", None)
+                dataset_length = data.get("total_dataset_duration", None)
                 embedder_model = data.get("embedder_model", None)
                 speakers_id = data.get("speakers_id", 1)
         else:
-            dataset_lenght = None
+            dataset_length = None
 
         with open(os.path.join(now_dir, "assets", "config.json")) as f:
             data = json.load(f)
@@ -99,18 +99,19 @@ def extract_model(
         opt["version"] = version
         opt["creation_date"] = datetime.datetime.now().isoformat()
 
-        hash_input = f"{ckpt!s} {epoch} {step} {datetime.datetime.now().isoformat()}"
-        model_hash = hashlib.sha256(hash_input.encode()).hexdigest()
-        opt["model_hash"] = model_hash
+        hash_input = f"{name}-{epoch}-{step}-{sr}-{version}-{opt['config']}"
+        opt["model_hash"] = hashlib.sha256(hash_input.encode()).hexdigest()
         opt["overtrain_info"] = overtrain_info
-        opt["dataset_lenght"] = dataset_lenght
+        opt["dataset_length"] = dataset_length
         opt["model_name"] = name
         opt["author"] = model_author
         opt["embedder_model"] = embedder_model
         opt["speakers_id"] = speakers_id
+        opt["vocoder"] = vocoder
 
         torch.save(opt, os.path.join(model_dir_path, pth_file))
 
+        # Create a backwards-compatible checkpoint
         model = torch.load(model_dir, map_location=torch.device("cpu"))
         torch.save(
             replace_keys_in_dict(
@@ -126,6 +127,7 @@ def extract_model(
         )
         os.remove(model_dir)
         os.rename(pth_file_old_version_path, model_dir)
+        print(f"Saved model '{model_dir}' (epoch {epoch} and step {step})")
 
     except Exception as error:
         print(f"An error occurred extracting the model: {error}")

@@ -84,6 +84,7 @@ class TrainingSampleRate(StrEnum):
 
     HZ_32K = "32000"
     HZ_40K = "40000"
+    HZ_41K = "41000"
     HZ_48K = "48000"
 
 
@@ -100,3 +101,14 @@ class TrainingF0Method(StrEnum):
     RMVPE = "rmvpe"
     CREPE = "crepe"
     CREPE_TINY = "crepe-tiny"
+
+
+class AudioSplitMethod(StrEnum):
+    """
+    Enumeration of methods to use for splitting audio files during
+    dataset preprocessing.
+    """
+
+    SKIP = "Skip"
+    SIMPLE = "Simple"
+    AUTOMATIC = "Automatic"

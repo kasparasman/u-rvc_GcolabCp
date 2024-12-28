@@ -6,6 +6,8 @@ import sys
 import time
 import traceback
 
+import soxr
+
 import numpy as np
 
 import torch
@@ -145,6 +147,7 @@ class VoiceConverter:
                     audio,
                     orig_sr=sample_rate,
                     target_sr=target_sr,
+                    res_type="soxr_vhq",
                 )
                 sf.write(output_path, audio, target_sr, format=output_format.lower())
             return output_path
@@ -502,18 +505,18 @@ class VoiceConverter:
 
             self.version = self.cpt.get("version", "v1")
             self.text_enc_hidden_dim = 768 if self.version == "v2" else 256
+            self.vocoder = self.cpt.get("vocoder", "HiFi-GAN")
             self.net_g = Synthesizer(
                 *self.cpt["config"],
                 use_f0=self.use_f0,
                 text_enc_hidden_dim=self.text_enc_hidden_dim,
-                is_half=self.config.is_half,
+                is_half=False,
+                vocoder=self.vocoder,
             )
             del self.net_g.enc_q
             self.net_g.load_state_dict(self.cpt["weight"], strict=False)
             self.net_g.eval().to(self.config.device)
-            self.net_g = (
-                self.net_g.half() if self.config.is_half else self.net_g.float()
-            )
+            self.net_g = self.net_g.float()
 
     def setup_vc_instance(self):
         """
