@@ -3,6 +3,7 @@ import os
 import shutil
 from random import shuffle
 
+from ultimate_rvc.rvc.common import RVC_CONFIGS_DIR, RVC_TRAINING_MODELS_DIR
 from ultimate_rvc.rvc.configs.config import Config
 
 config = Config()
@@ -10,23 +11,28 @@ current_directory = os.getcwd()
 
 
 def generate_config(rvc_version: str, sample_rate: int, model_path: str):
-    config_path = os.path.join("rvc", "configs", rvc_version, f"{sample_rate}.json")
+    config_path = os.path.join(RVC_CONFIGS_DIR, rvc_version, f"{sample_rate}.json")
     config_save_path = os.path.join(model_path, "config.json")
-    if not os.path.exists(config_save_path):
-        shutil.copyfile(config_path, config_save_path)
+    shutil.copyfile(config_path, config_save_path)
 
 
 def generate_filelist(
     model_path: str,
     rvc_version: str,
     sample_rate: int,
+    f0_method_id: str,
+    embedder_model_id: str,
 ):
+
     gt_wavs_dir = os.path.join(model_path, "sliced_audios")
-    feature_dir = os.path.join(model_path, f"{rvc_version}_extracted")
+    feature_dir = os.path.join(
+        model_path,
+        f"{rvc_version}_{embedder_model_id}_extracted",
+    )
 
     f0_dir, f0nsf_dir = None, None
-    f0_dir = os.path.join(model_path, "f0")
-    f0nsf_dir = os.path.join(model_path, "f0_voiced")
+    f0_dir = os.path.join(model_path, f"f0_{f0_method_id}")
+    f0nsf_dir = os.path.join(model_path, f"f0_{f0_method_id}_voiced")
 
     gt_wavs_files = set(name.split(".")[0] for name in os.listdir(gt_wavs_dir))
     feature_files = set(name.split(".")[0] for name in os.listdir(feature_dir))
@@ -36,7 +42,7 @@ def generate_filelist(
     names = gt_wavs_files & feature_files & f0_files & f0nsf_files
 
     options = []
-    mute_base_path = os.path.join(current_directory, "logs", "mute")
+    mute_base_path = os.path.join(RVC_TRAINING_MODELS_DIR, "mute")
     sids = []
     for name in names:
         sid = name.split("_")[0]

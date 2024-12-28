@@ -1,24 +1,6 @@
 """Common utilities for the CLI."""
 
-
-def complete_name(incomplete: str, enumeration: list[str]) -> list[str]:
-    """
-    Return a list of names that start with the incomplete string.
-
-    Parameters
-    ----------
-    incomplete : str
-        The incomplete string to complete.
-    enumeration : list[str]
-        The list of names to complete from.
-
-    Returns
-    -------
-    list[str]
-        The list of names that start with the incomplete string.
-
-    """
-    return [name for name in list(enumeration) if name.startswith(incomplete)]
+from ultimate_rvc.typing_extra import AudioExt, EmbedderModel, F0Method, RVCVersion
 
 
 def format_duration(seconds: float) -> str:
@@ -43,3 +25,99 @@ def format_duration(seconds: float) -> str:
     if minutes > 0:
         return f"{int(minutes)} minutes and {seconds:.2f} seconds"
     return f"{seconds:.2f} seconds"
+
+
+def complete_name(incomplete: str, enumeration: list[str]) -> list[str]:
+    """
+    Return a list of names that start with the incomplete string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+    enumeration : list[str]
+        The list of names to complete from.
+
+    Returns
+    -------
+    list[str]
+        The list of names that start with the incomplete string.
+
+    """
+    return [name for name in list(enumeration) if name.startswith(incomplete)]
+
+
+def complete_audio_ext(incomplete: str) -> list[str]:
+    """
+    Return a list of audio extensions that start with the incomplete
+    string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of audio extensions that start with the incomplete
+        string.
+
+    """
+    return complete_name(incomplete, list(AudioExt))
+
+
+def complete_f0_method(incomplete: str) -> list[str]:
+    """
+    Return a list of F0 methods that start with the incomplete string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of F0 methods that start with the incomplete string.
+
+    """
+    return complete_name(incomplete, list(F0Method))
+
+
+def complete_embedder_model(incomplete: str) -> list[str]:
+    """
+    Return a list of embedder models that start with the incomplete
+    string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of embedder models that start with the incomplete
+        string.
+
+    """
+    return complete_name(incomplete, list(EmbedderModel))
+
+
+def complete_rvc_version(incomplete: str) -> list[str]:
+    """
+    Return a list of RVC versions that start with the incomplete string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of RVC versions that start with the incomplete string.
+
+    """
+    return complete_name(incomplete, list(RVCVersion))

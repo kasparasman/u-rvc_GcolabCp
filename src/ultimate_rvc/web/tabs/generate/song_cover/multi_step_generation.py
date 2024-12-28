@@ -13,12 +13,15 @@ import gradio as gr
 
 from ultimate_rvc.core.generate.common import convert
 from ultimate_rvc.core.generate.song_cover import (
+    get_named_song_dirs,
+    get_song_cover_name,
     mix_song,
     pitch_shift,
     postprocess,
     retrieve_song,
     separate_audio,
 )
+from ultimate_rvc.core.manage.audio import get_saved_output_audio
 from ultimate_rvc.typing_extra import (
     AudioExt,
     EmbedderModel,
@@ -34,9 +37,8 @@ from ultimate_rvc.web.common import (
     toggle_visibility,
     toggle_visible_component,
     update_audio,
-    update_cached_songs,
-    update_output_audio,
-    update_song_cover_name,
+    update_dropdowns,
+    update_output_name,
     update_value,
 )
 from ultimate_rvc.web.typing_extra import ConcurrencyId, SongSourceType
@@ -95,10 +97,11 @@ def _pair_audio_tracks_and_gain(
 
 
 def render(
+    voice_model: gr.Dropdown,
+    custom_embedder_model: gr.Dropdown,
+    cached_song_multi: gr.Dropdown,
     song_dirs: Sequence[gr.Dropdown],
     cached_song_1click: gr.Dropdown,
-    cached_song_multi: gr.Dropdown,
-    model_multi: gr.Dropdown,
     intermediate_audio: gr.Dropdown,
     output_audio: gr.Dropdown,
 ) -> None:
@@ -107,19 +110,22 @@ def render(
 
     Parameters
     ----------
-    song_dirs : Sequence[gr.Dropdown]
-        Dropdowns for selecting song directories in the
-        "Multi-step generation" tab.
-    cached_song_1click : gr.Dropdown
-        Dropdown for selecting a cached song in the
-        "One-click generation" tab.
+    voice_model : gr.Dropdown
+        Dropdown for selecting a voice model in the
+        "Generate song covers - multi-step generation" tab.
+    custom_embedder_model : gr.Dropdown
+        Dropdown for selecting a custom embedder model in the
+        "Generate song covers - multi-step generation" tab.
     cached_song_multi : gr.Dropdown
         Dropdown for selecting a cached song in the
-        "Multi-step generation" tab.
-    model_multi : gr.Dropdown
-        Dropdown for selecting a voice model in the
-        "Multi-step generation" tab.
+        "Generate song covers - multi-step generation" tab.
+    song_dirs : Sequence[gr.Dropdown]
+        Dropdowns for selecting song directories in the
+        "Generate song covers - multi-step generation" tab.
     intermediate_audio : gr.Dropdown
+    cached_song_1click : gr.Dropdown
+        Dropdown for selecting a cached song in the
+        "Generate song covers - one-click generation" tab.
         Dropdown for selecting intermediate audio files to delete in the
         "Delete audio" tab.
     output_audio : gr.Dropdown
@@ -326,7 +332,8 @@ def render(
                 outputs=[song_output, current_song_dir],
             ).then(
                 partial(
-                    update_cached_songs,
+                    update_dropdowns,
+                    get_named_song_dirs,
                     len(song_dirs) + 2,
                     value_indices=range(len(song_dirs)),
                 ),
@@ -334,7 +341,7 @@ def render(
                 outputs=([*song_dirs, cached_song_multi, cached_song_1click]),
                 show_progress="hidden",
             ).then(
-                partial(update_cached_songs, 1, [], [0]),
+                partial(update_dropdowns, get_named_song_dirs, 1, [], [0]),
                 outputs=intermediate_audio,
                 show_progress="hidden",
             )
@@ -415,9 +422,9 @@ def render(
             vocals_track_input.render()
             with gr.Row():
                 convert_vocals_dir.render()
-                if model_multi.info:
-                    model_multi.info += "<br><br>"
-                model_multi.render()
+                if voice_model.info:
+                    voice_model.info += "<br><br>"
+                voice_model.render()
             gr.Markdown("**Settings**")
             with gr.Row():
                 n_octaves = gr.Slider(
@@ -563,13 +570,13 @@ def render(
                         visible=False,
                     )
             autotune_vocals.change(
-                partial(toggle_visibility, target=True),
+                partial(toggle_visibility, targets={True}),
                 inputs=autotune_vocals,
                 outputs=autotune_strength,
                 show_progress="hidden",
             )
             clean_vocals.change(
-                partial(toggle_visibility, target=True),
+                partial(toggle_visibility, targets={True}),
                 inputs=clean_vocals,
                 outputs=clean_strength,
                 show_progress="hidden",
@@ -582,23 +589,16 @@ def render(
                         label="Embedder model",
                         info="The model to use for generating speaker embeddings.",
                     )
-                    embedder_model_custom = gr.Textbox(
-                        label="Custom embedder model",
-                        info=(
-                            "The path to a directory with a custom model to use for"
-                            " generating speaker embeddings."
-                        ),
-                        visible=False,
-                    )
+                    custom_embedder_model.render()
                 sid = gr.Number(
                     label="Speaker ID",
                     info="Speaker ID for multi-speaker-models.",
                     precision=0,
                 )
             embedder_model.change(
-                partial(toggle_visibility, target=EmbedderModel.CUSTOM),
+                partial(toggle_visibility, targets={EmbedderModel.CUSTOM}),
                 inputs=embedder_model,
-                outputs=embedder_model_custom,
+                outputs=custom_embedder_model,
                 show_progress="hidden",
             )
 
@@ -645,7 +645,7 @@ def render(
                     clean_vocals,
                     clean_strength,
                     embedder_model,
-                    embedder_model_custom,
+                    custom_embedder_model,
                     sid,
                     converted_vocals_transfer,
                 ],
@@ -663,7 +663,7 @@ def render(
                 inputs=[
                     vocals_track_input,
                     convert_vocals_dir,
-                    model_multi,
+                    voice_model,
                     n_octaves,
                     n_semitones,
                     f0_methods,
@@ -678,7 +678,7 @@ def render(
                     clean_vocals,
                     clean_strength,
                     embedder_model,
-                    embedder_model_custom,
+                    custom_embedder_model,
                     sid,
                 ],
                 outputs=converted_vocals_track_output,
@@ -907,7 +907,11 @@ def render(
                 )
             with gr.Row():
                 output_name = gr.Textbox(
-                    value=update_song_cover_name,
+                    value=partial(
+                        update_output_name,
+                        get_song_cover_name,
+                        False,  # noqa: FBT003,
+                    ),
                     inputs=[main_vocals_track_input, mix_dir],
                     label="Output name",
                     placeholder="Ultimate RVC song cover",
@@ -992,7 +996,7 @@ def render(
                 ],
                 outputs=song_cover_output,
             ).then(
-                partial(update_output_audio, 1, [], [0]),
+                partial(update_dropdowns, get_saved_output_audio, 1, [], [0]),
                 outputs=output_audio,
                 show_progress="hidden",
             )

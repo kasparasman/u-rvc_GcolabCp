@@ -28,7 +28,7 @@ from ultimate_rvc.core.generate.common import (
     convert,
     get_unique_base_path,
     mix_audio,
-    validate_exists,
+    validate_model_exists,
 )
 from ultimate_rvc.core.generate.typing_extra import (
     EdgeTTSAudioMetaData,
@@ -495,7 +495,7 @@ def run_pipeline(
     clean_speech: bool = False,
     clean_strength: float = 0.7,
     embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
-    embedder_model_custom: StrPath | None = None,
+    custom_embedder_model: str | None = None,
     sid: int = 0,
     output_gain: int = 0,
     output_sr: int = 44100,
@@ -582,9 +582,9 @@ def run_pipeline(
     embedder_model : EmbedderModel, default=EmbedderModel.CONTENTVEC
         The model to use for generating speaker embeddings during RVC.
 
-    embedder_model_custom : str | Path, optional
-        The path to a custom model to use for generating speaker
-        embeddings during RVC.
+    custom_embedder_model : str, optional
+        The name of a custom embedder model to use for generating
+        speaker embeddings during RVC.
 
     sid : int, default=0
         The id of the speaker to use for multi-speaker RVC models.
@@ -612,7 +612,7 @@ def run_pipeline(
         generated along the way.
 
     """
-    validate_exists(model_name, Entity.MODEL_NAME)
+    validate_model_exists(model_name, Entity.VOICE_MODEL)
     display_progress("[~] Starting RVC TTS pipeline...", 0, progress_bar)
     speech_track = run_edge_tts(
         source,
@@ -641,7 +641,7 @@ def run_pipeline(
         clean_audio=clean_speech,
         clean_strength=clean_strength,
         embedder_model=embedder_model,
-        embedder_model_custom=embedder_model_custom,
+        custom_embedder_model=custom_embedder_model,
         sid=sid,
         content_type=RVCContentType.SPEECH,
         progress_bar=progress_bar,

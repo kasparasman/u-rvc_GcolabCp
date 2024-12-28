@@ -9,20 +9,16 @@ from typing import Annotated
 
 import time
 
-# NOTE typer actually uses Path from pathlib at runtime
-# even though it appears it is only a type annotation
-from pathlib import Path  # noqa: TC003
-
 import typer
 from rich import print as rprint
 from rich.panel import Panel
 from rich.table import Table
 
-from ultimate_rvc.cli.common import format_duration
-from ultimate_rvc.cli.generate.common import (
+from ultimate_rvc.cli.common import (
     complete_audio_ext,
     complete_embedder_model,
     complete_f0_method,
+    format_duration,
 )
 from ultimate_rvc.cli.generate.typing_extra import PanelName
 from ultimate_rvc.core.generate.song_cover import run_pipeline as _run_pipeline
@@ -215,19 +211,15 @@ def run_pipeline(
             ),
         ),
     ] = EmbedderModel.CONTENTVEC,
-    embedder_model_custom: Annotated[
-        Path | None,
+    custom_embedder_model: Annotated[
+        str | None,
         typer.Option(
             rich_help_panel=PanelName.SPEAKER_EMBEDDINGS_OPTIONS,
             help=(
-                "The path to a directory with a custom model to use for generating"
-                " speaker embeddings during vocal conversion. Only applicable if"
-                " embedder_model is set to custom."
+                "The name of a custom embedder model to use for generating speaker"
+                " embeddings during vocal conversion. Only applicable if"
+                " `embedder-model` is set to `custom`."
             ),
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            resolve_path=True,
         ),
     ] = None,
     sid: Annotated[
@@ -356,7 +348,7 @@ def run_pipeline(
         clean_vocals=clean_vocals,
         clean_strength=clean_strength,
         embedder_model=embedder_model,
-        embedder_model_custom=embedder_model_custom,
+        custom_embedder_model=custom_embedder_model,
         sid=sid,
         room_size=room_size,
         wet_level=wet_level,

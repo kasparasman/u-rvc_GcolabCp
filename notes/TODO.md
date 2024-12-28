@@ -1,14 +1,23 @@
 # TODO
 
-* consider moving sample rate, model name into general/global accordion under multi-step train tab
+* lazy_import function also does not seem to work with static_ffmpeg and yt_dlp. If we instead delay import them manually, then we can get the CLI startup time down to 0.5 sec from 1.1 sec.
+* instead of having custom embedder models, just allow users to download new embedder models which will be shown in the main embedder models dropdown (and perhaps also saved in the main embedder models dir?)
+
+* only have custom gradio progress bars for pipeline functions. these should be defined inline in the given function. Then we dont need to have the progress_bar and percentage(s) params for each generation function?
+  * we could also just remove the custom percentages for those components that justh ave one percetnage. in that case we might get the automatic progress bar from gradio for free
+
+* Should probably refactor web.main as it is getting too big with all the definitions
+  * The same for the number of arguments to the manage models and manage audio tabs render functions
+    * we can combine similar input params into lists like we have done with song_dirs before?
+
+* extend caching of training feature extraction so that a separate `filelist.txt` file is generated for each set of hyperparameters (f0 method, rvc version, embedder model and sample rate). This then also requires giving a specific "filelist" file as input when calling the training method/command.
+* for those packages that dont work with lazy_import function make wrapper functions
+(similar to get audio_separator and get_voice_converter) that do the import and return an object
+* add fcpe method for training
 * also consider implementing a one-click training tab
-* fix progress bar so they are dynamic like in applio
-  * just requires not supplying any actual progress bar -- hence giving the default behaviour
 
 * consider fixing step 0: dataset population so that completion message is more clear
-  * instead of having a button and text component for completion message instead 
-  just have automatically add files as they are added via upload component and then 
-  show a pop up message with completion status
+  * instead of having a button and text component for completion message instead  just have automatically add files as they are added via upload component and then show a pop up message with completion status
 
 * should remove input validation from modules from core package
   * typer handles this on the cli part

@@ -12,7 +12,7 @@ type Json = Mapping[str, Json] | Sequence[Json] | str | int | float | bool | Non
 
 
 class SeparationModel(StrEnum):
-    """The model to use for audio separation."""
+    """Enumeration of audio separation models."""
 
     UVR_MDX_NET_VOC_FT = "UVR-MDX-NET-Voc_FT.onnx"
     UVR_MDX_NET_KARA_2 = "UVR_MDXNET_KARA_2.onnx"
@@ -20,7 +20,7 @@ class SeparationModel(StrEnum):
 
 
 class SegmentSize(IntEnum):
-    """The segment size to use for audio separation."""
+    """Enumeration of segment sizes for audio separation."""
 
     SEG_64 = 64
     SEG_128 = 128
@@ -31,7 +31,7 @@ class SegmentSize(IntEnum):
 
 
 class F0Method(StrEnum):
-    """The method to use for pitch detection."""
+    """Enumeration of pitch extraction methods."""
 
     RMVPE = "rmvpe"
     CREPE = "crepe"
@@ -40,7 +40,7 @@ class F0Method(StrEnum):
 
 
 class EmbedderModel(StrEnum):
-    """The model to use for audio embedding."""
+    """Enumeration of audio embedding models."""
 
     CONTENTVEC = "contentvec"
     CHINESE_HUBERT_BASE = "chinese-hubert-base"
@@ -50,7 +50,7 @@ class EmbedderModel(StrEnum):
 
 
 class RVCContentType(StrEnum):
-    """The valid types of content to convert with RVC."""
+    """Enumeration of valid content to convert with RVC."""
 
     VOCALS = "vocals"
     VOICE = "voice"
@@ -59,7 +59,7 @@ class RVCContentType(StrEnum):
 
 
 class SampleRate(IntEnum):
-    """The sample rate of an audio file."""
+    """Enumeration of supported audio sample rates."""
 
     HZ_16000 = 16000
     HZ_44100 = 44100
@@ -69,7 +69,7 @@ class SampleRate(IntEnum):
 
 
 class AudioExt(StrEnum):
-    """Audio file formats."""
+    """Enumeration of supported audio file formats."""
 
     MP3 = "mp3"
     WAV = "wav"
@@ -79,9 +79,24 @@ class AudioExt(StrEnum):
     AAC = "aac"
 
 
-class TrainingSampleRate(IntEnum):
-    """Valid sample rates for training voice models."""
+class TrainingSampleRate(StrEnum):
+    """Enumeration of sample rates for training voice models."""
 
-    HZ_32000 = 32000
-    HZ_40000 = 40000
-    HZ_48000 = 48000
+    HZ_32K = "32000"
+    HZ_40K = "40000"
+    HZ_48K = "48000"
+
+
+class RVCVersion(StrEnum):
+    """Enumeration of RVC model versions."""
+
+    V1 = "v1"
+    V2 = "v2"
+
+
+class TrainingF0Method(StrEnum):
+    """Enumeration of pitch extraction methods for training."""
+
+    RMVPE = "rmvpe"
+    CREPE = "crepe"
+    CREPE_TINY = "crepe-tiny"

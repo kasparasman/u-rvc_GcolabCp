@@ -10,12 +10,12 @@ from typing import TYPE_CHECKING
 import shutil
 from multiprocessing import cpu_count
 
-from ultimate_rvc.common import lazy_import
+from ultimate_rvc.common import TRAINING_MODELS_DIR, lazy_import
 from ultimate_rvc.core.common import (
     TRAINING_AUDIO_DIR,
-    TRAINING_MODELS_DIR,
     display_progress,
-    validate_exists,
+    validate_audio_dir_exists,
+    validate_audio_file_exists,
 )
 from ultimate_rvc.core.exceptions import (
     Entity,
@@ -23,7 +23,7 @@ from ultimate_rvc.core.exceptions import (
     NotProvidedError,
     UIMessage,
 )
-from ultimate_rvc.typing_extra import AudioExt
+from ultimate_rvc.typing_extra import AudioExt, TrainingSampleRate
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -31,13 +31,10 @@ if TYPE_CHECKING:
 
     import gradio as gr
 
-    import static_ffmpeg
-    import static_sox
-
+    from ultimate_rvc.rvc.configs import config as train_config
     from ultimate_rvc.typing_extra import StrPath
 else:
-    static_ffmpeg = lazy_import("static_ffmpeg")
-    static_sox = lazy_import("static_sox")
+    train_config = lazy_import("ultimate_rvc.rvc.configs.config")
 
 
 def populate_dataset(
@@ -87,7 +84,7 @@ def populate_dataset(
 
     audio_paths: list[Path] = []
     for audio_file in audio_files:
-        audio_path = validate_exists(audio_file, Entity.FILE)
+        audio_path = validate_audio_file_exists(audio_file, Entity.FILE)
         # TODO we should really use pydub.utils.mediainfo to check the
         # audio format instead of just checking the extension
         if audio_path.suffix.lstrip(".") not in set(AudioExt):
@@ -116,7 +113,7 @@ def populate_dataset(
 def preprocess_dataset(
     model_name: str,
     dataset: StrPath,
-    sample_rate: int = 40000,
+    sample_rate: TrainingSampleRate = TrainingSampleRate.HZ_40K,
     cpu_cores: int = cpu_count(),
     split_audio: bool = True,
     filter_audio: bool = True,
@@ -126,16 +123,19 @@ def preprocess_dataset(
     percentage: float = 0.5,
 ) -> None:
     """
-    Preprocess a dataset of audio files for training.
+    Preprocess a dataset of audio files for training a given model.
+
+    If the given model does not exist, it will be created. if the given
+    model does exist, its currently associated dataset will be
+    replaced with the provided dataset.
 
     Parameters
     ----------
     model_name : str
-        The name of the model to train. If the model does not exist, a
-        new folder will be created in the training models directory.
+        The name of the model to train.
     dataset : StrPath
         The path to the dataset to preprocess.
-    sample_rate : int, default=40000
+    sample_rate : TrainingSampleRate, default=TrainingSampleRate.HZ_40K
         The target sample rate for the audio files in the provided
         dataset.
     cpu_cores : int, default=cpu_count()
@@ -165,33 +165,32 @@ def preprocess_dataset(
         If no model name or dataset is provided.
 
     """
-    static_ffmpeg.add_paths()
-    static_sox.add_paths()
+    if not model_name:
+        raise NotProvidedError(Entity.MODEL_NAME)
 
-    from ultimate_rvc.rvc.configs.config import Config  # noqa: PLC0415
+    dataset_path = validate_audio_dir_exists(dataset, Entity.DATASET)
+
+    display_progress(
+        "[~] preprocessing dataset for training model...",
+        percentage,
+        progress_bar,
+    )
+    model_path = TRAINING_MODELS_DIR / model_name
+    model_path.mkdir(parents=True, exist_ok=True)
+    config = train_config.Config()
+    split_percentage = 3.0 if config.is_half else 3.7
+
+    # NOTE The lazy_import function does not work with the package below
+    # so we import it here manually
     from ultimate_rvc.rvc.train.preprocess import (  # noqa: PLC0415
         preprocess as train_preprocess,
     )
 
-    if not model_name:
-        raise NotProvidedError(Entity.MODEL_NAME)
-
-    dataset_path = validate_exists(dataset, Entity.DATASET)
-
-    display_progress(
-        "[~] preprocessing dataset for training ",
-        percentage,
-        progress_bar,
-    )
-    training_model_directory = TRAINING_MODELS_DIR / model_name
-    training_model_directory.mkdir(parents=True, exist_ok=True)
-    config = Config()
-    split_percentage = 3.0 if config.is_half else 3.7
     train_preprocess.preprocess_training_set(
         str(dataset_path),
-        sample_rate,
+        int(sample_rate),
         cpu_cores,
-        str(training_model_directory),
+        str(model_path),
         split_percentage,
         split_audio,
         filter_audio,

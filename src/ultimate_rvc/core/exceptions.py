@@ -5,7 +5,7 @@ instiating and re-raising those exceptions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from enum import StrEnum
 
@@ -16,38 +16,65 @@ if TYPE_CHECKING:
 class Entity(StrEnum):
     """Enumeration of entities that can be provided."""
 
-    DIRECTORY = "directory"
-    DIRECTORIES = "directories"
-    DATASET = "dataset"
-    DATASETS = "datasets"
-    DATASET_NAME = "dataset name"
+    # General entities
     FILE = "file"
     FILES = "files"
-    URL = "URL"
+    DIRECTORY = "directory"
+    DIRECTORIES = "directories"
+
+    # Model entities
     MODEL_NAME = "model name"
     MODEL_NAMES = "model names"
+    VOICE_MODEL = "voice model"
+    TRAINING_MODEL = "training model"
+    CUSTOM_EMBEDDER_MODEL = "custom embedder model"
     MODEL_FILE = "model file"
-    SOURCE = "source"
-    SONG_DIR = "song directory"
+    MODEL_BIN_FILE = "pytorch_model.bin file"
+    CONFIG_JSON_FILE = "config.json file"
+
+    # Audio entities
     AUDIO_TRACK = "audio track"
     AUDIO_TRACK_GAIN_PAIRS = "pairs of audio track and gain"
     VOICE_TRACK = "voice track"
     SPEECH_TRACK = "speech track"
-    SONG = "song"
     VOCALS_TRACK = "vocals track"
-    INSTRUMENTALS_TRACK = "instrumentals track"
-    BACKUP_VOCALS_TRACK = "backup vocals track"
-    MAIN_VOCALS_TRACK = "main vocals track"
-    EMBEDDER_MODEL_CUSTOM = "custom embedder model"
+    SONG_DIR = "song directory"
+    DATASET = "dataset"
+    DATASETS = "datasets"
+    DATASET_NAME = "dataset name"
+
+    # Source entitiess
+    SOURCE = "source"
+    URL = "URL"
+
+
+AudioFileEntity = Literal[
+    Entity.AUDIO_TRACK,
+    Entity.VOICE_TRACK,
+    Entity.SPEECH_TRACK,
+    Entity.VOCALS_TRACK,
+    Entity.FILE,
+]
+
+AudioDirectoryEntity = Literal[Entity.SONG_DIR, Entity.DATASET, Entity.DIRECTORY]
+
+ModelEntity = Literal[
+    Entity.VOICE_MODEL,
+    Entity.TRAINING_MODEL,
+    Entity.CUSTOM_EMBEDDER_MODEL,
+]
 
 
 class Location(StrEnum):
     """Enumeration of locations where entities can be found."""
 
+    # Audio locations
     INTERMEDIATE_AUDIO_ROOT = "the root of the intermediate audio base directory"
-    TRAINING_AUDIO_ROOT = "the root of the training audio directory"
     SPEECH_AUDIO_ROOT = "the root of the speech audio directory"
+    TRAINING_AUDIO_ROOT = "the root of the training audio directory"
     OUTPUT_AUDIO_ROOT = "the root of the output audio directory"
+
+    # Model locations
     EXTRACTED_ZIP_FILE = "extracted zip file"
 
 
@@ -57,7 +84,17 @@ class UIMessage(StrEnum):
     in place of core exception messages.
     """
 
+    # General messages
+    NO_UPLOADED_FILES = "No files selected."
+
+    # Audio messages
     NO_AUDIO_TRACK = "No audio tracks provided."
+    NO_SPEECH_AUDIO_FILES = (
+        "No files selected. Please select one or more speech audio files to delete."
+    )
+    NO_OUTPUT_AUDIO_FILES = (
+        "No files selected. Please select one or more output audio files to delete."
+    )
     NO_SONG_DIR = "No song directory selected."
     NO_SONG_DIRS = (
         "No song directories selected. Please select one or more song directories"
@@ -67,16 +104,15 @@ class UIMessage(StrEnum):
         "No datasets selected. Please select one or more datasets containing audio"
         " files to delete."
     )
-    NO_OUTPUT_AUDIO_FILES = (
-        "No files selected. Please select one or more output audio files to delete."
-    )
-    NO_SPEECH_AUDIO_FILES = (
-        "No files selected. Please select one or more speech audio files to delete."
-    )
-    NO_UPLOADED_FILES = "No files selected."
+
+    # Model messages
     NO_VOICE_MODEL = "No voice model selected."
     NO_VOICE_MODELS = "No voice models selected."
     NO_TRAINING_MODELS = "No training models selected."
+    NO_CUSTOM_EMBEDDER_MODEL = "No custom embedder model selected."
+    NO_CUSTOM_EMBEDDER_MODELS = "No custom embedder models selected."
+
+    # Source messages
     NO_AUDIO_SOURCE = (
         "No source provided. Please provide a valid Youtube URL, local audio file"
         " or song directory."
@@ -144,110 +180,78 @@ class NotFoundError(OSError):
 
 
 class ModelNotFoundError(OSError):
-    """Raised when a model is not found."""
+    """Raised when an model with a given name is not found."""
 
-    def __init__(self, type_: str, name: str) -> None:
+    def __init__(self, entity: ModelEntity, name: str) -> None:
         r"""
         Initialize a ModelNotFoundError instance.
 
         Exception message will be formatted as:
 
-        '`<type_>` with name "`<name>`" not found.'
+        '`<entity>` with name "`<name>`" not found.'
 
         Parameters
         ----------
-        type_ : str
-            The type of model that was not found.
+        entity : str
+            The model entity that was not found.
         name : str
             The name of the model that was not found.
 
         """
-        super().__init__(f"{type_} with name '{name}' not found.")
+        super().__init__(f"{entity.capitalize()} with name '{name}' not found.")
 
 
-class VoiceModelNotFoundError(ModelNotFoundError):
-    """Raised when a voice model is not found."""
+class PreprocessedAudioNotFoundError(OSError):
+    """
+    Raised when no preprocessed dataset audio files are associated
+    with a model.
+    """
 
     def __init__(self, name: str) -> None:
         r"""
-        Initialize a VoiceModelNotFoundError instance.
+        Initialize a PreprocessedAudioNotFoundError instance.
 
         Exception message will be formatted as:
 
-        'Voice model with name "`<name>`" not found.'
+        'No preprocessed dataset audio files associated with the model
+        with name "`<name>`".'
 
         Parameters
         ----------
         name : str
-            The name of the voice model that was not found.
-
-        """
-        super().__init__("Voice model", name)
-
-
-class TrainingModelNotFoundError(ModelNotFoundError):
-    """Raised when a training model is not found."""
-
-    def __init__(self, name: str) -> None:
-        r"""
-        Initialize a TrainingModelNotFoundError instance.
-
-        Exception message will be formatted as:
-
-        'Training model with name "`<name>`" not found.'
-
-        Parameters
-        ----------
-        name : str
-            The name of the training model that was not found.
-
-        """
-        super().__init__("Training model", name)
-
-
-class ProtectedModelError(OSError):
-    """Raised when a protected model is attempted to be deleted."""
-
-    def __init__(self, name: str) -> None:
-        r"""
-        Initialize a ProtectedModelError instance.
-
-        Exception message will be formatted as:
-
-        'Model with name "`<name>`" is protected and cannot be deleted.'
-
-        Parameters
-        ----------
-        name : str
-            The name of the protected model.
+            The name of the model with no associated preprocessed
+            dataset audio files.
 
         """
         super().__init__(
-            f"Model with name '{name}' is protected and cannot be deleted.",
+            "No preprocessed dataset audio files associated with the model with name"
+            f" '{name}'.",
         )
 
 
-class VoiceModelExistsError(OSError):
-    """Raised when a voice model already exists."""
+class ModelExistsError(OSError):
+    """Raised when a model already exists."""
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, entity: ModelEntity, name: str) -> None:
         r"""
-        Initialize a VoiceModelExistsError instance.
+        Initialize a ModelExistsError instance.
 
         Exception message will be formatted as:
 
-        "Voice model with name '`<name>`' already exists. Please provide
-        a different name for your voice model."
+        '`<entity>` with name "`<name>`" already exists. Please provide
+        a different name for your {entity}.'
 
         Parameters
         ----------
+        entity : str
+            The model entity that already exists.
         name : str
-            The name of the voice model that already exists.
+            The name of the model that already exists.
 
         """
         super().__init__(
-            f'Voice model with name "{name}" already exists. Please provide a different'
-            " name for your voice model.",
+            f"{entity.capitalize()} with name '{name}' already exists. Please provide a"
+            f" different name for your {entity}.",
         )
 
 
@@ -352,36 +356,43 @@ class UploadLimitError(ValueError):
         super().__init__(f"At most {limit} {entity} can be uploaded.")
 
 
-class UploadFormatError(ValueError):
+class UploadTypeError(ValueError):
     """
-    Raised when one or more uploaded entities have an invalid format
-    .
+    Raised when one or more uploaded entities have an invalid
+    type.
     """
 
-    def __init__(self, entity: Entity, formats: list[str], multiple: bool) -> None:
+    def __init__(
+        self,
+        entity: Entity,
+        valid_types: list[str],
+        type_class: Literal["formats", "names"],
+        multiple: bool,
+    ) -> None:
         """
-        Initialize an UploadFileFormatError instance.
-
+        Initialize an UploadTypeError instance.
 
         Exception message will be formatted as:
 
-        "Only `<entity>` with the following formats can be uploaded
-        `(`by themselves | together`)`: `<formats>`."
+        "Only `<entity>` with the following `<type_class>` can be
+        uploaded `(`by themselves | together`)`: `<types>`."
 
         Parameters
         ----------
         entity : Entity
-            The entity that was uploaded with an invalid format.
-        formats : list[str]
-            Valid formats.
+            The entity with an invalid type that was uploaded.
+        valid_types : list[str]
+            The valid types for the entity that was uploaded.
+        type_class : Literal["formats", "names"]
+            The name for the class of valid types.
         multiple : bool
-            Whether multiple entities are uploaded.
+            Whether multiple instances of the entity were uploaded.
 
         """
         suffix = "by themselves" if not multiple else "together (at most one of each)"
         super().__init__(
-            f"Only {entity} with the following formats can be uploaded {suffix}:"
-            f" {', '.join(formats)}.",
+            f"Only {entity} with the following {type_class} can be uploaded {suffix}:"
+            f" {', '.join(valid_types)}.",
         )
 
 

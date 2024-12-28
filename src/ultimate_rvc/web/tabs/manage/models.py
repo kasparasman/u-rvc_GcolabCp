@@ -11,14 +11,19 @@ import gradio as gr
 
 from ultimate_rvc.common import lazy_import
 from ultimate_rvc.core.manage.models import (
+    delete_all_custom_embedder_models,
     delete_all_models,
     delete_all_training_models,
+    delete_custom_embedder_models,
     delete_training_models,
     delete_voice_models,
     download_voice_model,
     filter_public_models_table,
+    get_custom_embedder_model_names,
     get_public_model_tags,
+    get_training_model_names,
     get_voice_model_names,
+    upload_custom_embedder_model,
     upload_voice_model,
 )
 from ultimate_rvc.web.common import (
@@ -28,47 +33,14 @@ from ultimate_rvc.web.common import (
     exception_harness,
     render_msg,
     update_dropdowns,
-    update_training_models,
 )
 
 if TYPE_CHECKING:
 
     import pandas as pd
 
-    from ultimate_rvc.web.typing_extra import DropdownValue
-
 else:
     pd = lazy_import("pandas")
-
-
-def _update_voice_models(
-    num_components: int,
-    value: DropdownValue = None,
-    value_indices: Sequence[int] = [],
-) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
-    """
-    Update the choices of one or more dropdown components to the set of
-    currently saved voice models.
-
-    Optionally updates the default value of one or more of these
-    components.
-
-    Parameters
-    ----------
-    num_components : int
-        Number of dropdown components to update.
-    value : DropdownValue, optional
-        New value for dropdown components.
-    value_indices : Sequence[int], default=[]
-        Indices of dropdown components to update the value for.
-
-    Returns
-    -------
-    gr.Dropdown | tuple[gr.Dropdown, ...]
-        Updated dropdown component or components.
-
-    """
-    return update_dropdowns(get_voice_model_names, num_components, value, value_indices)
 
 
 def _filter_public_models_table(tags: Sequence[str], query: str) -> gr.Dataframe:
@@ -144,12 +116,19 @@ def _autofill_model_name_and_url(
 
 def render(
     voice_model_delete: gr.Dropdown,
-    song_cover_model_1click: gr.Dropdown,
-    song_cover_model_multi: gr.Dropdown,
-    speech_model_1click: gr.Dropdown,
-    speech_model_multi: gr.Dropdown,
+    embedder_delete: gr.Dropdown,
     training_model_delete: gr.Dropdown,
-    training_model_multi: gr.Dropdown,
+    song_cover_voice_model_1click: gr.Dropdown,
+    song_cover_voice_model_multi: gr.Dropdown,
+    speech_voice_model_1click: gr.Dropdown,
+    speech_voice_model_multi: gr.Dropdown,
+    song_cover_embedder_1click: gr.Dropdown,
+    song_cover_embedder_multi: gr.Dropdown,
+    speech_embedder_1click: gr.Dropdown,
+    speech_embedder_multi: gr.Dropdown,
+    preprocess_model_multi: gr.Dropdown,
+    training_embedder_multi: gr.Dropdown,
+    extract_model_multi: gr.Dropdown,
 ) -> None:
     """
 
@@ -160,30 +139,52 @@ def render(
     voice_model_delete : gr.Dropdown
         Dropdown for selecting voice models to delete in the
         "Delete models" tab.
-    song_cover_model_1click : gr.Dropdown
-        Dropdown for selecting a voice model to use in the
-        "Generate song covers - One-click generation" tab.
-    song_cover_model_multi : gr.Dropdown
-        Dropdown for selecting a voice model to use in the
-        "Generate song covers - Multi-step generation" tab.
-    speech_model_1click : gr.Dropdown
-        Dropdown for selecting a voice model to use in the
-        "Generate speech - One Click Generation" tab.
-    speech_model_multi : gr.Dropdown
-        Dropdown for selecting a voice model to use in the
-        "Generate speech - Multi-step Generation" tab.
+    embedder_delete : gr.Dropdown
+        Dropdown for selecting custom embedder models to delete in the
+        "Delete models" tab.
     training_model_delete : gr.Dropdown
         Dropdown for selecting training models to delete in the
         "Delete models" tab.
-    training_model_multi : gr.Dropdown
+    song_cover_voice_model_1click : gr.Dropdown
         Dropdown for selecting a voice model to use in the
+        "Generate song covers - One-click generation" tab.
+    song_cover_voice_model_multi : gr.Dropdown
+        Dropdown for selecting a voice model to use in the
+        "Generate song covers - Multi-step generation" tab.
+    speech_voice_model_1click : gr.Dropdown
+        Dropdown for selecting a voice model to use in the
+        "Generate speech - One Click Generation" tab.
+    speech_voice_model_multi : gr.Dropdown
+        Dropdown for selecting a voice model to use in the
+        "Generate speech - Multi-step Generation" tab.
+    song_cover_embedder_1click : gr.Dropdown
+        Dropdown for selecting a custom embedder model to use in the
+        "Generate song covers - One-click generation" tab.
+    song_cover_embedder_multi : gr.Dropdown
+        Dropdown for selecting a custom embedder model to use in the
+        "Generate song covers - Multi-step generation" tab.
+    speech_embedder_1click : gr.Dropdown
+        Dropdown for selecting a custom embedder model to use in the
+        "Generate speech - One-click generation" tab.
+    speech_embedder_multi : gr.Dropdown
+        Dropdown for selecting a custom embedder model to use in the
+        "Generate speech - Multi-step generation" tab.
+    preprocess_model_multi : gr.Dropdown
+        Dropdown for selecting a voice model to preprocess a
+        dataset for in the "Train models - multi-step generation" tab.
+    training_embedder_multi : gr.Dropdown
+        Dropdown for selecting a custom embedder model to use in the
         "Train models - multi-step generation" tab.
+    extract_model_multi : gr.Dropdown
+        Dropdown for selecting a voice model with an associated
+        preprocessed dataset to extract features from in the
+        "Train models - multi-step generation" tab
 
     """
     # Download tab
 
     dummy_checkbox = gr.Checkbox(visible=False)
-    with gr.Tab("Download voice model"):
+    with gr.Tab("Download voice models"):
         with gr.Accordion("View public models table", open=False):
             gr.Markdown("")
             gr.Markdown("*HOW TO USE*")
@@ -214,14 +215,14 @@ def render(
 
         with gr.Row():
             voice_model_url = gr.Textbox(
-                label="Voice model URL",
+                label="Model URL",
                 info=(
                     "Should point to a zip file containing a .pth model file and"
                     " optionally also an .index file."
                 ),
             )
             voice_model_name = gr.Textbox(
-                label="Voice model name",
+                label="Model name",
                 info="Enter a unique name for the voice model.",
             )
 
@@ -257,52 +258,98 @@ def render(
         )
 
     # Upload tab
-    with gr.Tab("Upload voice model"):
-        with gr.Accordion("HOW TO USE"):
-            gr.Markdown("")
-            gr.Markdown(
-                "1. Find the .pth file for a locally trained RVC model (e.g. in your"
-                " local weights folder) and optionally also a corresponding .index file"
-                " (e.g. in your logs/[name] folder)",
-            )
-            gr.Markdown(
-                "2. Upload the files directly or save them to a folder, then compress"
-                " that folder and upload the resulting .zip file",
-            )
-            gr.Markdown("3. Enter a unique name for the uploaded model")
-            gr.Markdown("4. Click 'Upload'")
+    with gr.Tab("Upload models"):
+        with gr.Accordion("Voice models", open=False):
+            with gr.Accordion("HOW TO USE"):
+                gr.Markdown("")
+                gr.Markdown(
+                    "1. Find the .pth file for a locally trained RVC model (e.g. in"
+                    " your local weights folder) and optionally also a corresponding"
+                    " .index file (e.g. in your logs/[name] folder)",
+                )
+                gr.Markdown(
+                    "2. Upload the files directly or save them to a folder, then"
+                    " compress that folder and upload the resulting .zip file",
+                )
+                gr.Markdown("3. Enter a unique name for the uploaded model")
+                gr.Markdown("4. Click 'Upload'")
 
-        with gr.Row():
-            voice_model_files = gr.File(
-                label="Files",
-                file_count="multiple",
-                file_types=[".zip", ".pth", ".index"],
-            )
+            with gr.Row():
+                voice_model_files = gr.File(
+                    label="Files",
+                    file_count="multiple",
+                    file_types=[".zip", ".pth", ".index"],
+                )
 
-            local_voice_model_name = gr.Textbox(label="Voice model name")
+                local_voice_model_name = gr.Textbox(label="Model name")
 
-        with gr.Row(equal_height=True):
-            upload_btn = gr.Button("Upload", variant="primary", scale=19)
-            upload_msg = gr.Textbox(
-                label="Output message",
-                interactive=False,
-                scale=20,
-            )
-            upload_btn_click = upload_btn.click(
-                partial(
-                    exception_harness(upload_voice_model),
-                    progress_bar=PROGRESS_BAR,
-                ),
-                inputs=[voice_model_files, local_voice_model_name],
-                outputs=upload_msg,
-            ).success(
-                partial(
-                    render_msg,
-                    "[+] Successfully uploaded voice model!",
-                ),
-                outputs=upload_msg,
-                show_progress="hidden",
-            )
+            with gr.Row(equal_height=True):
+                upload_voice_btn = gr.Button("Upload", variant="primary", scale=19)
+                upload_voice_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                    scale=20,
+                )
+                upload_voice_btn_click = upload_voice_btn.click(
+                    partial(
+                        exception_harness(upload_voice_model),
+                        progress_bar=PROGRESS_BAR,
+                    ),
+                    inputs=[voice_model_files, local_voice_model_name],
+                    outputs=upload_voice_msg,
+                ).success(
+                    partial(
+                        render_msg,
+                        "[+] Successfully uploaded voice model!",
+                    ),
+                    outputs=upload_voice_msg,
+                    show_progress="hidden",
+                )
+        with gr.Accordion("Custom embedder models", open=False):
+            with gr.Accordion("HOW TO USE"):
+                gr.Markdown("")
+                gr.Markdown(
+                    "1. Find the config.json file and pytorch_model.bin file for a"
+                    " custom embedder model stored locally.",
+                )
+                gr.Markdown(
+                    "2. Upload the files directly or save them to a folder, then"
+                    " compress that folder and upload the resulting .zip file",
+                )
+                gr.Markdown("3. Enter a unique name for the uploaded embedder model")
+                gr.Markdown("4. Click 'Upload'")
+
+            with gr.Row():
+                embedder_files = gr.File(
+                    label="Files",
+                    file_count="multiple",
+                    file_types=[".zip", ".json", ".bin"],
+                )
+
+                local_embedder_name = gr.Textbox(label="Model name")
+
+            with gr.Row(equal_height=True):
+                upload_embedder_btn = gr.Button("Upload", variant="primary", scale=19)
+                upload_embedder_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                    scale=20,
+                )
+                upload_embedder_btn_click = upload_embedder_btn.click(
+                    partial(
+                        exception_harness(upload_custom_embedder_model),
+                        progress_bar=PROGRESS_BAR,
+                    ),
+                    inputs=[embedder_files, local_embedder_name],
+                    outputs=upload_embedder_msg,
+                ).success(
+                    partial(
+                        render_msg,
+                        "[+] Successfully uploaded custom embedder model!",
+                    ),
+                    outputs=upload_embedder_msg,
+                    show_progress="hidden",
+                )
 
     with gr.Tab("Delete models"):
         with gr.Accordion("Voice models", open=False), gr.Row():
@@ -312,6 +359,17 @@ def render(
                 delete_all_voice_btn = gr.Button("Delete all", variant="primary")
             with gr.Column():
                 delete_voice_msg = gr.Textbox(label="Output message", interactive=False)
+
+        with gr.Accordion("Custom embedder models", open=False), gr.Row():
+            with gr.Column():
+                embedder_delete.render()
+                delete_embedder_btn = gr.Button("Delete selected", variant="secondary")
+                delete_all_embedder_btn = gr.Button("Delete all", variant="primary")
+            with gr.Column():
+                delete_embedder_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                )
 
         with gr.Accordion("Training models", open=False), gr.Row():
             with gr.Column():
@@ -355,6 +413,40 @@ def render(
             show_progress="hidden",
         )
 
+        delete_embedder_btn_click = delete_embedder_btn.click(
+            partial(
+                confirmation_harness(delete_custom_embedder_models),
+                progress_bar=PROGRESS_BAR,
+            ),
+            inputs=[dummy_checkbox, embedder_delete],
+            outputs=delete_embedder_msg,
+            js=confirm_box_js(
+                "Are you sure you want to delete the selected custom embedder models?",
+            ),
+        ).success(
+            partial(
+                render_msg,
+                "[-] Successfully deleted selected custom embedder models!",
+            ),
+            outputs=delete_embedder_msg,
+            show_progress="hidden",
+        )
+
+        delete_all_embedder_btn_click = delete_all_embedder_btn.click(
+            partial(
+                confirmation_harness(delete_all_custom_embedder_models),
+                progress_bar=PROGRESS_BAR,
+            ),
+            inputs=dummy_checkbox,
+            outputs=delete_embedder_msg,
+            js=confirm_box_js(
+                "Are you sure you want to delete all custom embedder models?",
+            ),
+        ).success(
+            partial(render_msg, "[-] Successfully deleted all custom embedder models!"),
+            outputs=delete_embedder_msg,
+            show_progress="hidden",
+        )
         delete_train_btn_click = delete_train_btn.click(
             partial(
                 confirmation_harness(delete_training_models),
@@ -401,22 +493,43 @@ def render(
 
     *_, all_model_update = [
         click_event.success(
-            partial(_update_voice_models, 5, [], [4]),
+            partial(update_dropdowns, get_voice_model_names, 5, [], [4]),
             outputs=[
-                song_cover_model_1click,
-                song_cover_model_multi,
-                speech_model_1click,
-                speech_model_multi,
+                song_cover_voice_model_1click,
+                song_cover_voice_model_multi,
+                speech_voice_model_1click,
+                speech_voice_model_multi,
                 voice_model_delete,
             ],
             show_progress="hidden",
         )
         for click_event in [
             download_btn_click,
-            upload_btn_click,
+            upload_voice_btn_click,
             delete_voice_btn_click,
             delete_all_voice_btn_click,
             delete_all_click,
+        ]
+    ]
+
+    *_, all_model_update = [
+        click_event.success(
+            partial(update_dropdowns, get_custom_embedder_model_names, 6, [], [5]),
+            outputs=[
+                song_cover_embedder_1click,
+                song_cover_embedder_multi,
+                speech_embedder_1click,
+                speech_embedder_multi,
+                training_embedder_multi,
+                embedder_delete,
+            ],
+            show_progress="hidden",
+        )
+        for click_event in [
+            upload_embedder_btn_click,
+            delete_embedder_btn_click,
+            delete_all_embedder_btn_click,
+            all_model_update,
         ]
     ]
 
@@ -426,7 +539,11 @@ def render(
         all_model_update,
     ]:
         click_event.success(
-            partial(update_training_models, 2, [], [0, 1]),
-            outputs=[training_model_multi, training_model_delete],
+            partial(update_dropdowns, get_training_model_names, 3, [], [0, 2]),
+            outputs=[
+                preprocess_model_multi,
+                extract_model_multi,
+                training_model_delete,
+            ],
             show_progress="hidden",
         )

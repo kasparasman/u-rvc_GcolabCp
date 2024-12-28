@@ -9,7 +9,15 @@ import gradio as gr
 
 from ultimate_rvc.core.common import SPEECH_DIR
 from ultimate_rvc.core.generate.common import convert
-from ultimate_rvc.core.generate.speech import mix_speech, run_edge_tts
+from ultimate_rvc.core.generate.speech import (
+    get_mixed_speech_track_name,
+    mix_speech,
+    run_edge_tts,
+)
+from ultimate_rvc.core.manage.audio import (
+    get_saved_output_audio,
+    get_saved_speech_audio,
+)
 from ultimate_rvc.typing_extra import (
     AudioExt,
     EmbedderModel,
@@ -23,9 +31,8 @@ from ultimate_rvc.web.common import (
     toggle_visibility,
     toggle_visible_component,
     update_audio,
-    update_output_audio,
-    update_speech_audio,
-    update_speech_track_name,
+    update_dropdowns,
+    update_output_name,
     update_value,
 )
 from ultimate_rvc.web.typing_extra import ConcurrencyId, SpeechSourceType
@@ -33,7 +40,8 @@ from ultimate_rvc.web.typing_extra import ConcurrencyId, SpeechSourceType
 
 def render(
     edge_tts_voice: gr.Dropdown,
-    model_multi: gr.Dropdown,
+    voice_model: gr.Dropdown,
+    custom_embedder_model: gr.Dropdown,
     speech_audio: gr.Dropdown,
     output_audio: gr.Dropdown,
 ) -> None:
@@ -45,8 +53,11 @@ def render(
     edge_tts_voice: gr.Dropdown
         Dropdown component for selecting an Edge TTS voice in the
         "Generate speech - multi-step generation" tab.
-    model_multi: gr.Dropdown
+    voice_model: gr.Dropdown
         Dropdown component for selecting a voice model in the
+        "Generate speech - multi-step generation" tab.
+    custom_embedder_model : gr.Dropdown
+        Dropdown component for selecting a custom embedder model in the
         "Generate speech - multi-step generation" tab.
     speech_audio : gr.Dropdown
         Dropdown component for speech audio files to delete in the
@@ -216,7 +227,7 @@ def render(
                 ],
                 outputs=speech_track_output,
             ).then(
-                partial(update_speech_audio, 1, [], [0]),
+                partial(update_dropdowns, get_saved_speech_audio, 1, [], [0]),
                 outputs=speech_audio,
                 show_progress="hidden",
             )
@@ -224,7 +235,7 @@ def render(
             gr.Markdown("")
             gr.Markdown("**Inputs**")
             speech_track_input.render()
-            model_multi.render()
+            voice_model.render()
             gr.Markdown("**Settings**")
             with gr.Accordion("Main settings", open=True), gr.Row():
                 n_octaves = gr.Slider(
@@ -372,13 +383,13 @@ def render(
                         visible=True,
                     )
             autotune_speech.change(
-                partial(toggle_visibility, target=True),
+                partial(toggle_visibility, targets={True}),
                 inputs=autotune_speech,
                 outputs=autotune_strength,
                 show_progress="hidden",
             )
             clean_speech.change(
-                partial(toggle_visibility, target=True),
+                partial(toggle_visibility, targets={True}),
                 inputs=clean_speech,
                 outputs=clean_strength,
                 show_progress="hidden",
@@ -391,23 +402,16 @@ def render(
                         label="Embedder model",
                         info="The model to use for generating speaker embeddings.",
                     )
-                    embedder_model_custom = gr.Textbox(
-                        label="Custom embedder model",
-                        info=(
-                            "The path to a directory with a custom model to use for"
-                            " generating speaker embeddings."
-                        ),
-                        visible=False,
-                    )
+                    custom_embedder_model.render()
                 sid = gr.Number(
                     label="Speaker ID",
                     info="Speaker ID for multi-speaker-models.",
                     precision=0,
                 )
             embedder_model.change(
-                partial(toggle_visibility, target=EmbedderModel.CUSTOM),
+                partial(toggle_visibility, targets={EmbedderModel.CUSTOM}),
                 inputs=embedder_model,
-                outputs=embedder_model_custom,
+                outputs=custom_embedder_model,
                 show_progress="hidden",
             )
             converted_speech_transfer.render()
@@ -453,7 +457,7 @@ def render(
                     clean_speech,
                     clean_strength,
                     embedder_model,
-                    embedder_model_custom,
+                    custom_embedder_model,
                     sid,
                     converted_speech_transfer,
                 ],
@@ -472,7 +476,7 @@ def render(
                 inputs=[
                     speech_track_input,
                     gr.State(SPEECH_DIR),
-                    model_multi,
+                    voice_model,
                     n_octaves,
                     n_semitones,
                     f0_methods,
@@ -487,14 +491,14 @@ def render(
                     clean_speech,
                     clean_strength,
                     embedder_model,
-                    embedder_model_custom,
+                    custom_embedder_model,
                     sid,
                 ],
                 outputs=converted_speech_track_output,
                 concurrency_id=ConcurrencyId.GPU,
                 concurrency_limit=1,
             ).then(
-                partial(update_speech_audio, 1, [], [0]),
+                partial(update_dropdowns, get_saved_speech_audio, 1, [], [0]),
                 outputs=speech_audio,
                 show_progress="hidden",
             )
@@ -520,7 +524,11 @@ def render(
                 )
             with gr.Row():
                 output_name = gr.Textbox(
-                    value=update_speech_track_name,
+                    value=partial(
+                        update_output_name,
+                        get_mixed_speech_track_name,
+                        False,  # noqa: FBT003,,
+                    ),
                     inputs=[
                         gr.State(None),
                         gr.State(None),
@@ -574,7 +582,7 @@ def render(
                 ],
                 outputs=mixed_speech_track_output,
             ).then(
-                partial(update_output_audio, 1, [], [0]),
+                partial(update_dropdowns, get_saved_output_audio, 1, [], [0]),
                 outputs=output_audio,
                 show_progress="hidden",
             )

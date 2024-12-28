@@ -8,18 +8,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Annotated
 
 import time
-from pathlib import Path  # noqa: TC003
 
 import typer
 from rich import print as rprint
 from rich.panel import Panel
 from rich.table import Table
 
-from ultimate_rvc.cli.common import format_duration
-from ultimate_rvc.cli.generate.common import (
+from ultimate_rvc.cli.common import (
     complete_audio_ext,
     complete_embedder_model,
     complete_f0_method,
+    format_duration,
 )
 from ultimate_rvc.cli.generate.typing_extra import PanelName
 from ultimate_rvc.common import lazy_import
@@ -405,19 +404,15 @@ def run_pipeline(
             ),
         ),
     ] = EmbedderModel.CONTENTVEC,
-    embedder_model_custom: Annotated[
-        Path | None,
+    custom_embedder_model: Annotated[
+        str | None,
         typer.Option(
             rich_help_panel=PanelName.RVC_EMBEDDINGS_OPTIONS,
             help=(
-                "The path to a directory with a custom model to use for generating"
-                " speaker embeddings during the RVC process. Only applicable if"
-                " `embedder_model` is set to `custom`."
+                "The name of a custom embedder model to use for generating speaker"
+                " embeddings during the RVC process. Only applicable if"
+                " `embedder-model` is set to `custom`."
             ),
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            resolve_path=True,
         ),
     ] = None,
     sid: Annotated[
@@ -488,7 +483,7 @@ def run_pipeline(
         clean_speech=clean_speech,
         clean_strength=clean_strength,
         embedder_model=embedder_model,
-        embedder_model_custom=embedder_model_custom,
+        custom_embedder_model=custom_embedder_model,
         sid=sid,
         output_gain=output_gain,
         output_sr=output_sr,

@@ -21,8 +21,9 @@ from ultimate_rvc.core.common import (
     json_dump,
     json_dumps,
     json_load,
-    validate_all_exist,
-    validate_exists,
+    validate_audio_dir_exists,
+    validate_audio_file_exists,
+    validate_model_exists,
 )
 from ultimate_rvc.core.exceptions import (
     Entity,
@@ -32,7 +33,6 @@ from ultimate_rvc.core.exceptions import (
 )
 from ultimate_rvc.core.generate.typing_extra import (
     AudioExtInternal,
-    DirectoryMetaData,
     FileMetaData,
     MixedAudioMetaData,
     MixedAudioType,
@@ -53,9 +53,7 @@ if TYPE_CHECKING:
     import gradio as gr
 
     import ffmpeg
-    import pydub
     import static_ffmpeg
-    import static_sox
 
     # NOTE the only reason this module is imported here is so we can
     # annotate the return value of the _get_voice_converter function.
@@ -65,10 +63,8 @@ else:
     # NOTE yt_dlp is not used here but importing it fixes erroneous user
     # warning
     yt_dlp = lazy_import("yt_dlp")
-    pydub = lazy_import("pydub")
     ffmpeg = lazy_import("ffmpeg")
     static_ffmpeg = lazy_import("static_ffmpeg")
-    static_sox = lazy_import("static_sox")
 
 logger = logging.getLogger(__name__)
 
@@ -157,21 +153,18 @@ def wavify(
 
     """
     static_ffmpeg.add_paths()
-    # NOTE have to import pydub.utils here because
-    # 1. when using gradio pydub.utils is not available if only pydub
-    #    itself is imported.
-    # 2. when using cli static_ffmpeg must be imported before
-    #    pydub.utils is imported.
-    import pydub.utils as pydub_utils  # noqa: PLC0415
+
+    audio_path = validate_audio_file_exists(audio_track, Entity.AUDIO_TRACK)
+    dir_path = validate_audio_dir_exists(directory, Entity.DIRECTORY)
+
+    wav_path = audio_path
 
     if accepted_formats is None:
         accepted_formats = set(AudioExt) - {AudioExt.WAV}
 
-    audio_path, dir_path = validate_all_exist(
-        [(audio_track, Entity.AUDIO_TRACK), (directory, Entity.DIRECTORY)],
-    )
-
-    wav_path = audio_path
+    # NOTE The lazy_import function does not work with pydub
+    # so we import it here manually
+    import pydub.utils as pydub_utils  # noqa: PLC0415
 
     audio_info = pydub_utils.mediainfo(str(audio_path))
     logger.info("Audio info:\n%s", json_dumps(audio_info))
@@ -243,7 +236,7 @@ def _get_rvc_files(model_name: str) -> tuple[Path, Path | None]:
 
 
     """
-    model_dir_path = validate_exists(model_name, Entity.MODEL_NAME)
+    model_dir_path = validate_model_exists(model_name, Entity.VOICE_MODEL)
     file_path_map = {
         ext: path
         for path in model_dir_path.iterdir()
@@ -274,7 +267,6 @@ def _get_voice_converter() -> VoiceConverter:
         A voice converter.
 
     """
-    static_sox.add_paths()
     from ultimate_rvc.rvc.infer.infer import VoiceConverter  # noqa: PLC0415
 
     return VoiceConverter()
@@ -298,7 +290,7 @@ def convert(
     clean_audio: bool = False,
     clean_strength: float = 0.7,
     embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
-    embedder_model_custom: StrPath | None = None,
+    custom_embedder_model: str | None = None,
     sid: int = 0,
     content_type: RVCContentType = RVCContentType.AUDIO,
     progress_bar: gr.Progress | None = None,
@@ -347,9 +339,9 @@ def convert(
         The intensity of the cleaning to apply to the converted audio.
     embedder_model : EmbedderModel, default=EmbedderModel.CONTENTVEC
         The model to use for generating speaker embeddings.
-    embedder_model_custom : StrPath, optional
-        The path to a directory with a custom model to use for
-        generating speaker embeddings.
+    custom_embedder_model : str, optional
+        The name of a custom embedder model to use for generating
+        speaker embeddings.
     sid : int, default=0
         The speaker id to use for multi-speaker models.
     content_type : RVCContentType, default=RVCContentType.AUDIO
@@ -379,17 +371,14 @@ def convert(
         case RVCContentType.AUDIO:
             track_entity = Entity.AUDIO_TRACK
             directory_entity = Entity.DIRECTORY
-    audio_path, directory_path, _ = validate_all_exist(
-        [
-            (audio_track, track_entity),
-            (directory, directory_entity),
-            (model_name, Entity.MODEL_NAME),
-        ],
-    )
+    audio_path = validate_audio_file_exists(audio_track, track_entity)
+    directory_path = validate_audio_dir_exists(directory, directory_entity)
+    validate_model_exists(model_name, Entity.VOICE_MODEL)
+    custom_embedder_model_path = None
     if embedder_model == EmbedderModel.CUSTOM:
-        embedder_model_custom = validate_exists(
-            embedder_model_custom,
-            Entity.EMBEDDER_MODEL_CUSTOM,
+        custom_embedder_model_path = validate_model_exists(
+            custom_embedder_model,
+            Entity.CUSTOM_EMBEDDER_MODEL,
         )
 
     audio_path = wavify(
@@ -423,14 +412,7 @@ def convert(
         clean_audio=clean_audio,
         clean_strength=clean_strength,
         embedder_model=embedder_model,
-        embedder_model_custom=(
-            DirectoryMetaData(
-                name=Path(embedder_model_custom).name,
-                path=str(embedder_model_custom),
-            )
-            if embedder_model_custom is not None
-            else None
-        ),
+        custom_embedder_model=custom_embedder_model,
         sid=sid,
     ).model_dump()
 
@@ -473,8 +455,8 @@ def convert(
             filter_radius=filter_radius,
             embedder_model=embedder_model,
             embedder_model_custom=(
-                str(embedder_model_custom)
-                if embedder_model_custom is not None
+                str(custom_embedder_model_path)
+                if custom_embedder_model_path is not None
                 else None
             ),
             clean_audio=clean_audio,
@@ -534,6 +516,10 @@ def _mix_audio(
 
     """
     static_ffmpeg.add_paths()
+    # NOTE The lazy_import function does not work with pydub
+    # so we import it here manually
+    import pydub  # noqa: PLC0415
+
     mixed_audio = reduce(
         lambda a1, a2: a1.overlay(a2),
         [
@@ -609,7 +595,7 @@ def mix_audio(
     audio_path_gain_pairs = [
         (
             wavify(
-                validate_exists(audio_track, Entity.AUDIO_TRACK),
+                validate_audio_file_exists(audio_track, Entity.AUDIO_TRACK),
                 directory,
                 "50_Input",
                 progress_bar=progress_bar,
@@ -619,7 +605,7 @@ def mix_audio(
         )
         for audio_track, gain in audio_track_gain_pairs
     ]
-    dir_path = validate_exists(directory, directory_entity)
+    dir_path = validate_audio_dir_exists(directory, directory_entity)
     args_dict = MixedAudioMetaData(
         staged_audio_tracks=[
             StagedAudioMetaData(
