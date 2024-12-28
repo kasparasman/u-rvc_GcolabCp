@@ -189,7 +189,7 @@ def render(
                             visible=False,
                         )
                         clean_audio.change(
-                            partial(toggle_visibility, targets={True}),
+                            partial(toggle_visibility, targets={True}, default=0.7),
                             inputs=clean_audio,
                             outputs=clean_strength,
                             show_progress="hidden",
@@ -291,6 +291,7 @@ def render(
                                 TrainingF0Method.CREPE,
                                 TrainingF0Method.CREPE_TINY,
                             },
+                            default=128,
                         ),
                         inputs=f0_method,
                         outputs=hop_length,

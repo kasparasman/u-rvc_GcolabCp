@@ -383,13 +383,13 @@ def render(
                         visible=True,
                     )
             autotune_speech.change(
-                partial(toggle_visibility, targets={True}),
+                partial(toggle_visibility, targets={True}, default=1.0),
                 inputs=autotune_speech,
                 outputs=autotune_strength,
                 show_progress="hidden",
             )
             clean_speech.change(
-                partial(toggle_visibility, targets={True}),
+                partial(toggle_visibility, targets={True}, default=0.7),
                 inputs=clean_speech,
                 outputs=clean_strength,
                 show_progress="hidden",

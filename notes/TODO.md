@@ -1,5 +1,10 @@
 # TODO
 
+* need to update initialize function so that static_sox is also downloaded
+* need to fix the error:
+```/home/jackismyshephard/ultimate-rvc/uv/.venv/lib/python3.12/site-packages/static_sox/bin/sox-14.4.2-linux/libm.so.6: version `GLIBC_2.38' not found (required by /home/jackismyshephard/ultimate-rvc/uv/.venv/bin/python3)```
+which occurs on linux the first time one tries to perform feature extraction.
+* lazy importing torch (either manually or with lazy_import function) does not work for the get_gpu_info function. Need to fix this as CLI is too slow on windows without lazy import.
 * lazy_import function also does not seem to work with static_ffmpeg and yt_dlp. If we instead delay import them manually, then we can get the CLI startup time down to 0.5 sec from 1.1 sec.
 * instead of having custom embedder models, just allow users to download new embedder models which will be shown in the main embedder models dropdown (and perhaps also saved in the main embedder models dir?)
 

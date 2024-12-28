@@ -570,13 +570,13 @@ def render(
                         visible=False,
                     )
             autotune_vocals.change(
-                partial(toggle_visibility, targets={True}),
+                partial(toggle_visibility, targets={True}, default=1.0),
                 inputs=autotune_vocals,
                 outputs=autotune_strength,
                 show_progress="hidden",
             )
             clean_vocals.change(
-                partial(toggle_visibility, targets={True}),
+                partial(toggle_visibility, targets={True}, default=0.7),
                 inputs=clean_vocals,
                 outputs=clean_strength,
                 show_progress="hidden",

@@ -190,7 +190,11 @@ def update_values(*xs: str) -> tuple[dict[str, Any], ...]:
     return tuple(gr.update(value=x) for x in xs)
 
 
-def toggle_visibility[T](value: T, targets: set[T]) -> dict[str, Any]:
+def toggle_visibility[T](
+    value: T,
+    targets: set[T],
+    default: str | float | None = None,
+) -> dict[str, Any]:
     """
     Toggle the visibility of a component based on equality of
     a value and one of a set of targets.
@@ -201,6 +205,8 @@ def toggle_visibility[T](value: T, targets: set[T]) -> dict[str, Any]:
         The value to compare against the target.
     targets : set[T]
         The set of targets to compare the value against.
+    default : str | float | None, optional
+        Default value for the component.
 
     Returns
     -------
@@ -208,7 +214,7 @@ def toggle_visibility[T](value: T, targets: set[T]) -> dict[str, Any]:
         Dictionary which updates the visibility of the component.
 
     """
-    return gr.update(visible=value in targets, value=None)
+    return gr.update(visible=value in targets, value=default)
 
 
 def toggle_visible_component(
