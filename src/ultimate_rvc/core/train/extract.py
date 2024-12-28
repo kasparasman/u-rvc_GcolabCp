@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 from multiprocessing import cpu_count
 
-from ultimate_rvc.common import lazy_import
 from ultimate_rvc.core.common import (
     display_progress,
     get_combined_file_hash,
@@ -25,10 +24,6 @@ from ultimate_rvc.typing_extra import (
 
 if TYPE_CHECKING:
     import gradio as gr
-
-    from ultimate_rvc.rvc.train.extract import preparing_files
-else:
-    preparing_files = lazy_import("ultimate_rvc.rvc.train.extract.preparing_files")
 
 
 def extract_features(
@@ -142,6 +137,10 @@ def extract_features(
         ),
         cpu_cores,
     )
+    # NOTE The lazy_import function does not work with the package below
+    # so we import it here manually
+    from ultimate_rvc.rvc.train.extract import preparing_files  # noqa: PLC0415
+
     preparing_files.generate_config(rvc_version, int(sample_rate), str(model_path))
     preparing_files.generate_filelist(
         str(model_path),
