@@ -109,7 +109,7 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
     if x_lengths is None:
         x_lengths = t
     ids_str_max = x_lengths - segment_size + 1
-    ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(dtype=torch.long)
+    ids_str = (torch.rand([b], device=x.device) * ids_str_max).to(dtype=torch.long)
     ret = slice_segments(x, ids_str, segment_size, dim=3)
     return ret, ids_str
 
@@ -171,7 +171,7 @@ def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
     return acts
 
 
-def convert_pad_shape(pad_shape: list[list[int]]) -> list[int]:
+def convert_pad_shape(pad_shape: list[list[int]]):
     """
     Convert the pad shape to a list of integers.
 

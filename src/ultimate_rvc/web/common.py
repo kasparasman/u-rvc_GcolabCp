@@ -26,10 +26,9 @@ if TYPE_CHECKING:
 PROGRESS_BAR = gr.Progress()
 
 
-def exception_harness[T, **P](
-    fn: Callable[P, T],
-    info_msg: str | None = None,
-) -> Callable[P, T]:
+def exception_harness[
+    T, **P,
+](fn: Callable[P, T], info_msg: str | None = None) -> Callable[P, T]:
     """
     Wrap a function in a harness that catches exceptions and re-raises
     them as instances of `gradio.Error`.
@@ -68,9 +67,9 @@ def exception_harness[T, **P](
     return _wrapped_fn
 
 
-def confirmation_harness[T, **P](
-    fn: Callable[P, T],
-) -> Callable[Concatenate[bool, P], T]:
+def confirmation_harness[
+    T, **P,
+](fn: Callable[P, T]) -> Callable[Concatenate[bool, P], T]:
     """
     Wrap a function in a harness that requires a confirmation before
     executing and catches exceptions, re-raising them as instances of
@@ -190,11 +189,9 @@ def update_values(*xs: str) -> tuple[dict[str, Any], ...]:
     return tuple(gr.update(value=x) for x in xs)
 
 
-def toggle_visibility[T](
-    value: T,
-    targets: set[T],
-    default: str | float | None = None,
-) -> dict[str, Any]:
+def toggle_visibility[
+    T
+](value: T, targets: set[T], default: str | float | None = None) -> dict[str, Any]:
     """
     Toggle the visibility of a component based on equality of
     a value and one of a set of targets.
@@ -215,6 +212,36 @@ def toggle_visibility[T](
 
     """
     return gr.update(visible=value in targets, value=default)
+
+
+def toggle_visibilities[T](
+    value: T,
+    targets: set[T],
+    defaults: Sequence[str | float | None],
+) -> tuple[dict[str, Any], ...]:
+    """
+    Toggle the visibility of multiple components based on equality of
+    a value and one of a set of targets.
+
+    Parameters
+    ----------
+    value : T
+        The value to compare against the target.
+    targets : set[T]
+        The set of targets to compare the value against.
+    defaults : Sequence[str | float | None]
+        Default values for the components.
+
+    Returns
+    -------
+    tuple[dict[str, Any], ...]
+        Tuple of dictionaries which update the visibility of the
+        components.
+
+    """
+    return tuple(
+        gr.update(visible=value in targets, value=default) for default in defaults
+    )
 
 
 def toggle_visible_component(
@@ -262,14 +289,16 @@ def toggle_visible_component(
             return tuple(gr.update(**update_args) for update_args in update_args_list)
 
 
-def update_dropdowns[**P](
+def update_dropdowns[
+    **P
+](
     fn: Callable[P, DropdownChoices],
     num_components: int,
     value: DropdownValue = None,
     value_indices: Sequence[int] = [],
     *args: P.args,
     **kwargs: P.kwargs,
-) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
+) -> (gr.Dropdown | tuple[gr.Dropdown, ...]):
     """
     Update the choices and optionally the value of one or more dropdown
     components.
@@ -354,7 +383,9 @@ def toggle_intermediate_audio(
     return [gr.Accordion(visible=visible, open=False), *accordions]
 
 
-def update_output_name[**P](
+def update_output_name[
+    **P
+](
     fn: Callable[..., str],
     update_placeholder: bool = False,
     *args: P.args,

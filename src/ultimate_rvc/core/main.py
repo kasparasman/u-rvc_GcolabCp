@@ -5,17 +5,25 @@ RVC project.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pathlib import Path
 
 from rich import print as rprint
 
-from ultimate_rvc.common import VOICE_MODELS_DIR
+from ultimate_rvc.common import VOICE_MODELS_DIR, lazy_import
 from ultimate_rvc.core.common import FLAG_FILE
 from ultimate_rvc.core.generate.song_cover import initialize_audio_separator
 from ultimate_rvc.core.manage.models import download_voice_model
 from ultimate_rvc.rvc.lib.tools.prerequisites_download import (
     prequisites_download_pipeline,
 )
+
+if TYPE_CHECKING:
+    import static_sox
+
+else:
+    static_sox = lazy_import("static_sox")
 
 
 def download_sample_models() -> None:
@@ -51,6 +59,9 @@ def initialize() -> None:
         exe=False,
     )
     if not FLAG_FILE.is_file():
+        # NOTE we only add_paths so that sox
+        # binaries are downloaded as part of initialization.
+        static_sox.add_paths()
         download_sample_models()
         initialize_audio_separator()
         FLAG_FILE.touch()

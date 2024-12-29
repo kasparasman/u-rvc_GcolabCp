@@ -19,12 +19,12 @@ class WaveNet(torch.nn.Module):
 
     def __init__(
         self,
-        hidden_channels,
-        kernel_size,
+        hidden_channels: int,
+        kernel_size: int,
         dilation_rate,
-        n_layers,
-        gin_channels=0,
-        p_dropout=0,
+        n_layers: int,
+        gin_channels: int = 0,
+        p_dropout: int = 0,
     ):
         super().__init__()
         assert kernel_size % 2 == 1, "Kernel size must be odd for proper padding."
@@ -78,15 +78,6 @@ class WaveNet(torch.nn.Module):
             )
 
     def forward(self, x, x_mask, g=None):
-        """
-        Forward pass.
-
-        Args:
-            x (torch.Tensor): Input tensor (batch_size, hidden_channels, time_steps).
-            x_mask (torch.Tensor): Mask tensor (batch_size, 1, time_steps).
-            g (torch.Tensor, optional): Conditioning tensor (batch_size, gin_channels, time_steps).
-
-        """
         output = x.clone().zero_()
 
         # Apply conditional layer if global conditioning is provided
@@ -120,7 +111,6 @@ class WaveNet(torch.nn.Module):
         return output * x_mask
 
     def remove_weight_norm(self):
-        """Remove weight normalization from the module."""
         if self.gin_channels:
             torch.nn.utils.remove_weight_norm(self.cond_layer)
         for layer in self.in_layers:

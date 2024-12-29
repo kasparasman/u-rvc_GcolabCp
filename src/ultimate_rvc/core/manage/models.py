@@ -298,6 +298,7 @@ def download_voice_model(
         raise NotProvidedError(entity=Entity.URL)
     if not name:
         raise NotProvidedError(entity=Entity.MODEL_NAME)
+    name = name.strip()
     extraction_path = VOICE_MODELS_DIR / name
     if extraction_path.exists():
         raise ModelExistsError(Entity.VOICE_MODEL, name)
@@ -365,6 +366,7 @@ def upload_voice_model(
         raise NotProvidedError(entity=Entity.FILES, ui_msg=UIMessage.NO_UPLOADED_FILES)
     if not name:
         raise NotProvidedError(entity=Entity.MODEL_NAME)
+    name = name.strip()
     model_dir_path = VOICE_MODELS_DIR / name
     if model_dir_path.exists():
         raise ModelExistsError(Entity.VOICE_MODEL, name)
@@ -518,6 +520,7 @@ def upload_custom_embedder_model(
         raise NotProvidedError(entity=Entity.FILES, ui_msg=UIMessage.NO_UPLOADED_FILES)
     if not name:
         raise NotProvidedError(entity=Entity.MODEL_NAME)
+    name = name.strip()
     model_dir_path = CUSTOM_EMBEDDER_MODELS_DIR / name
     if model_dir_path.exists():
         raise ModelExistsError(Entity.CUSTOM_EMBEDDER_MODEL, name)

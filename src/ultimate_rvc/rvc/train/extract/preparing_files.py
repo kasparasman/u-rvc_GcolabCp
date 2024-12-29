@@ -20,6 +20,7 @@ def generate_filelist(
     model_path: str,
     rvc_version: str,
     sample_rate: int,
+    include_mutes: int,
     f0_method_id: str,
     embedder_model_id: str,
 ):
@@ -51,28 +52,25 @@ def generate_filelist(
         options.append(
             f"{gt_wavs_dir}/{name}.wav|{feature_dir}/{name}.npy|{f0_dir}/{name}.wav.npy|{f0nsf_dir}/{name}.wav.npy|{sid}",
         )
-
-    mute_audio_path = os.path.join(
-        mute_base_path,
-        "sliced_audios",
-        f"mute{sample_rate}.wav",
-    )
-    mute_feature_path = os.path.join(
-        mute_base_path,
-        f"{rvc_version}_extracted",
-        "mute.npy",
-    )
-    mute_f0_path = os.path.join(mute_base_path, "f0", "mute.wav.npy")
-    mute_f0nsf_path = os.path.join(mute_base_path, "f0_voiced", "mute.wav.npy")
-
-    # always adding two files
-    for sid in sids:
-        options.append(
-            f"{mute_audio_path}|{mute_feature_path}|{mute_f0_path}|{mute_f0nsf_path}|{sid}",
+    if include_mutes > 0:
+        mute_audio_path = os.path.join(
+            mute_base_path,
+            "sliced_audios",
+            f"mute{sample_rate}.wav",
         )
-        options.append(
-            f"{mute_audio_path}|{mute_feature_path}|{mute_f0_path}|{mute_f0nsf_path}|{sid}",
+        mute_feature_path = os.path.join(
+            mute_base_path,
+            f"{rvc_version}_extracted",
+            "mute.npy",
         )
+        mute_f0_path = os.path.join(mute_base_path, "f0", "mute.wav.npy")
+        mute_f0nsf_path = os.path.join(mute_base_path, "f0_voiced", "mute.wav.npy")
+
+        # adding x files per sid
+        for sid in sids * include_mutes:
+            options.append(
+                f"{mute_audio_path}|{mute_feature_path}|{mute_f0_path}|{mute_f0nsf_path}|{sid}",
+            )
 
     file_path = os.path.join(model_path, "model_info.json")
     if os.path.exists(file_path):

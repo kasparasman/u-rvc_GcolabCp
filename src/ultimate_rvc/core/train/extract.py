@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 from multiprocessing import cpu_count
 
-from ultimate_rvc.common import lazy_import
 from ultimate_rvc.core.common import (
     display_progress,
     get_combined_file_hash,
@@ -26,10 +25,6 @@ from ultimate_rvc.typing_extra import (
 if TYPE_CHECKING:
     import gradio as gr
 
-    from ultimate_rvc.rvc.train.extract import preparing_files
-else:
-    preparing_files = lazy_import("ultimate_rvc.rvc.train.extract.preparing_files")
-
 
 def extract_features(
     model_name: str,
@@ -41,6 +36,7 @@ def extract_features(
     sample_rate: TrainingSampleRate = TrainingSampleRate.HZ_40K,
     embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
     custom_embedder_model: str | None = None,
+    include_mutes: int = 2,
     progress_bar: gr.Progress | None = None,
     percentage: tuple[float, float] = (0.0, 0.5),
 ) -> None:
@@ -72,6 +68,12 @@ def extract_features(
     custom_embedder_model : StrPath, optional
         The name of the custom embedder model to use for extracting
         audio embeddings.
+    include_mutes : int, default=2
+        The number of mute audio files to include in the generated
+        training file list. Adding silent files enables the model to
+        handle pure silence in inferred audio files. If the preprocessed
+        audio dataset already contains segments of pure silence, set
+        this to 0.
     progress_bar : gr.Progress, optional
         The progress bar to update as the features are extracted.
     percentage : float, optional
@@ -135,11 +137,16 @@ def extract_features(
         ),
         cpu_cores,
     )
+    # NOTE The lazy_import function does not work with the package below
+    # so we import it here manually
+    from ultimate_rvc.rvc.train.extract import preparing_files  # noqa: PLC0415
+
     preparing_files.generate_config(rvc_version, int(sample_rate), str(model_path))
     preparing_files.generate_filelist(
         str(model_path),
         rvc_version,
         int(sample_rate),
+        include_mutes,
         f0_method_id,
         embedder_model_id,
     )

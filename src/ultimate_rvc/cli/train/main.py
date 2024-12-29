@@ -17,9 +17,11 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ultimate_rvc.cli.common import (
+    complete_audio_split_method,
     complete_embedder_model,
     complete_f0_method,
     complete_rvc_version,
+    complete_training_sample_rate,
     format_duration,
 )
 from ultimate_rvc.core.train.common import get_gpu_info as _get_gpu_info
@@ -27,6 +29,7 @@ from ultimate_rvc.core.train.extract import extract_features as _extract_feature
 from ultimate_rvc.core.train.prepare import populate_dataset as _populate_dataset
 from ultimate_rvc.core.train.prepare import preprocess_dataset as _preprocess_dataset
 from ultimate_rvc.typing_extra import (
+    AudioSplitMethod,
     EmbedderModel,
     RVCVersion,
     TrainingF0Method,
@@ -98,6 +101,7 @@ def preprocess_dataset(
     sample_rate: Annotated[
         TrainingSampleRate,
         typer.Option(
+            autocompletion=complete_training_sample_rate,
             help="The target sample rate for the audio files in the provided dataset",
         ),
     ] = TrainingSampleRate.HZ_40K,
@@ -109,16 +113,39 @@ def preprocess_dataset(
             help="The number of CPU cores to use for preprocessing",
         ),
     ] = CORES,
-    split_audio: Annotated[
-        bool,
+    split_method: Annotated[
+        AudioSplitMethod,
         typer.Option(
+            case_sensitive=False,
+            autocompletion=complete_audio_split_method,
             help=(
-                "Whether to split the audio files in the provided dataset into smaller"
-                " segments before pre-processing. This help can improve the"
-                " pre-processing speed for large audio files."
+                "The method to use for splitting the audio files in the provided"
+                " dataset. Use the `Skip` method to skip splitting if the audio files"
+                " are already split. Use the `Simple` method if excessive silence has"
+                " already been removed from the audio files. Use the `Automatic` method"
+                " for automatic silence detection and splitting around it."
             ),
         ),
-    ] = True,
+    ] = AudioSplitMethod.AUTOMATIC,
+    chunk_len: Annotated[
+        float,
+        typer.Option(
+            min=0.5,
+            max=5.0,
+            help="Length of split audio chunks when using the `Simple` split method.",
+        ),
+    ] = 3.0,
+    overlap_len: Annotated[
+        float,
+        typer.Option(
+            min=0.0,
+            max=0.4,
+            help=(
+                "Length of overlap between split audio chunks when using the `Simple`"
+                " split method."
+            ),
+        ),
+    ] = 0.3,
     filter_audio: Annotated[
         bool,
         typer.Option(
@@ -160,7 +187,9 @@ def preprocess_dataset(
         dataset,
         sample_rate,
         cpu_cores,
-        split_audio,
+        split_method,
+        chunk_len,
+        overlap_len,
         filter_audio,
         clean_audio,
         clean_strength,
@@ -268,6 +297,19 @@ def extract_features(
             help="The path to a custom model to use for extracting audio embeddings.",
         ),
     ] = None,
+    include_mutes: Annotated[
+        int,
+        typer.Option(
+            help=(
+                "The number of mute audio files to include in the generated"
+                " training file list. Adding silent files enables the model to handle"
+                " pure silence in inferred audio files. If the preprocessed audio"
+                " dataset already contains segments of pure silence, set this to 0."
+            ),
+            min=0,
+            max=10,
+        ),
+    ] = 2,
 ) -> None:
     """
     Extract features from the preprocessed dataset associated with a
@@ -286,6 +328,7 @@ def extract_features(
         sample_rate,
         embedder_model,
         custom_embedder_model,
+        include_mutes,
     )
 
     rprint("[+] Dataset features succesfully extracted!")

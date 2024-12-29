@@ -3,10 +3,6 @@ Common definitions for modules in the Ultimate RVC project that
 facilitate training voice models.
 """
 
-# NOTE lazily importing torch here (either manually or with lazy_import)
-# seems to not work on linux. Need to fix this ASAP.
-import torch
-
 
 def get_gpu_info() -> list[tuple[str, int]]:
     """
@@ -19,6 +15,10 @@ def get_gpu_info() -> list[tuple[str, int]]:
         available GPU.
 
     """
+    # NOTE The lazy_import function does not work with torch
+    # so we import it here manually
+    import torch  # noqa: PLC0415
+
     ngpu = torch.cuda.device_count()
     gpu_infos: list[tuple[str, int]] = []
     if torch.cuda.is_available() or ngpu != 0:

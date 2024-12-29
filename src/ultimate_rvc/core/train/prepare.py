@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import shutil
 from multiprocessing import cpu_count
 
-from ultimate_rvc.common import TRAINING_MODELS_DIR, lazy_import
+from ultimate_rvc.common import TRAINING_MODELS_DIR
 from ultimate_rvc.core.common import (
     TRAINING_AUDIO_DIR,
     display_progress,
@@ -23,7 +23,7 @@ from ultimate_rvc.core.exceptions import (
     NotProvidedError,
     UIMessage,
 )
-from ultimate_rvc.typing_extra import AudioExt, TrainingSampleRate
+from ultimate_rvc.typing_extra import AudioExt, AudioSplitMethod, TrainingSampleRate
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -31,10 +31,7 @@ if TYPE_CHECKING:
 
     import gradio as gr
 
-    from ultimate_rvc.rvc.configs import config as train_config
     from ultimate_rvc.typing_extra import StrPath
-else:
-    train_config = lazy_import("ultimate_rvc.rvc.configs.config")
 
 
 def populate_dataset(
@@ -100,7 +97,7 @@ def populate_dataset(
         progress_bar,
     )
 
-    dataset_path = TRAINING_AUDIO_DIR / name
+    dataset_path = TRAINING_AUDIO_DIR / name.strip()
 
     dataset_path.mkdir(parents=True, exist_ok=True)
 
@@ -115,7 +112,9 @@ def preprocess_dataset(
     dataset: StrPath,
     sample_rate: TrainingSampleRate = TrainingSampleRate.HZ_40K,
     cpu_cores: int = cpu_count(),
-    split_audio: bool = True,
+    split_method: AudioSplitMethod = AudioSplitMethod.AUTOMATIC,
+    chunk_len: float = 3.0,
+    overlap_len: float = 0.3,
     filter_audio: bool = True,
     clean_audio: bool = False,
     clean_strength: float = 0.7,
@@ -140,10 +139,19 @@ def preprocess_dataset(
         dataset.
     cpu_cores : int, default=cpu_count()
         The number of CPU cores to use for preprocessing.
-    split_audio : bool, default=True
-        Whether to split the audio files in the provided dataset into
-        smaller segments before pre-processing. This help can improve
-        the pre-processing speed for large audio files.
+    split_method : AudioSplitMethod, default=AudioSplitMethod.AUTOMATIC
+        The method to use for splitting the audio files in the provided
+        dataset. Use the `Skip` method to skip splitting if the audio
+        files are already split. Use the `Simple` method if excessive
+        silence has already been removed from the audio files.
+        Use the `Automatic` method for automatic silence detection and
+        splitting around it.
+    chunk_len: float, default=3.0
+        length of split audio chunks when using the `Simple` split
+        method.
+    overlap_len: float, default=0.3
+        length of overlap between split audio chunks when using the
+        `Simple` split method.
     filter_audio : bool, default=True
         Whether to remove low-frequency sounds from the audio files in
         the provided dataset by applying a high-pass butterworth filter.
@@ -175,10 +183,8 @@ def preprocess_dataset(
         percentage,
         progress_bar,
     )
-    model_path = TRAINING_MODELS_DIR / model_name
+    model_path = TRAINING_MODELS_DIR / model_name.strip()
     model_path.mkdir(parents=True, exist_ok=True)
-    config = train_config.Config()
-    split_percentage = 3.0 if config.is_half else 3.7
 
     # NOTE The lazy_import function does not work with the package below
     # so we import it here manually
@@ -191,8 +197,9 @@ def preprocess_dataset(
         int(sample_rate),
         cpu_cores,
         str(model_path),
-        split_percentage,
-        split_audio,
+        split_method,
+        chunk_len,
+        overlap_len,
         filter_audio,
         clean_audio,
         clean_strength,

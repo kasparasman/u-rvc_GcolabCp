@@ -4,8 +4,11 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import shutil
 import sys
 import time
+
+import soxr
 
 import numpy as np
 from scipy import signal
@@ -18,7 +21,6 @@ import noisereduce as nr
 now_directory = os.getcwd()
 sys.path.append(now_directory)
 
-# Remove colab logs
 import logging
 
 from ultimate_rvc.common import lazy_import
@@ -38,16 +40,17 @@ logging.getLogger("numba.core.interpreter").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-# Constants
 OVERLAP = 0.3
+PERCENTAGE = 3.0
 MAX_AMPLITUDE = 0.9
 ALPHA = 0.75
 HIGH_PASS_CUTOFF = 48
 SAMPLE_RATE_16K = 16000
+RES_TYPE = "soxr_vhq"
 
 
 class PreProcess:
-    def __init__(self, sr: int, exp_dir: str, per: float):
+    def __init__(self, sr: int, exp_dir: str):
         self.slicer = Slicer(
             sr=sr,
             threshold=-42,
@@ -63,13 +66,16 @@ class PreProcess:
             btype="high",
             fs=self.sr,
         )
-        self.per = per
         self.exp_dir = exp_dir
         self.device = "cpu"
         self.gt_wavs_dir = os.path.join(exp_dir, "sliced_audios")
         self.wavs16k_dir = os.path.join(exp_dir, "sliced_audios_16k")
-        os.makedirs(self.gt_wavs_dir, exist_ok=True)
-        os.makedirs(self.wavs16k_dir, exist_ok=True)
+        if os.path.exists(self.gt_wavs_dir):
+            shutil.rmtree(self.gt_wavs_dir)
+        if os.path.exists(self.wavs16k_dir):
+            shutil.rmtree(self.wavs16k_dir)
+        os.makedirs(self.gt_wavs_dir)
+        os.makedirs(self.wavs16k_dir)
 
     def _normalize_audio(self, audio: np.ndarray):
         tmp_max = np.abs(audio).max()
@@ -96,6 +102,7 @@ class PreProcess:
             normalized_audio,
             orig_sr=self.sr,
             target_sr=SAMPLE_RATE_16K,
+            res_type=RES_TYPE,
         )
         wavfile.write(
             os.path.join(self.wavs16k_dir, f"{sid}_{idx0}_{idx1}.wav"),
@@ -103,20 +110,63 @@ class PreProcess:
             audio_16k.astype(np.float32),
         )
 
+    def simple_cut(
+        self,
+        audio: np.ndarray,
+        sid: int,
+        idx0: int,
+        chunk_len: float,
+        overlap_len: float,
+    ):
+        chunk_length = int(self.sr * chunk_len)
+        overlap_length = int(self.sr * overlap_len)
+        i = 0
+        while i < len(audio):
+            chunk = audio[i : i + chunk_length]
+            if len(chunk) == chunk_length:
+                # full SR for training
+                wavfile.write(
+                    os.path.join(
+                        self.gt_wavs_dir,
+                        f"{sid}_{idx0}_{i // (chunk_length - overlap_length)}.wav",
+                    ),
+                    self.sr,
+                    chunk.astype(np.float32),
+                )
+                # 16KHz for feature extraction
+                chunk_16k = librosa.resample(
+                    chunk,
+                    orig_sr=self.sr,
+                    target_sr=SAMPLE_RATE_16K,
+                    res_type=RES_TYPE,
+                )
+                wavfile.write(
+                    os.path.join(
+                        self.wavs16k_dir,
+                        f"{sid}_{idx0}_{i // (chunk_length - overlap_length)}.wav",
+                    ),
+                    SAMPLE_RATE_16K,
+                    chunk_16k.astype(np.float32),
+                )
+            i += chunk_length - overlap_length
+
     def process_audio(
         self,
         path: str,
         idx0: int,
         sid: int,
-        cut_preprocess: bool,
+        cut_preprocess: str,
         process_effects: bool,
         noise_reduction: bool,
         reduction_strength: float,
+        chunk_len: float,
+        overlap_len: float,
     ):
         audio_length = 0
         try:
             audio = load_audio(path, self.sr)
             audio_length = librosa.get_duration(y=audio, sr=self.sr)
+
             if process_effects:
                 audio = signal.lfilter(self.b_high, self.a_high, audio)
                 audio = self._normalize_audio(audio)
@@ -126,16 +176,31 @@ class PreProcess:
                     sr=self.sr,
                     prop_decrease=reduction_strength,
                 )
-            idx1 = 0
-            if cut_preprocess:
+            if cut_preprocess == "Skip":
+                # no cutting
+                self.process_audio_segment(
+                    audio,
+                    sid,
+                    idx0,
+                    0,
+                )
+            elif cut_preprocess == "Simple":
+                # simple
+                self.simple_cut(audio, sid, idx0, chunk_len, overlap_len)
+            elif cut_preprocess == "Automatic":
+                idx1 = 0
+                # legacy
                 for audio_segment in self.slicer.slice(audio):
                     i = 0
                     while True:
-                        start = int(self.sr * (self.per - OVERLAP) * i)
+                        start = int(self.sr * (PERCENTAGE - OVERLAP) * i)
                         i += 1
-                        if len(audio_segment[start:]) > (self.per + OVERLAP) * self.sr:
+                        if (
+                            len(audio_segment[start:])
+                            > (PERCENTAGE + OVERLAP) * self.sr
+                        ):
                             tmp_audio = audio_segment[
-                                start : start + int(self.per * self.sr)
+                                start : start + int(PERCENTAGE * self.sr)
                             ]
                             self.process_audio_segment(
                                 tmp_audio,
@@ -154,13 +219,6 @@ class PreProcess:
                             )
                             idx1 += 1
                             break
-            else:
-                self.process_audio_segment(
-                    audio,
-                    sid,
-                    idx0,
-                    idx1,
-                )
         except Exception as error:
             logger.error(  # noqa: TRY400
                 "Error processing audio: %s. One or more audio files may not be"
@@ -196,9 +254,16 @@ def save_dataset_duration(file_path, dataset_duration):
 
 
 def process_audio_wrapper(args):
-    pp, file, cut_preprocess, process_effects, noise_reduction, reduction_strength = (
-        args
-    )
+    (
+        pp,
+        file,
+        cut_preprocess,
+        process_effects,
+        noise_reduction,
+        reduction_strength,
+        chunk_len,
+        overlap_len,
+    ) = args
     file_path, idx0, sid = file
     return pp.process_audio(
         file_path,
@@ -208,6 +273,8 @@ def process_audio_wrapper(args):
         process_effects,
         noise_reduction,
         reduction_strength,
+        chunk_len,
+        overlap_len,
     )
 
 
@@ -226,8 +293,9 @@ def preprocess_training_set(
     sr: int,
     num_processes: int,
     exp_dir: str,
-    per: float,
-    cut_preprocess: bool,
+    cut_preprocess: str,
+    chunk_len: float,
+    overlap_len: float,
     process_effects: bool,
     noise_reduction: bool,
     reduction_strength: float,
@@ -238,7 +306,7 @@ def preprocess_training_set(
     import pydub.utils as pydub_utils  # noqa: PLC0415
 
     start_time = time.time()
-    pp = PreProcess(sr, exp_dir, per)
+    pp = PreProcess(sr, exp_dir)
     logger.info("Starting preprocess with %d processes...", num_processes)
 
     files = []
@@ -310,6 +378,8 @@ def preprocess_training_set(
                         process_effects,
                         noise_reduction,
                         reduction_strength,
+                        chunk_len,
+                        overlap_len,
                     ),
                 )
                 for file in files
