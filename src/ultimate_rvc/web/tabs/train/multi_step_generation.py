@@ -91,18 +91,15 @@ def render(
 
     """
     sample_rate_preprocess, sample_rate_extract = [
-        gr.Radio(
+        gr.Dropdown(
             choices=list(TrainingSampleRate),
-            label="Sampling rate",
+            label="Sample rate",
             info=info,
             value=TrainingSampleRate.HZ_40K,
             render=False,
         )
         for info in [
-            (
-                "Target sample rate for the audio files in the dataset to"
-                " preprocess.<br><br><br>"
-            ),
+            "Target sample rate for the audio files in the provided dataset.",
             (
                 "The sample rate of the audio files in the preprocessed dataset"
                 " associated with the model. When a new dataset is preprocessed,"
@@ -156,11 +153,12 @@ def render(
                 )
         with gr.Accordion("Step 1: dataset preprocessing", open=True):
             with gr.Row():
-                preprocess_model.render()
                 dataset.render()
-                sample_rate_preprocess.render()
+                preprocess_model.render()
             with gr.Accordion("Advanced Settings", open=False):
                 with gr.Row():
+                    with gr.Column():
+                        sample_rate_preprocess.render()
                     with gr.Column():
                         filter_audio = gr.Checkbox(
                             value=True,
@@ -168,7 +166,7 @@ def render(
                             info=(
                                 "Whether to remove low-frequency sounds from the audio"
                                 " files in the provided dataset by applying a high-pass"
-                                " butterworth filter."
+                                " butterworth filter.<br><br>"
                             ),
                         )
                     with gr.Column():
@@ -176,7 +174,7 @@ def render(
                             label="Clean audio",
                             info=(
                                 "Whether to clean the audio files in the provided"
-                                " dataset using noise reduction algorithms."
+                                " dataset using noise reduction algorithms.<br><br>"
                             ),
                         )
                         clean_strength = gr.Slider(
@@ -195,7 +193,7 @@ def render(
                             show_progress="hidden",
                         )
                 with gr.Row():
-                    split_method = gr.Radio(
+                    split_method = gr.Dropdown(
                         choices=list(AudioSplitMethod),
                         value=AudioSplitMethod.AUTOMATIC,
                         label="Audio splitting method",
@@ -294,15 +292,20 @@ def render(
         with gr.Accordion("Step 2: feature extraction", open=True):
             with gr.Row():
                 extract_model.render()
-                rvc_version = gr.Radio(
-                    choices=list(RVCVersion),
-                    label="RVC version",
-                    info="The version of RVC to use for training the model.<br><br>",
-                    value=RVCVersion.V2,
-                )
+
                 sample_rate_extract.render()
             with gr.Accordion("Advanced Settings", open=False):
                 with gr.Row():
+                    with gr.Column():
+                        rvc_version = gr.Dropdown(
+                            choices=list(RVCVersion),
+                            label="RVC version",
+                            info=(
+                                "The version of RVC to use for training the selected"
+                                " model."
+                            ),
+                            value=RVCVersion.V2,
+                        )
                     with gr.Column():
                         f0_method = gr.Dropdown(
                             choices=list(TrainingF0Method),
@@ -318,8 +321,7 @@ def render(
                             label="Hop length",
                             info=(
                                 "The hop length to use for extracting pitch"
-                                " features. Only used with the CREPE pitch extraction"
-                                " method.<br><br>"
+                                " features.<br><br>"
                             ),
                             visible=False,
                         )
@@ -359,12 +361,11 @@ def render(
                         step=1,
                         label="Include mutes",
                         info=(
-                            "The number of mute audio files to include in the"
-                            " generated training file list. Adding silent files"
-                            " enables the model to handle pure silence in inferred"
-                            " audio files. If the preprocessed audio dataset"
-                            " already contains segments of pure silence, set this"
-                            " to 0."
+                            "The number of mute audio files to include in the generated"
+                            " training file list. Adding silent files enables the"
+                            " training model to handle pure silence in inferred audio"
+                            " files. If the preprocessed audio dataset already contains"
+                            " segments of pure silence, set this to 0."
                         ),
                     )
                 with gr.Row():
