@@ -1,5 +1,10 @@
 # TODO
 
+* Add reset settings button for each step in train multistep tab?
+* combine step 0: data population and step 1: dataset preprocsessing into one step?
+  * need a (dataset) source dropdown with two options: existing dataset and new dataset
+  * if existing is chosen then a text field for chosen a path to an existing dataset should appear
+  * if new is chosen then two components should appear: one a textbox for dataset name and the other a file upload component for uploading one or more files to the components. this should upload automatically without need to press a button.
 * fix error saying that selected edge tts voice is not in list (occurs sporadically ?)
 * use the validate_model_exists for functions defined in manage.models
 * also define a validate_model_not_exists to use for functions defined in manage.models
