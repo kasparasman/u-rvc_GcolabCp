@@ -97,7 +97,7 @@ def populate_dataset(
         progress_bar,
     )
 
-    dataset_path = TRAINING_AUDIO_DIR / name
+    dataset_path = TRAINING_AUDIO_DIR / name.strip()
 
     dataset_path.mkdir(parents=True, exist_ok=True)
 
@@ -183,7 +183,7 @@ def preprocess_dataset(
         percentage,
         progress_bar,
     )
-    model_path = TRAINING_MODELS_DIR / model_name
+    model_path = TRAINING_MODELS_DIR / model_name.strip()
     model_path.mkdir(parents=True, exist_ok=True)
 
     # NOTE The lazy_import function does not work with the package below

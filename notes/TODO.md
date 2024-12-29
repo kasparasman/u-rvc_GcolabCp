@@ -1,5 +1,8 @@
 # TODO
 
+* fix error saying that selected edge tts voice is not in list (occurs sporadically ?)
+* use the validate_model_exists for functions defined in manage.models
+* also define a validate_model_not_exists to use for functions defined in manage.models
 * we should fix static_ffmpeg and static_sox so that the weak parameter works.
   * other we will keep adding values to environment variables each time their add_paths()function is called
   * add the same time we should also try and fix static_sox.add_paths so that it works with spawn multiprocessing on ubuntu 24.04. Currently a "version `GLIBC_2.38' not found" error is raised because static_sox.add_paths adds a ../sox_folder/libm.so.6 to LD_PRELOAD, but libm.so.6 requires GLIBC_2.38 which is below the default which is GLIBC_2.39 on ubuntu 24.04.

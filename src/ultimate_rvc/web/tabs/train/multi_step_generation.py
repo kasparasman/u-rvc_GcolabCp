@@ -37,6 +37,24 @@ from ultimate_rvc.web.common import (
 )
 
 
+def _normalize_and_update(value: str) -> gr.Dropdown:
+    """
+    Normalize the value of the given string and update the dropdown.
+
+    Parameters
+    ----------
+    value : str
+        The value to normalize and update.
+
+    Returns
+    -------
+    gr.Dropdown
+        The updated dropdown.
+
+    """
+    return gr.Dropdown(value=value.strip())
+
+
 def render(
     dataset: gr.Dropdown,
     preprocess_model: gr.Dropdown,
@@ -263,6 +281,11 @@ def render(
                     ],
                     show_progress="hidden",
                 ).then(
+                    _normalize_and_update,
+                    inputs=preprocess_model,
+                    outputs=preprocess_model,
+                    show_progress="hidden",
+                ).then(
                     update_values,
                     inputs=[preprocess_model, sample_rate_preprocess],
                     outputs=[extract_model, sample_rate_extract],
@@ -300,23 +323,22 @@ def render(
                         info="The GPU(s) to use for feature extraction.",
                         multiselect=True,
                     )
-                with gr.Row():
-                    with gr.Column():
-                        include_mutes = gr.Slider(
-                            0,
-                            10,
-                            2,
-                            step=1,
-                            label="Include mutes",
-                            info=(
-                                "The number of mute audio files to include in the"
-                                " generated training file list. Adding silent files"
-                                " enables the model to handle pure silence in inferred"
-                                " audio files. If the preprocessed audio dataset"
-                                " already contains segments of pure silence, set this"
-                                " to 0."
-                            ),
-                        )
+                with gr.Row(), gr.Column():
+                    include_mutes = gr.Slider(
+                        0,
+                        10,
+                        2,
+                        step=1,
+                        label="Include mutes",
+                        info=(
+                            "The number of mute audio files to include in the"
+                            " generated training file list. Adding silent files"
+                            " enables the model to handle pure silence in inferred"
+                            " audio files. If the preprocessed audio dataset"
+                            " already contains segments of pure silence, set this"
+                            " to 0."
+                        ),
+                    )
                 with gr.Row():
                     with gr.Column():
                         f0_method = gr.Dropdown(
