@@ -161,14 +161,39 @@ def render(
                 sample_rate_preprocess.render()
             with gr.Accordion("Advanced Settings", open=False):
                 with gr.Row():
-                    cpu_cores_preprocess = gr.Slider(
-                        1,
-                        cpu_count(),
-                        cpu_count(),
-                        step=1,
-                        label="CPU cores",
-                        info="The number of CPU cores to use for preprocessing.",
-                    )
+                    with gr.Column():
+                        filter_audio = gr.Checkbox(
+                            value=True,
+                            label="Filter audio",
+                            info=(
+                                "Whether to remove low-frequency sounds from the audio"
+                                " files in the provided dataset by applying a high-pass"
+                                " butterworth filter."
+                            ),
+                        )
+                    with gr.Column():
+                        clean_audio = gr.Checkbox(
+                            label="Clean audio",
+                            info=(
+                                "Whether to clean the audio files in the provided"
+                                " dataset using noise reduction algorithms."
+                            ),
+                        )
+                        clean_strength = gr.Slider(
+                            0.0,
+                            1.0,
+                            0.7,
+                            step=0.1,
+                            label="Clean strength",
+                            info="The strength of the audio cleaning process.",
+                            visible=False,
+                        )
+                        clean_audio.change(
+                            partial(toggle_visibility, targets={True}, default=0.7),
+                            inputs=clean_audio,
+                            outputs=clean_strength,
+                            show_progress="hidden",
+                        )
                 with gr.Row():
                     split_method = gr.Radio(
                         choices=list(AudioSplitMethod),
@@ -214,39 +239,14 @@ def render(
                     show_progress="hidden",
                 )
                 with gr.Row():
-                    with gr.Column():
-                        filter_audio = gr.Checkbox(
-                            value=True,
-                            label="Filter audio",
-                            info=(
-                                "Whether to remove low-frequency sounds from the audio"
-                                " files in the provided dataset by applying a high-pass"
-                                " butterworth filter."
-                            ),
-                        )
-                    with gr.Column():
-                        clean_audio = gr.Checkbox(
-                            label="Clean audio",
-                            info=(
-                                "Whether to clean the audio files in the provided"
-                                " dataset using noise reduction algorithms."
-                            ),
-                        )
-                        clean_strength = gr.Slider(
-                            0.0,
-                            1.0,
-                            0.7,
-                            step=0.1,
-                            label="Clean strength",
-                            info="The strength of the audio cleaning process.",
-                            visible=False,
-                        )
-                        clean_audio.change(
-                            partial(toggle_visibility, targets={True}, default=0.7),
-                            inputs=clean_audio,
-                            outputs=clean_strength,
-                            show_progress="hidden",
-                        )
+                    cpu_cores_preprocess = gr.Slider(
+                        1,
+                        cpu_count(),
+                        cpu_count(),
+                        step=1,
+                        label="CPU cores",
+                        info="The number of CPU cores to use for preprocessing.",
+                    )
             with gr.Row(equal_height=True):
                 preprocess_btn = gr.Button("Preprocess dataset", variant="primary")
                 preprocess_msg = gr.Textbox(label="Output message", interactive=False)
@@ -302,43 +302,6 @@ def render(
                 )
                 sample_rate_extract.render()
             with gr.Accordion("Advanced Settings", open=False):
-
-                with gr.Row():
-                    cpu_cores_extract = gr.Slider(
-                        1,
-                        cpu_count(),
-                        cpu_count(),
-                        step=1,
-                        label="CPU cores",
-                        info=(
-                            "The number of CPU cores to use for feature"
-                            " extraction.<br><br>"
-                        ),
-                    )
-                    gpu_choices = get_gpu_info()
-                    gpus = gr.Dropdown(
-                        choices=gpu_choices,
-                        value=gpu_choices[0][1] if gpu_choices else None,
-                        label="GPU(s)",
-                        info="The GPU(s) to use for feature extraction.",
-                        multiselect=True,
-                    )
-                with gr.Row(), gr.Column():
-                    include_mutes = gr.Slider(
-                        0,
-                        10,
-                        2,
-                        step=1,
-                        label="Include mutes",
-                        info=(
-                            "The number of mute audio files to include in the"
-                            " generated training file list. Adding silent files"
-                            " enables the model to handle pure silence in inferred"
-                            " audio files. If the preprocessed audio dataset"
-                            " already contains segments of pure silence, set this"
-                            " to 0."
-                        ),
-                    )
                 with gr.Row():
                     with gr.Column():
                         f0_method = gr.Dropdown(
@@ -387,6 +350,42 @@ def render(
                         inputs=embedder_model,
                         outputs=custom_embedder_model,
                         show_progress="hidden",
+                    )
+                with gr.Row():
+                    include_mutes = gr.Slider(
+                        0,
+                        10,
+                        2,
+                        step=1,
+                        label="Include mutes",
+                        info=(
+                            "The number of mute audio files to include in the"
+                            " generated training file list. Adding silent files"
+                            " enables the model to handle pure silence in inferred"
+                            " audio files. If the preprocessed audio dataset"
+                            " already contains segments of pure silence, set this"
+                            " to 0."
+                        ),
+                    )
+                with gr.Row():
+                    cpu_cores_extract = gr.Slider(
+                        1,
+                        cpu_count(),
+                        cpu_count(),
+                        step=1,
+                        label="CPU cores",
+                        info=(
+                            "The number of CPU cores to use for feature"
+                            " extraction.<br><br>"
+                        ),
+                    )
+                    gpu_choices = get_gpu_info()
+                    gpus = gr.Dropdown(
+                        choices=gpu_choices,
+                        value=gpu_choices[0][1] if gpu_choices else None,
+                        label="GPU(s)",
+                        info="The GPU(s) to use for feature extraction.",
+                        multiselect=True,
                     )
             with gr.Row(equal_height=True):
                 extract_btn = gr.Button("Extract features", variant="primary")

@@ -123,6 +123,8 @@ def render(
         Dropdowns for selecting song directories in the
         "Generate song covers - multi-step generation" tab.
     intermediate_audio : gr.Dropdown
+        Dropdown for selecting intermediate audio files to delete in the
+        "Delete audio" tab.
     cached_song_1click : gr.Dropdown
         Dropdown for selecting a cached song in the
         "Generate song covers - one-click generation" tab.
