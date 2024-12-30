@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import shutil
 from multiprocessing import cpu_count
 
-from ultimate_rvc.common import TRAINING_MODELS_DIR
+from ultimate_rvc.common import TRAINING_MODELS_DIR, lazy_import
 from ultimate_rvc.core.common import (
     TRAINING_AUDIO_DIR,
     display_progress,
@@ -31,7 +31,11 @@ if TYPE_CHECKING:
 
     import gradio as gr
 
+    import static_ffmpeg
+
     from ultimate_rvc.typing_extra import StrPath
+else:
+    static_ffmpeg = lazy_import("static_ffmpeg")
 
 
 def populate_dataset(
@@ -79,16 +83,26 @@ def populate_dataset(
     if not audio_files:
         raise NotProvidedError(Entity.FILES, ui_msg=UIMessage.NO_UPLOADED_FILES)
 
+    static_ffmpeg.add_paths()
+
+    import pydub.utils as pydub_utils  # noqa: PLC0415
+
     audio_paths: list[Path] = []
     for audio_file in audio_files:
         audio_path = validate_audio_file_exists(audio_file, Entity.FILE)
-        # TODO we should really use pydub.utils.mediainfo to check the
-        # audio format instead of just checking the extension
-        if audio_path.suffix.lstrip(".") not in set(AudioExt):
-            raise InvalidAudioFormatError(
-                audio_path,
-                [e.value for e in AudioExt],
-            )
+        audio_info = pydub_utils.mediainfo(str(audio_file))
+        if not (
+            audio_info["format_name"]
+            in {
+                AudioExt.WAV,
+                AudioExt.FLAC,
+                AudioExt.MP3,
+                AudioExt.OGG,
+                AudioExt.AAC,
+            }
+            or AudioExt.M4A in audio_info["format_name"]
+        ):
+            raise InvalidAudioFormatError(audio_path, [e.value for e in AudioExt])
         audio_paths.append(audio_path)
 
     display_progress(

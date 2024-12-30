@@ -200,6 +200,7 @@ def render_app() -> gr.Blocks:
             )
             for _ in range(5)
         ]
+        training_embedder_multi.info = f"{training_embedder_multi.info}"
         embedder_delete = gr.Dropdown(
             label="Custom embedder models",
             multiselect=True,
@@ -210,7 +211,7 @@ def render_app() -> gr.Blocks:
             info=(
                 "Name of the model to preprocess the given dataset for. Either"
                 " select an existing model from the dropdown or provide the"
-                " name of a new model.<br><br>"
+                " name of a new model."
             ),
             value="My model",
             allow_custom_value=True,

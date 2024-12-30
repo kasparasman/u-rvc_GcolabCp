@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import concurrent.futures
 import glob
 import json
@@ -18,10 +20,16 @@ sys.path.append(os.path.join(now_dir))
 
 # Zluda hijack
 import ultimate_rvc.rvc.lib.zluda
-from ultimate_rvc.common import RVC_MODELS_DIR
+from ultimate_rvc.common import RVC_MODELS_DIR, lazy_import
 from ultimate_rvc.rvc.configs.config import Config
 from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
 from ultimate_rvc.rvc.lib.utils import load_audio, load_embedding
+
+if TYPE_CHECKING:
+    import static_sox.run as static_sox_run
+else:
+    static_sox_run = lazy_import("static_sox.run")
+
 
 logger = logging.getLogger(__name__)
 
@@ -199,12 +207,10 @@ def run_pitch_extraction(
     num_devices = len(devices)
 
     # NOTE On ubuntu 24.04 the static_sox module does not work with
-    # multiprocessing using the spawn method due to a
-    # "version `GLIBC_2.38' not found" error. This is a workaround,
-    # which removes all sox binaries (in particular **/libm.so.6) from
-    # the LD_PRELOAD environment variable.
-    import static_sox.run as static_sox_run  # noqa: PLC0415
-
+    # multiprocessing using the spawn method due to a "version
+    # `GLIBC_2.38' not found" error. This is a workaround, which removes
+    # the path to the libm.so.6 library from the LD_PRELOAD environment
+    # variable.
     sox_exe = static_sox_run.get_or_fetch_platform_executables_else_raise()
     remove_from_ld_preload(os.path.join(os.path.dirname(sox_exe), "libm.so.6"))
 

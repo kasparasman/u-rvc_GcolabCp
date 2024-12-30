@@ -26,6 +26,7 @@ from ultimate_rvc.core.common import (
     get_file_hash,
     json_dump,
     json_load,
+    validate_model_exists,
     validate_url,
 )
 from ultimate_rvc.core.exceptions import (
@@ -1083,6 +1084,8 @@ def run_pipeline(
 
     """
     validate_model_exists(model_name, Entity.VOICE_MODEL)
+    if embedder_model == EmbedderModel.CUSTOM:
+        validate_model_exists(custom_embedder_model, Entity.CUSTOM_EMBEDDER_MODEL)
     display_progress("[~] Starting song cover generation pipeline...", 0, progress_bar)
     song, song_dir = retrieve_song(
         source,
