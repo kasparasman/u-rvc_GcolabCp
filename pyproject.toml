@@ -50,6 +50,7 @@ dependencies = [
     "diffq==0.2.4",
     "tensorboardX==2.6.2.2",
     "tensorboard",
+    "torch-tb-profiler==0.4.3",
     # TODO potentially add these later
     # "torchfcpe",
     # "libf0",
