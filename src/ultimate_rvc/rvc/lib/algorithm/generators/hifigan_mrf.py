@@ -50,9 +50,11 @@ class MRFLayer(torch.nn.Module):
         )
 
     def forward(self, x: torch.Tensor):
+        # new tensor
         y = torch.nn.functional.leaky_relu(x, LRELU_SLOPE)
         y = self.conv1(y)
-        y = torch.nn.functional.leaky_relu(y, LRELU_SLOPE)
+        # in place call
+        y = torch.nn.functional.leaky_relu_(y, LRELU_SLOPE)
         y = self.conv2(y)
         return x + y
 
@@ -299,7 +301,7 @@ class HiFiGANMRFGenerator(torch.nn.Module):
         ]
 
         for i, (u, k) in enumerate(
-            zip(upsample_rates, upsample_kernel_sizes, strict=False)
+            zip(upsample_rates, upsample_kernel_sizes, strict=False),
         ):
             # handling odd upsampling rates
             if u % 2 == 0:
@@ -352,7 +354,9 @@ class HiFiGANMRFGenerator(torch.nn.Module):
                     [
                         MRFBlock(channel, kernel_size=k, dilations=d)
                         for k, d in zip(
-                            resblock_kernel_sizes, resblock_dilations, strict=False
+                            resblock_kernel_sizes,
+                            resblock_dilations,
+                            strict=False,
                         )
                     ],
                 ),
@@ -372,16 +376,21 @@ class HiFiGANMRFGenerator(torch.nn.Module):
         f0 = self.f0_upsample(f0[:, None, :]).transpose(-1, -2)
         har_source, _, _ = self.m_source(f0)
         har_source = har_source.transpose(-1, -2)
-
+        # new tensor
         x = self.conv_pre(x)
 
         if g is not None:
-            x = x + self.cond(g)
+            # in-place call
+            x += self.cond(g)
 
         for ups, mrf, noise_conv in zip(
-            self.upsamples, self.mrfs, self.noise_convs, strict=False
+            self.upsamples,
+            self.mrfs,
+            self.noise_convs,
+            strict=False,
         ):
-            x = torch.nn.functional.leaky_relu(x, LRELU_SLOPE)
+            # in-place call
+            x = torch.nn.functional.leaky_relu_(x, LRELU_SLOPE)
 
             if self.training and self.checkpointing:
                 x = checkpoint(ups, x, use_reentrant=False)
@@ -397,10 +406,11 @@ class HiFiGANMRFGenerator(torch.nn.Module):
                 x = checkpoint(mrf_sum, x, mrf, use_reentrant=False)
             else:
                 x = mrf_sum(x, mrf)
-
-        x = torch.nn.functional.leaky_relu(x)
+        # in-place call
+        x = torch.nn.functional.leaky_relu_(x)
         x = self.conv_post(x)
-        x = torch.tanh(x)
+        # in-place call
+        x = torch.tanh_(x)
         return x
 
     def remove_weight_norm(self):
