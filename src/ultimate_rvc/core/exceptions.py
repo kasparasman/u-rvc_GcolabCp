@@ -28,6 +28,8 @@ class Entity(StrEnum):
     VOICE_MODEL = "voice model"
     TRAINING_MODEL = "training model"
     CUSTOM_EMBEDDER_MODEL = "custom embedder model"
+    CUSTOM_GENERATOR = "custom pretrained generator"
+    CUSTOM_DISCRIMINATOR = "custom pretrained discriminator"
     MODEL_FILE = "model file"
     MODEL_BIN_FILE = "pytorch_model.bin file"
     CONFIG_JSON_FILE = "config.json file"
@@ -62,6 +64,8 @@ ModelEntity = Literal[
     Entity.VOICE_MODEL,
     Entity.TRAINING_MODEL,
     Entity.CUSTOM_EMBEDDER_MODEL,
+    Entity.CUSTOM_DISCRIMINATOR,
+    Entity.CUSTOM_GENERATOR,
 ]
 
 
@@ -111,6 +115,10 @@ class UIMessage(StrEnum):
     NO_TRAINING_MODELS = "No training models selected."
     NO_CUSTOM_EMBEDDER_MODEL = "No custom embedder model selected."
     NO_CUSTOM_EMBEDDER_MODELS = "No custom embedder models selected."
+    NO_CUSTOM_DISCRIMINATOR = "No custom pretrained discriminator selected."
+    NO_CUSTOM_DISCRIMINATORS = "No custom pretrained discriminators selected."
+    NO_CUSTOM_GENERATOR = "No custom pretrained generator selected."
+    NO_CUSTOM_GENERATORS = "No custom pretrained generators selected."
 
     # Source messages
     NO_AUDIO_SOURCE = (
@@ -226,6 +234,29 @@ class PreprocessedAudioNotFoundError(OSError):
         super().__init__(
             "No preprocessed dataset audio files associated with the model with name"
             f" '{name}'.",
+        )
+
+
+class DatasetFileListNotFoundError(OSError):
+    """Raised when no dataset file list is associated with a model."""
+
+    def __init__(self, name: str) -> None:
+        r"""
+        Initialize a DatasetFileListNotFoundError instance.
+
+        Exception message will be formatted as:
+
+        'No dataset file list associated with the model with name
+        "`<name>`".'
+
+        Parameters
+        ----------
+        name : str
+            The name of the model with no associated dataset file list.
+
+        """
+        super().__init__(
+            f"No dataset file list associated with the model with name '{name}'.",
         )
 
 

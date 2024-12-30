@@ -114,7 +114,7 @@ class AudioSplitMethod(StrEnum):
     AUTOMATIC = "Automatic"
 
 
-class TrainingVocoder(StrEnum):
+class Vocoder(StrEnum):
     """Enumeration of vocoders for training voice models."""
 
     HIFI_GAN = "HiFi-GAN"
@@ -122,7 +122,7 @@ class TrainingVocoder(StrEnum):
     REFINE_GAN = "RefineGAN"
 
 
-class TrainingIndexAlgorithm(StrEnum):
+class IndexAlgorithm(StrEnum):
     """Enumeration of indexing algorithms for training voice models."""
 
     AUTO = "auto"

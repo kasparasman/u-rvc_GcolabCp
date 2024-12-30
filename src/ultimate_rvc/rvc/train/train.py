@@ -26,6 +26,8 @@ sys.path.append(os.path.join(now_dir))
 
 # Zluda hijack
 import ultimate_rvc.rvc.lib.zluda
+from ultimate_rvc.common import TRAINING_MODELS_DIR
+from ultimate_rvc.rvc.common import RVC_TRAINING_MODELS_DIR
 from ultimate_rvc.rvc.lib.algorithm import commons
 from ultimate_rvc.rvc.train.losses import (
     discriminator_loss,
@@ -50,47 +52,17 @@ from ultimate_rvc.rvc.train.utils import (
     summarize,
 )
 
-# Parse command line arguments
-model_name = sys.argv[1]
-save_every_epoch = int(sys.argv[2])
-total_epoch = int(sys.argv[3])
-pretrainG = sys.argv[4]
-pretrainD = sys.argv[5]
-version = sys.argv[6]
-gpus = sys.argv[7]
-batch_size = int(sys.argv[8])
-sample_rate = int(sys.argv[9])
-save_only_latest = strtobool(sys.argv[10])
-save_every_weights = strtobool(sys.argv[11])
-cache_data_in_gpu = strtobool(sys.argv[12])
-overtraining_detector = strtobool(sys.argv[13])
-overtraining_threshold = int(sys.argv[14])
-cleanup = strtobool(sys.argv[15])
-vocoder = sys.argv[16]
-checkpointing = strtobool(sys.argv[17])
-
 current_dir = os.getcwd()
-experiment_dir = os.path.join(current_dir, "logs", model_name)
-config_save_path = os.path.join(experiment_dir, "config.json")
-dataset_path = os.path.join(experiment_dir, "sliced_audios")
-
-with open(config_save_path) as f:
-    config = json.load(f)
-config = HParams(**config)
-config.data.training_files = os.path.join(experiment_dir, "filelist.txt")
 
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = True
 
 global_step = 0
-last_loss_gen_all = 0
-overtrain_save_epoch = 0
 loss_gen_history = []
 smoothed_loss_gen_history = []
 loss_disc_history = []
 smoothed_loss_disc_history = []
 lowest_value = {"step": 0, "value": float("inf"), "epoch": 0}
-training_file_path = os.path.join(experiment_dir, "training_data.json")
 
 avg_losses = {
     "gen_loss_queue": deque(maxlen=10),
@@ -106,6 +78,11 @@ avg_losses = {
 import logging
 
 logging.getLogger("torch").setLevel(logging.ERROR)
+
+logger = logging.getLogger(__name__)
+
+
+# torch.multiprocessing.set_start_method("spawn", force=True)
 
 
 class EpochRecorder:
@@ -138,7 +115,7 @@ def verify_checkpoint_shapes(checkpoint_path, model):
         else:
             model_state_dict = model.load_state_dict(checkpoint_state_dict)
     except RuntimeError:
-        print(
+        logger.error(  # noqa: TRY400
             "The parameters of the pretrain model such as the sample rate or"
             " architecture do not match the selected model.",
         )
@@ -149,11 +126,38 @@ def verify_checkpoint_shapes(checkpoint_path, model):
         del model_state_dict
 
 
-def main():
+def main(
+    model_name: str,
+    sample_rate: int,
+    version: str,
+    vocoder: str,
+    total_epoch: int,
+    batch_size: int,
+    save_every_epoch: int,
+    save_only_latest: bool,
+    save_every_weights: bool,
+    pretrainG: str,
+    pretrainD: str,
+    overtraining_detector: bool,
+    overtraining_threshold: int,
+    cleanup: bool,
+    cache_data_in_gpu: bool,
+    checkpointing: bool,
+    gpus: set[int],
+) -> None:
     """
     Main function to start the training process.
     """
-    global training_file_path, last_loss_gen_all, smoothed_loss_gen_history, loss_gen_history, loss_disc_history, smoothed_loss_disc_history, overtrain_save_epoch, gpus
+    global smoothed_loss_gen_history, loss_gen_history, loss_disc_history, smoothed_loss_disc_history
+
+    experiment_dir = os.path.join(TRAINING_MODELS_DIR, model_name)
+    config_save_path = os.path.join(experiment_dir, "config.json")
+    training_file_path = os.path.join(experiment_dir, "training_data.json")
+
+    with open(config_save_path) as f:
+        config = json.load(f)
+    config = HParams(**config)
+    config.data.training_files = os.path.join(experiment_dir, "filelist.txt")
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = str(randint(20000, 55555))
@@ -164,27 +168,28 @@ def main():
     if wavs:
         _, sr = load_wav_to_torch(wavs[0])
         if sr != sample_rate:
-            print(
-                f"Error: Pretrained model sample rate ({sample_rate} Hz) does not match"
-                f" dataset audio sample rate ({sr} Hz).",
+            logger.error(
+                "Error: Pretrained model sample rate (%d Hz) does not match dataset"
+                " audio sample rate (%d Hz).",
+                sample_rate,
+                sr,
             )
             os._exit(1)
     else:
-        print("No wav file found.")
+        logger.warning("No wav file found.")
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        gpus = [int(item) for item in gpus.split("-")]
         n_gpus = len(gpus)
     elif torch.backends.mps.is_available():
         device = torch.device("mps")
-        gpus = [0]
+        gpus = {0}
         n_gpus = 1
     else:
         device = torch.device("cpu")
-        gpus = [0]
+        gpus = {0}
         n_gpus = 1
-        print("Training with CPU, this will take a long time.")
+        logger.warning("Training with CPU, this will take a long time.")
 
     def start():
         """
@@ -213,6 +218,18 @@ def main():
                         config,
                         device,
                         device_id,
+                        model_name,
+                        training_file_path,
+                        sample_rate,
+                        version,
+                        vocoder,
+                        batch_size,
+                        save_every_epoch,
+                        save_only_latest,
+                        overtraining_detector,
+                        overtraining_threshold,
+                        checkpointing,
+                        cache_data_in_gpu,
                     ),
                 )
                 children.append(subproc)
@@ -260,11 +277,11 @@ def main():
                 ) = load_from_json(training_file_path)
 
     if cleanup:
-        print("Removing files from the prior training attempt...")
+        logger.info("Removing files from the prior training attempt...")
 
         # Clean up unnecessary files
         for root, dirs, files in os.walk(
-            os.path.join(now_dir, "logs", model_name),
+            os.path.join(TRAINING_MODELS_DIR, model_name),
             topdown=False,
         ):
             for name in files:
@@ -286,7 +303,7 @@ def main():
                             os.remove(item_path)
                     os.rmdir(folder_path)
 
-        print("Cleanup done!")
+        logger.info("Cleanup done!")
 
     continue_overtrain_detector(training_file_path)
     start()
@@ -303,6 +320,18 @@ def run(
     config,
     device,
     device_id,
+    model_name,
+    training_file_path,
+    sample_rate,
+    version,
+    vocoder,
+    batch_size,
+    save_every_epoch,
+    save_only_latest,
+    overtraining_detector,
+    overtraining_threshold,
+    checkpointing,
+    cache_data_in_gpu,
 ):
     """
     Runs the training loop on a specific GPU or CPU.
@@ -317,6 +346,18 @@ def run(
         custom_save_every_weights (int): The interval (in epochs) at which to save model weights.
         config (object): Configuration object containing training parameters.
         device (torch.device): The device to use for training (CPU or GPU).
+        device_id (int): The ID of the device to use for training.
+        model_name (str): The name of the model to train.
+        training_file_path (str): The path to the training file list.
+        sample_rate (int): The sample rate of the audio files in the dataset.
+        version (str): The version of the RVC architecture to use for training.
+        vocoder (str): The vocoder to use for audio synthesis during training.
+        batch_size (int): The batch size for training.
+        save_every_epoch (int): The interval (in epochs) at which to save model checkpoints.
+        save_only_latest (bool): Whether to save only the latest model checkpoint.
+        checkpointing (bool): Whether to enable checkpointing.
+        cache_data_in_gpu (bool): Whether to cache data in GPU memory.
+
 
     """
     global global_step, smoothed_value_gen, smoothed_value_disc
@@ -331,7 +372,7 @@ def run(
 
     dist.init_process_group(
         backend="gloo",
-        init_method="env://",
+        init_method="env://?use_libuv=0",
         world_size=n_gpus if device.type == "cuda" else 1,
         rank=rank if device.type == "cuda" else 0,
     )
@@ -420,7 +461,7 @@ def run(
 
     # Load checkpoint if available
     try:
-        print("Starting training...")
+        logger.info("Starting training...")
         _, _, _, epoch_str = load_checkpoint(
             latest_checkpoint_path(experiment_dir, "D_*.pth"),
             net_d,
@@ -440,7 +481,7 @@ def run(
         if pretrainG != "" and pretrainG != "None":
             if rank == 0:
                 verify_checkpoint_shapes(pretrainG, net_g)
-                print(f"Loaded pretrained (G) '{pretrainG}'")
+                logger.info("Loaded pretrained (G) '%s'", pretrainG)
             if hasattr(net_g, "module"):
                 net_g.module.load_state_dict(
                     torch.load(pretrainG, map_location="cpu")["model"],
@@ -452,7 +493,7 @@ def run(
 
         if pretrainD != "" and pretrainD != "None":
             if rank == 0:
-                print(f"Loaded pretrained (D) '{pretrainD}'")
+                logger.info("Loaded pretrained (D) '%s'", pretrainD)
             if hasattr(net_d, "module"):
                 net_d.module.load_state_dict(
                     torch.load(pretrainD, map_location="cpu")["model"],
@@ -480,19 +521,35 @@ def run(
     # get the first sample as reference for tensorboard evaluation
     # custom reference temporarily disabled
     if True == False and os.path.isfile(
-        os.path.join("logs", "reference", f"ref{sample_rate}.wav"),
+        os.path.join(RVC_TRAINING_MODELS_DIR, "reference", f"ref{sample_rate}.wav"),
     ):
         phone = np.load(
-            os.path.join("logs", "reference", f"ref{sample_rate}_feats.npy"),
+            os.path.join(
+                RVC_TRAINING_MODELS_DIR,
+                "reference",
+                f"ref{sample_rate}_feats.npy",
+            ),
         )
         # expanding x2 to match pitch size
         phone = np.repeat(phone, 2, axis=0)
         phone = torch.FloatTensor(phone).unsqueeze(0).to(device)
         phone_lengths = torch.LongTensor(phone.size(0)).to(device)
-        pitch = np.load(os.path.join("logs", "reference", f"ref{sample_rate}_f0c.npy"))
+        pitch = np.load(
+            os.path.join(
+                RVC_TRAINING_MODELS_DIR,
+                "reference",
+                f"ref{sample_rate}_f0c.npy",
+            ),
+        )
         # removed last frame to match features
         pitch = torch.LongTensor(pitch[:-1]).unsqueeze(0).to(device)
-        pitchf = np.load(os.path.join("logs", "reference", f"ref{sample_rate}_f0f.npy"))
+        pitchf = np.load(
+            os.path.join(
+                RVC_TRAINING_MODELS_DIR,
+                "reference",
+                f"ref{sample_rate}_f0f.npy",
+            ),
+        )
         # removed last frame to match features
         pitchf = torch.FloatTensor(pitchf[:-1]).unsqueeze(0).to(device)
         sid = torch.LongTensor([0]).to(device)
@@ -524,7 +581,7 @@ def run(
                 )
             break
 
-    for epoch in range(epoch_str, total_epoch + 1):
+    for epoch in range(epoch_str, custom_total_epoch + 1):
         train_and_evaluate(
             rank,
             epoch,
@@ -541,6 +598,17 @@ def run(
             device_id,
             reference,
             fn_mel_loss,
+            model_name,
+            experiment_dir,
+            training_file_path,
+            sample_rate,
+            version,
+            vocoder,
+            save_every_epoch,
+            save_only_latest,
+            overtraining_detector,
+            overtraining_threshold,
+            cache_data_in_gpu,
         )
 
         scheduler_g.step()
@@ -550,7 +618,7 @@ def run(
 def train_and_evaluate(
     rank,
     epoch,
-    hps,
+    config,
     nets,
     optims,
     scaler,
@@ -563,6 +631,17 @@ def train_and_evaluate(
     device_id,
     reference,
     fn_mel_loss,
+    model_name,
+    experiment_dir,
+    training_file_path,
+    sample_rate,
+    version,
+    vocoder,
+    save_every_epoch,
+    save_only_latest,
+    overtraining_detector,
+    overtraining_threshold,
+    cache_data_in_gpu,
 ):
     """
     Trains and evaluates the model for one epoch.
@@ -570,7 +649,7 @@ def train_and_evaluate(
     Args:
         rank (int): Rank of the current process.
         epoch (int): Current epoch number.
-        hps (Namespace): Hyperparameters.
+        config (Namespace): Hyperparameters.
         nets (list): List of models [net_g, net_d].
         optims (list): List of optimizers [optim_g, optim_d].
         scaler (GradScaler): Gradient scaler for mixed precision training.
@@ -578,6 +657,7 @@ def train_and_evaluate(
         writers (list): List of TensorBoard writers [writer_eval].
         cache (list): List to cache data in GPU memory.
         use_cpu (bool): Whether to use CPU for training.
+
 
     """
     global global_step, lowest_value, loss_disc, consecutive_increases_gen, consecutive_increases_disc, smoothed_value_gen, smoothed_value_disc
@@ -1001,7 +1081,7 @@ def train_and_evaluate(
                         epoch=epoch,
                         step=global_step,
                         version=version,
-                        hps=hps,
+                        hps=config,
                         overtrain_info=overtrain_info,
                         vocoder=vocoder,
                     )
@@ -1107,8 +1187,3 @@ def save_to_json(
     }
     with open(file_path, "w") as f:
         json.dump(data, f)
-
-
-if __name__ == "__main__":
-    torch.multiprocessing.set_start_method("spawn")
-    main()
