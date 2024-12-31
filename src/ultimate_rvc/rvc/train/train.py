@@ -52,46 +52,15 @@ from ultimate_rvc.rvc.train.utils import (
     summarize,
 )
 
-# Parse command line arguments
-model_name = sys.argv[1]
-save_every_epoch = int(sys.argv[2])
-total_epoch = int(sys.argv[3])
-pretrainG = sys.argv[4]
-pretrainD = sys.argv[5]
-version = sys.argv[6]
-gpus = sys.argv[7]
-batch_size = int(sys.argv[8])
-sample_rate = int(sys.argv[9])
-save_only_latest = strtobool(sys.argv[10])
-save_every_weights = strtobool(sys.argv[11])
-cache_data_in_gpu = strtobool(sys.argv[12])
-overtraining_detector = strtobool(sys.argv[13])
-overtraining_threshold = int(sys.argv[14])
-cleanup = strtobool(sys.argv[15])
-vocoder = sys.argv[16]
-checkpointing = strtobool(sys.argv[17])
-
-experiment_dir = os.path.join(TRAINING_MODELS_DIR, model_name)
-config_save_path = os.path.join(experiment_dir, "config.json")
-dataset_path = os.path.join(experiment_dir, "sliced_audios")
-
-with open(config_save_path) as f:
-    config = json.load(f)
-config = HParams(**config)
-config.data.training_files = os.path.join(experiment_dir, "filelist.txt")
-
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = True
 
 global_step = 0
-last_loss_gen_all = 0
-overtrain_save_epoch = 0
 loss_gen_history = []
 smoothed_loss_gen_history = []
 loss_disc_history = []
 smoothed_loss_disc_history = []
 lowest_value = {"step": 0, "value": float("inf"), "epoch": 0}
-training_file_path = os.path.join(experiment_dir, "training_data.json")
 
 avg_losses = {
     "gen_loss_queue": deque(maxlen=10),
@@ -108,6 +77,9 @@ import logging
 
 logging.getLogger("torch").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
+
+
+torch.multiprocessing.set_start_method("spawn", force=True)
 
 
 class EpochRecorder:
@@ -151,11 +123,38 @@ def verify_checkpoint_shapes(checkpoint_path, model):
         del model_state_dict
 
 
-def main():
+def main(
+    model_name: str,
+    sample_rate: int,
+    version: str,
+    vocoder: str,
+    total_epoch: int,
+    batch_size: int,
+    save_every_epoch: int,
+    save_only_latest: bool,
+    save_every_weights: bool,
+    pretrainG: str,
+    pretrainD: str,
+    overtraining_detector: bool,
+    overtraining_threshold: int,
+    cleanup: bool,
+    cache_data_in_gpu: bool,
+    checkpointing: bool,
+    gpus: set[int],
+) -> None:
     """
     Main function to start the training process.
     """
-    global training_file_path, last_loss_gen_all, smoothed_loss_gen_history, loss_gen_history, loss_disc_history, smoothed_loss_disc_history, overtrain_save_epoch, gpus
+    global smoothed_loss_gen_history, loss_gen_history, loss_disc_history, smoothed_loss_disc_history
+
+    experiment_dir = os.path.join(TRAINING_MODELS_DIR, model_name)
+    config_save_path = os.path.join(experiment_dir, "config.json")
+    training_file_path = os.path.join(experiment_dir, "training_data.json")
+
+    with open(config_save_path) as f:
+        config = json.load(f)
+    config = HParams(**config)
+    config.data.training_files = os.path.join(experiment_dir, "filelist.txt")
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = str(randint(20000, 55555))
@@ -178,15 +177,14 @@ def main():
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        gpus = [int(item) for item in gpus.split("-")]
         n_gpus = len(gpus)
     elif torch.backends.mps.is_available():
         device = torch.device("mps")
-        gpus = [0]
+        gpus = {0}
         n_gpus = 1
     else:
         device = torch.device("cpu")
-        gpus = [0]
+        gpus = {0}
         n_gpus = 1
         logger.warning("Training with CPU, this will take a long time.")
 
@@ -217,6 +215,18 @@ def main():
                         config,
                         device,
                         device_id,
+                        model_name,
+                        training_file_path,
+                        sample_rate,
+                        version,
+                        vocoder,
+                        batch_size,
+                        save_every_epoch,
+                        save_only_latest,
+                        overtraining_detector,
+                        overtraining_threshold,
+                        checkpointing,
+                        cache_data_in_gpu,
                     ),
                 )
                 children.append(subproc)
@@ -307,6 +317,18 @@ def run(
     config,
     device,
     device_id,
+    model_name,
+    training_file_path,
+    sample_rate,
+    version,
+    vocoder,
+    batch_size,
+    save_every_epoch,
+    save_only_latest,
+    overtraining_detector,
+    overtraining_threshold,
+    checkpointing,
+    cache_data_in_gpu,
 ):
     """
     Runs the training loop on a specific GPU or CPU.
@@ -552,7 +574,7 @@ def run(
                 )
             break
 
-    for epoch in range(epoch_str, total_epoch + 1):
+    for epoch in range(epoch_str, custom_total_epoch + 1):
         train_and_evaluate(
             rank,
             epoch,
@@ -569,6 +591,17 @@ def run(
             device_id,
             reference,
             fn_mel_loss,
+            model_name,
+            experiment_dir,
+            training_file_path,
+            sample_rate,
+            version,
+            vocoder,
+            save_every_epoch,
+            save_only_latest,
+            overtraining_detector,
+            overtraining_threshold,
+            cache_data_in_gpu,
         )
 
         scheduler_g.step()
@@ -578,7 +611,7 @@ def run(
 def train_and_evaluate(
     rank,
     epoch,
-    hps,
+    config,
     nets,
     optims,
     scaler,
@@ -591,6 +624,17 @@ def train_and_evaluate(
     device_id,
     reference,
     fn_mel_loss,
+    model_name,
+    experiment_dir,
+    training_file_path,
+    sample_rate,
+    version,
+    vocoder,
+    save_every_epoch,
+    save_only_latest,
+    overtraining_detector,
+    overtraining_threshold,
+    cache_data_in_gpu,
 ):
     """
     Trains and evaluates the model for one epoch.
@@ -598,7 +642,7 @@ def train_and_evaluate(
     Args:
         rank (int): Rank of the current process.
         epoch (int): Current epoch number.
-        hps (Namespace): Hyperparameters.
+        config (Namespace): Hyperparameters.
         nets (list): List of models [net_g, net_d].
         optims (list): List of optimizers [optim_g, optim_d].
         scaler (GradScaler): Gradient scaler for mixed precision training.
@@ -1029,7 +1073,7 @@ def train_and_evaluate(
                         epoch=epoch,
                         step=global_step,
                         version=version,
-                        hps=hps,
+                        hps=config,
                         overtrain_info=overtrain_info,
                         vocoder=vocoder,
                     )
@@ -1135,8 +1179,3 @@ def save_to_json(
     }
     with open(file_path, "w") as f:
         json.dump(data, f)
-
-
-if __name__ == "__main__":
-    torch.multiprocessing.set_start_method("spawn")
-    main()

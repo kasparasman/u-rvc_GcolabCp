@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import subprocess
-import sys
 from pathlib import Path
 
 from ultimate_rvc.core.common import display_progress, validate_model_exists
@@ -22,8 +20,6 @@ from ultimate_rvc.typing_extra import (
 
 if TYPE_CHECKING:
     import gradio as gr
-
-python = sys.executable
 
 
 def run_training(
@@ -173,36 +169,28 @@ def run_training(
             )
 
     display_progress("[~] training voice model...", percentage[0], progress_bar)
-    from ultimate_rvc.rvc.common import RVC_DIR  # noqa: PLC0415
+    from ultimate_rvc.rvc.train.train import main as train_main  # noqa: PLC0415
 
-    train_script_path = RVC_DIR / "train" / "train.py"
-    command = [
-        python,
-        train_script_path,
-        *map(
-            str,
-            [
-                model_name,
-                save_interval,
-                num_epochs,
-                pg,
-                pd,
-                rvc_version,
-                "-".join(map(str, gpus)) if gpus is not None else "0",
-                batch_size,
-                sample_rate,
-                (not save_all_checkpoints),
-                save_all_weights,
-                preload_dataset,
-                detect_overtraining,
-                overtraining_threshold,
-                clear_saved_data,
-                vocoder,
-                enable_checkpointing,
-            ],
-        ),
-    ]
-    subprocess.run(command, check=False)
+    train_main(
+        model_name,
+        int(sample_rate),
+        rvc_version,
+        vocoder,
+        num_epochs,
+        batch_size,
+        save_interval,
+        not save_all_checkpoints,
+        save_all_weights,
+        pg,
+        pd,
+        detect_overtraining,
+        overtraining_threshold,
+        clear_saved_data,
+        preload_dataset,
+        enable_checkpointing,
+        gpus if gpus is not None else {0},
+    )
+
     display_progress(
         "[~] Generating index file for trained voice model",
         percentage[1],
