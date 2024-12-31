@@ -447,8 +447,8 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
-                "The interval at which to save model weights and checkpoints during"
-                " training, measured in epochs."
+                "The epoch interval at which to save model weights, model checkpoints"
+                " and logs during training."
             ),
             min=1,
         ),
@@ -458,8 +458,9 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
-                "Whether to save separate model checkpoints for each epoch or only save"
-                " a checkpoint for the last epoch."
+                "Whether the current model checkpoint should be saved to a new file at"
+                " each save interval. If False, only the latest checkpoint will be"
+                " saved."
             ),
         ),
     ] = False,
@@ -468,11 +469,11 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
-                "Whether to save separate model weights for each epoch or only save the"
-                " best model weights."
+                "Whether to save model weights at each save interval. If False, only"
+                " the best model weights will be saved at the end of training."
             ),
         ),
-    ] = True,
+    ] = False,
     clear_saved_data: Annotated[
         bool,
         typer.Option(

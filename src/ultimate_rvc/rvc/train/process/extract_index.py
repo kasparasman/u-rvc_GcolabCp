@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from multiprocessing import cpu_count
@@ -14,7 +15,12 @@ logger = logging.getLogger(__name__)
 def main(exp_dir: str, version: str, index_algorithm: str) -> None:
 
     try:
-        feature_dir = os.path.join(exp_dir, f"{version}_extracted")
+        model_info = json.load(open(os.path.join(exp_dir, "model_info.json")))
+        embedder_model = model_info["embedder_model"]
+        custom_embedder_model_hash = model_info.get("custom_embedder_model_hash", None)
+        if custom_embedder_model_hash is not None:
+            embedder_model = f"custom_{custom_embedder_model_hash}"
+        feature_dir = os.path.join(exp_dir, f"{version}_{embedder_model}_extracted")
         model_name = os.path.basename(exp_dir)
 
         index_filename_added = f"added_{model_name}_{version}.index"

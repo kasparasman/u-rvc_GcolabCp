@@ -213,9 +213,9 @@ def preprocess_dataset(
         cpu_cores,
         str(model_path),
         split_method,
-        chunk_len,
-        overlap_len,
         filter_audio,
         clean_audio,
         clean_strength,
+        chunk_len,
+        overlap_len,
     )

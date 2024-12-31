@@ -91,7 +91,7 @@ def extract_features(
     if not sliced_audios16k_path.is_dir() or not any(sliced_audios16k_path.iterdir()):
         raise PreprocessedAudioNotFoundError(model_name)
 
-    custom_embedder_model_path = None
+    custom_embedder_model_path, combined_file_hash = None, None
     chosen_embedder_model, embedder_model_id = [embedder_model] * 2
     if embedder_model == EmbedderModel.CUSTOM:
         custom_embedder_model_path = validate_model_exists(
@@ -121,7 +121,11 @@ def extract_features(
         f0_method_id,
         embedder_model_id,
     )
-    extract.update_model_info(str(model_path), chosen_embedder_model)
+    extract.update_model_info(
+        str(model_path),
+        chosen_embedder_model,
+        combined_file_hash,
+    )
     display_progress("[~] Extracting pitch features...", percentage[0], progress_bar)
     extract.run_pitch_extraction(file_infos, devices, f0_method, hop_length, cpu_cores)
     display_progress("[~] Extracting audio embeddings...", percentage[1], progress_bar)
@@ -141,11 +145,11 @@ def extract_features(
     # so we import it here manually
     from ultimate_rvc.rvc.train.extract import preparing_files  # noqa: PLC0415
 
-    preparing_files.generate_config(rvc_version, int(sample_rate), str(model_path))
+    preparing_files.generate_config(rvc_version, sample_rate, str(model_path))
     preparing_files.generate_filelist(
         str(model_path),
         rvc_version,
-        int(sample_rate),
+        sample_rate,
         include_mutes,
         f0_method_id,
         embedder_model_id,

@@ -294,11 +294,11 @@ def preprocess_training_set(
     num_processes: int,
     exp_dir: str,
     cut_preprocess: str,
-    chunk_len: float,
-    overlap_len: float,
     process_effects: bool,
     noise_reduction: bool,
     reduction_strength: float,
+    chunk_len: float,
+    overlap_len: float,
 ):
 
     static_ffmpeg.add_paths()

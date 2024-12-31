@@ -10,7 +10,7 @@ config = Config()
 current_directory = os.getcwd()
 
 
-def generate_config(rvc_version: str, sample_rate: int, model_path: str):
+def generate_config(rvc_version: str, sample_rate: str, model_path: str):
     config_path = os.path.join(RVC_CONFIGS_DIR, rvc_version, f"{sample_rate}.json")
     config_save_path = os.path.join(model_path, "config.json")
     shutil.copyfile(config_path, config_save_path)
@@ -19,7 +19,7 @@ def generate_config(rvc_version: str, sample_rate: int, model_path: str):
 def generate_filelist(
     model_path: str,
     rvc_version: str,
-    sample_rate: int,
+    sample_rate: str,
     include_mutes: int,
     f0_method_id: str,
     embedder_model_id: str,

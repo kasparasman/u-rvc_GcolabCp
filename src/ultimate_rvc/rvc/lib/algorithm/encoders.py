@@ -1,5 +1,4 @@
-from typing import Optional
-
+import logging
 import math
 
 import torch
@@ -8,6 +7,8 @@ from ultimate_rvc.rvc.lib.algorithm.attentions import FFN, MultiHeadAttention
 from ultimate_rvc.rvc.lib.algorithm.commons import sequence_mask
 from ultimate_rvc.rvc.lib.algorithm.modules import WaveNet
 from ultimate_rvc.rvc.lib.algorithm.normalization import LayerNorm
+
+logger = logging.getLogger(__name__)
 
 
 class Encoder(torch.nn.Module):
@@ -123,6 +124,7 @@ class TextEncoder(torch.nn.Module):
         self.emb_phone = torch.nn.Linear(embedding_dim, hidden_channels)
         self.lrelu = torch.nn.LeakyReLU(0.1, inplace=True)
         self.emb_pitch = torch.nn.Embedding(256, hidden_channels) if f0 else None
+        logger.info("hidden_channels: %d", hidden_channels)
 
         self.encoder = Encoder(
             hidden_channels,

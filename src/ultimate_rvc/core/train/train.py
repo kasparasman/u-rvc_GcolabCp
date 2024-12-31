@@ -38,7 +38,7 @@ def run_training(
     overtraining_threshold: int = 50,
     save_interval: int = 10,
     save_all_checkpoints: bool = False,
-    save_all_weights: bool = True,
+    save_all_weights: bool = False,
     clear_saved_data: bool = False,
     use_pretrained: bool = True,
     use_custom_pretrained: bool = False,
@@ -88,14 +88,16 @@ def run_training(
         The maximum number of epochs to continue training without any
         observed improvement in model performance.
     save_interval : int, default=10
-        The interval at which to save model weights and checkpoints
-        during training, measured in epochs.
+        The epoch interval at which to save model weights, model
+        checkpoints and logs during training.
     save_all_checkpoints : bool, default=False
-        Whether to save separate model checkpoints for each epoch or
-        only save a checkpoint for the last epoch.
+        Whether the current model checkpoint should be saved to a new
+        file at each save interval. If False, only the latest checkpoint
+        will be saved.
     save_all_weights : bool, default=True
-        Whether to save separate model weights for each epoch or only
-        save the best model weights.
+        Whether to save model weights at each save interval. If False,
+        only the best model weights will be saved at the end of
+        training.
     clear_saved_data : bool, default=False
         Whether to delete any existing saved training data associated
         with the model before starting a new training session. Enable
@@ -171,7 +173,7 @@ def run_training(
             )
 
     display_progress("[~] training voice model...", percentage[0], progress_bar)
-    from ultimate_rvc.rvc.common import RVC_DIR
+    from ultimate_rvc.rvc.common import RVC_DIR  # noqa: PLC0415
 
     train_script_path = RVC_DIR / "train" / "train.py"
     command = [
@@ -189,7 +191,7 @@ def run_training(
                 "-".join(map(str, gpus)) if gpus is not None else "0",
                 batch_size,
                 sample_rate,
-                save_all_checkpoints,
+                (not save_all_checkpoints),
                 save_all_weights,
                 preload_dataset,
                 detect_overtraining,

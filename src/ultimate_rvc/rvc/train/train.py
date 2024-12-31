@@ -15,7 +15,7 @@ from tqdm import tqdm
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.nn import functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
@@ -132,7 +132,7 @@ class EpochRecorder:
 
 
 def verify_checkpoint_shapes(checkpoint_path, model):
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     checkpoint_state_dict = checkpoint["model"]
     try:
         if hasattr(model, "module"):
@@ -178,15 +178,15 @@ def main():
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        gpus = {int(item) for item in gpus.split("-")}
+        gpus = [int(item) for item in gpus.split("-")]
         n_gpus = len(gpus)
     elif torch.backends.mps.is_available():
         device = torch.device("mps")
-        gpus = {0}
+        gpus = [0]
         n_gpus = 1
     else:
         device = torch.device("cpu")
-        gpus = {0}
+        gpus = [0]
         n_gpus = 1
         logger.warning("Training with CPU, this will take a long time.")
 
@@ -447,11 +447,15 @@ def run(
                 logger.info("Loaded pretrained (G) '%s'", pretrainG)
             if hasattr(net_g, "module"):
                 net_g.module.load_state_dict(
-                    torch.load(pretrainG, map_location="cpu")["model"],
+                    torch.load(pretrainG, map_location="cpu", weights_only=False)[
+                        "model"
+                    ],
                 )
             else:
                 net_g.load_state_dict(
-                    torch.load(pretrainG, map_location="cpu")["model"],
+                    torch.load(pretrainG, map_location="cpu", weights_only=False)[
+                        "model"
+                    ],
                 )
 
         if pretrainD != "" and pretrainD != "None":
@@ -459,11 +463,15 @@ def run(
                 logger.info("Loaded pretrained (D) '%s'", pretrainD)
             if hasattr(net_d, "module"):
                 net_d.module.load_state_dict(
-                    torch.load(pretrainD, map_location="cpu")["model"],
+                    torch.load(pretrainD, map_location="cpu", weights_only=False)[
+                        "model"
+                    ],
                 )
             else:
                 net_d.load_state_dict(
-                    torch.load(pretrainD, map_location="cpu")["model"],
+                    torch.load(pretrainD, map_location="cpu", weights_only=False)[
+                        "model"
+                    ],
                 )
 
     # Initialize schedulers and scaler
@@ -478,7 +486,7 @@ def run(
         last_epoch=epoch_str - 2,
     )
 
-    scaler = GradScaler(enabled=config.train.fp16_run and device.type == "cuda")
+    scaler = GradScaler("cuda", enabled=config.train.fp16_run and device.type == "cuda")
 
     cache = []
     # get the first sample as reference for tensorboard evaluation
@@ -657,7 +665,7 @@ def train_and_evaluate(
 
             # Forward pass
             use_amp = config.train.fp16_run and device.type == "cuda"
-            with autocast(enabled=use_amp):
+            with autocast("cuda", enabled=use_amp):
                 model_output = net_g(
                     phone,
                     phone_lengths,
@@ -678,7 +686,7 @@ def train_and_evaluate(
                     dim=3,
                 )
                 y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
-                with autocast(enabled=False):
+                with autocast("cuda", enabled=False):
                     # if vocoder == "HiFi-GAN":
                     #    loss_disc, _, _ = discriminator_loss(y_d_hat_r, y_d_hat_g)
                     # else:
@@ -699,9 +707,9 @@ def train_and_evaluate(
             #    print("\nWarning: grad_norm_d is NaN or Inf")
 
             # Generator backward and update
-            with autocast(enabled=use_amp):
+            with autocast("cuda", enabled=use_amp):
                 _, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
-                with autocast(enabled=False):
+                with autocast("cuda", enabled=False):
                     loss_mel = fn_mel_loss(wave, y_hat) * config.train.c_mel / 3.0
                     loss_env = envelope_loss(wave, y_hat)
                     loss_kl = (
@@ -800,7 +808,7 @@ def train_and_evaluate(
             dim=3,
         )
         # used for tensorboard chart - slice/mel_gen
-        with autocast(enabled=False):
+        with autocast("cuda", enabled=False):
             y_hat_mel = mel_spectrogram_torch(
                 y_hat.float().squeeze(1),
                 config.data.filter_length,

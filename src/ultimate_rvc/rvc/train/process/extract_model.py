@@ -59,12 +59,9 @@ def extract_model(
                 dataset_length = data.get("total_dataset_duration", None)
                 embedder_model = data.get("embedder_model", None)
                 speakers_id = data.get("speakers_id", 1)
+                model_author = data.get("model_author", None)
         else:
             dataset_length = None
-
-        with open(os.path.join(now_dir, "assets", "config.json")) as f:
-            data = json.load(f)
-            model_author = data.get("model_author", None)
 
         opt = OrderedDict(
             weight={
@@ -112,7 +109,11 @@ def extract_model(
         torch.save(opt, os.path.join(model_dir_path, pth_file))
 
         # Create a backwards-compatible checkpoint
-        model = torch.load(model_dir, map_location=torch.device("cpu"))
+        model = torch.load(
+            model_dir,
+            map_location=torch.device("cpu"),
+            weights_only=False,
+        )
         torch.save(
             replace_keys_in_dict(
                 replace_keys_in_dict(
