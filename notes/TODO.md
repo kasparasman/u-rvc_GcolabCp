@@ -1,5 +1,42 @@
 # TODO
 
+* for the training function there is no option to just use gpu
+  * if no device is chosen then device will be 0 but gpu will always be chosen if its available.S
+
+* we should have preprocessed sample rate to the model_info.json file in the preprocess dataset step. then we can read the sample rate in the next steps instead of having to give it as parameter. 
+* we should do the same for the rvc version first used in step: extract features.
+
+* we are getting the the following error during training sporadically:
+```
+[W101 01:15:16.000000000 socket.cpp:518] [c10d] The server socket has failed to bind to [Christians-Desktop]:51023 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
+[W101 01:15:16.000000000 socket.cpp:518] [c10d] The server socket has failed to bind to Christians-Desktop:51023 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
+[E101 01:15:16.000000000 socket.cpp:554] [c10d] The server socket has failed to listen on any local network address.
+Process Process-1:
+Traceback (most recent call last):
+  File "C:\Users\Jacki\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\process.py", line 314, in _bootstrap
+    self.run()
+  File "C:\Users\Jacki\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\Jacki\repositories\ultimate-rvc\src\ultimate_rvc\rvc\train\train.py", line 358, in run
+    dist.init_process_group(
+  File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\c10d_logger.py", line 83, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\c10d_logger.py", line 97, in wrapper
+    func_return = func(*args, **kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\distributed_c10d.py", line 1520, in init_process_group
+    store, rank, world_size = next(rendezvous_iterator)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\rendezvous.py", line 269, in _env_rendezvous_handler
+    store = _create_c10d_store(```
+
+
+* clear-saved data only removes checkpoints and logs not model weights for each epoch. it should also delete those.
+* when setting save_all_weights false then model weights are never saved. THe best model weights should be saved at the end. (perhaps regardless of this parameter). However, if detect-overtraining is set then the best model weights are saved at each save interval.
+* actually when detect-overtraining is turned on then model weights are saved every epoch instaed of according to what the save interval is.
+* when setting save_all_checkpoints to true, then when starting training again it does not pick up from the latest saved checkpoint. It should do this.It seems that it always pickups up from the checkpoint that is overwritten which is not written to at all when save_all_checkpoints is false?
+  * actually it seems like this is not really an issue? maybe just sporadic? need to investigate further.
 * Add reset settings button for each step in train multistep tab?
 * combine step 0: data population and step 1: dataset preprocsessing into one step?
   * need a (dataset) source dropdown with two options: existing dataset and new dataset

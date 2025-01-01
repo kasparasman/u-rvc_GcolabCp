@@ -136,17 +136,17 @@ def preprocess_dataset(
     percentage: float = 0.5,
 ) -> None:
     """
-    Preprocess a dataset of audio files for training a given voice
-    model.
-
-    If the given model does not exist, it will be created. if the given
-    model does exist, its currently associated dataset will be
-    replaced with the provided dataset.
+    Preprocess a dataset of audio files for training a voice model.
 
     Parameters
     ----------
     model_name : str
-        The name of the model to train.
+        The name of the voice model to train. If no voice model
+        with the provided name exists for training, a new voice model
+        for training will be created with the provided name. If a voice
+        model with the provided name already exists for training, then
+        its currently associated dataset will be replaced with the
+        provided dataset.
     dataset : StrPath
         The path to the dataset to preprocess.
     sample_rate : TrainingSampleRate, default=TrainingSampleRate.HZ_40K
@@ -194,7 +194,7 @@ def preprocess_dataset(
     dataset_path = validate_audio_dir_exists(dataset, Entity.DATASET)
 
     display_progress(
-        "[~] preprocessing dataset for training model...",
+        "[~] preprocessing dataset for training voice model...",
         percentage,
         progress_bar,
     )

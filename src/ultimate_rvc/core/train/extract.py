@@ -14,7 +14,7 @@ from ultimate_rvc.core.common import (
     get_combined_file_hash,
     validate_model_exists,
 )
-from ultimate_rvc.core.exceptions import Entity, PreprocessedAudioNotFoundError
+from ultimate_rvc.core.exceptions import Entity, ModelAsssociatedEntityNotFoundError
 from ultimate_rvc.typing_extra import (
     EmbedderModel,
     RVCVersion,
@@ -47,12 +47,12 @@ def extract_features(
     Parameters
     ----------
     model_name : str
-        The name of the model to be trained.
+        The name of the voice model to be trained.
     sample_rate : TrainingSampleRate, default=TrainingSampleRate.HZ_40K
         The sample rate of the audio files in the preprocessed
-        dataset associated with the model to be trained.
+        dataset associated with the voice model to be trained.
     rvc_version : RVCVersion, default=RVCVersion.V2
-        Version of RVC to use for training the model.
+        Version of RVC to use for training the voice model.
     f0_method : TrainingF0Method, default=TrainingF0Method.RMVPE
         The method to use for extracting pitch features.
     hop_length : int, default=128
@@ -65,10 +65,10 @@ def extract_features(
         audio embeddings.
     include_mutes : int, default=2
         The number of mute audio files to include in the generated
-        training file list. Adding silent files enables the model to
-        handle pure silence in inferred audio files. If the preprocessed
-        audio dataset already contains segments of pure silence, set
-        this to 0.
+        training file list. Adding silent files enables the voice model
+        to handle pure silence in inferred audio files. If the
+        preprocessed audio dataset already contains segments of pure
+        silence, set this to 0.
     cpu_cores : int, default=cpu_count()
         The number of CPU cores to use for feature extraction.
     gpus : set[int], optional
@@ -81,15 +81,18 @@ def extract_features(
 
     Raises
     ------
-    PreprocessedAudioNotFoundError
+    ModelAsssociatedEntityNotFoundError
         If no preprocessed dataset audio files are associated with the
-        model identified by the provided name.
+        voice model identified by the provided name.
 
     """
     model_path = validate_model_exists(model_name, Entity.TRAINING_MODEL)
     sliced_audios16k_path = model_path / "sliced_audios_16k"
     if not sliced_audios16k_path.is_dir() or not any(sliced_audios16k_path.iterdir()):
-        raise PreprocessedAudioNotFoundError(model_name)
+        raise ModelAsssociatedEntityNotFoundError(
+            Entity.PREPROCESSED_AUDIO_DATASET_FILES,
+            model_name,
+        )
 
     custom_embedder_model_path, combined_file_hash = None, None
     chosen_embedder_model, embedder_model_id = [embedder_model] * 2

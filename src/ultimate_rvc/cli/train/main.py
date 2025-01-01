@@ -89,8 +89,11 @@ def preprocess_dataset(
         str,
         typer.Argument(
             help=(
-                "The name of the model to train. If the model does not exist, it will"
-                " be created."
+                "The name of the voice model to train. If no voice model with the"
+                " provided name exists for training, a new voice model for training"
+                " will be created with the provided name. If a voice model with the"
+                " provided name already exists for training, then its currently"
+                " associated dataset will be replaced with the provided dataset."
             ),
         ),
     ],
@@ -183,8 +186,8 @@ def preprocess_dataset(
     ] = CORES,
 ) -> None:
     """
-    Preprocess a dataset of audio files for training a given
-    voice model.
+    Preprocess a dataset of audio files for training a voice
+    model.
     """
     start_time = time.perf_counter()
 
@@ -231,14 +234,14 @@ def get_gpu_information() -> None:
 def extract_features(
     model_name: Annotated[
         str,
-        typer.Argument(help="The name of the model to be trained."),
+        typer.Argument(help="The name of the voice model to be trained."),
     ],
     sample_rate: Annotated[
         TrainingSampleRate,
         typer.Option(
             help=(
                 "The sample rate of the audio files in the preprocessed dataset"
-                " associated with the model to be trained."
+                " associated with the voice model to be trained."
             ),
             min=1,
         ),
@@ -248,7 +251,7 @@ def extract_features(
         typer.Option(
             case_sensitive=False,
             autocompletion=complete_rvc_version,
-            help="Version of RVC to use for training the model.",
+            help="Version of RVC to use for training the voice model.",
         ),
     ] = RVCVersion.V2,
     f0_method: Annotated[
@@ -293,9 +296,10 @@ def extract_features(
         typer.Option(
             help=(
                 "The number of mute audio files to include in the generated"
-                " training file list. Adding silent files enables the model to handle"
-                " pure silence in inferred audio files. If the preprocessed audio"
-                " dataset already contains segments of pure silence, set this to 0."
+                " training file list. Adding silent files enables the voice model to"
+                " handle pure silence in inferred audio files. If the preprocessed"
+                " audio dataset already contains segments of pure silence, set this"
+                " to 0."
             ),
             min=0,
             max=10,
@@ -349,7 +353,7 @@ def run_training(
     model_name: Annotated[
         str,
         typer.Argument(
-            help="The name of the model to train.",
+            help="The name of the voice model to train.",
         ),
     ],
     sample_rate: Annotated[
@@ -360,7 +364,7 @@ def run_training(
             autocompletion=complete_training_sample_rate,
             help=(
                 "The sample rate of the audio files in the preprocessed dataset"
-                " associated with the model."
+                " associated with the voice model."
             ),
         ),
     ] = TrainingSampleRate.HZ_40K,
@@ -393,9 +397,10 @@ def run_training(
             case_sensitive=False,
             autocompletion=complete_index_algorithm,
             help=(
-                "The method to use for generating an index file for the trained model."
-                " KMeans is a clustering algorithm that divides the dataset into K"
-                " clusters. This setting is particularly useful for large datasets."
+                "The method to use for generating an index file for the trained voice"
+                " model. KMeans is a clustering algorithm that divides the dataset"
+                " into K clusters. This setting is particularly useful for large"
+                " datasets."
             ),
         ),
     ] = IndexAlgorithm.AUTO,
@@ -403,7 +408,7 @@ def run_training(
         int,
         typer.Option(
             rich_help_panel=PanelName.TRAINING_OPTIONS,
-            help="The number of epochs to train the model.",
+            help="The number of epochs to train the voice model.",
             min=1,
         ),
     ] = 500,
@@ -425,9 +430,9 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.TRAINING_OPTIONS,
             help=(
-                "Whether to detect overtraining to prevent the model from learning the"
-                " training data too well and losing the ability to generalize to new"
-                " data."
+                "Whether to detect overtraining to prevent the voice model from"
+                " learning the training data too well and losing the ability to"
+                " generalize to new data."
             ),
         ),
     ] = False,
@@ -447,8 +452,8 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
-                "The epoch interval at which to save model weights, model checkpoints"
-                " and logs during training."
+                "The epoch interval at which to save voice model weights, voice model"
+                " checkpoints and logs during training."
             ),
             min=1,
         ),
@@ -458,8 +463,8 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
-                "Whether the current model checkpoint should be saved to a new file at"
-                " each save interval. If False, only the latest checkpoint will be"
+                "Whether the current voice model checkpoint should be saved to a new"
+                " file at each save interval. If False, only the latest checkpoint"
                 " saved."
             ),
         ),
@@ -469,8 +474,9 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
-                "Whether to save model weights at each save interval. If False, only"
-                " the best model weights will be saved at the end of training."
+                "Whether to save voice model weights at each save interval. If False,"
+                " only the best voice model weights will be saved at the end of"
+                " training."
             ),
         ),
     ] = False,
@@ -480,9 +486,9 @@ def run_training(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
                 "Whether to delete any existing saved training data associated with the"
-                " model before starting a new training session. Enable this setting"
-                " only if you are training a new model from scratch or restarting"
-                " training."
+                " voice model before starting a new training session. Enable this"
+                " settingonly if you are training a new voice model from scratch or"
+                " restarting training."
             ),
         ),
     ] = False,
@@ -491,42 +497,22 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.PRETRAINED_MODEL_OPTIONS,
             help=(
-                "Whether to use pretrained generator and discriminator models for"
-                " training. This reduces training time and improves overall model"
+                "Whether to use a pretrained generator/discriminator model for"
+                " training. This reduces training time and improves overall voice model"
                 " performance."
             ),
         ),
     ] = True,
-    use_custom_pretrained: Annotated[
-        bool,
-        typer.Option(
-            rich_help_panel=PanelName.PRETRAINED_MODEL_OPTIONS,
-            help=(
-                "Whether to use custom pretrained generator and discriminator"
-                " models fortraining. This can lead to superior results, as selecting"
-                " the most suitable pretrained models tailored to the specific use"
-                " case can significantly enhance performance."
-            ),
-        ),
-    ] = False,
-    generator_name: Annotated[
+    custom_pretrained: Annotated[
         str | None,
         typer.Option(
             rich_help_panel=PanelName.PRETRAINED_MODEL_OPTIONS,
             help=(
-                "The name of a custom pretrained generator model to use for training."
-                " This is only used if `use_custom_pretrained` is set to True."
-            ),
-        ),
-    ] = None,
-    discriminator_name: Annotated[
-        str | None,
-        typer.Option(
-            rich_help_panel=PanelName.PRETRAINED_MODEL_OPTIONS,
-            help=(
-                "The name of a custom pretrained discriminator model to use for"
-                " training. This is only used if `use_custom_pretrained` is set to"
-                " True."
+                "The name of a custom pretrained generator/discriminator model to use"
+                " for training. Using a custom generator/discriminator model can lead"
+                " to superior results, as selecting the most suitable pretrained model"
+                " tailored to the specific use case can significantly enhance"
+                " performance."
             ),
         ),
     ] = None,
@@ -585,9 +571,7 @@ def run_training(
         save_all_weights=save_all_weights,
         clear_saved_data=clear_saved_data,
         use_pretrained=use_pretrained,
-        use_custom_pretrained=use_custom_pretrained,
-        generator_name=generator_name,
-        discriminator_name=discriminator_name,
+        custom_pretrained=custom_pretrained,
         preload_dataset=preload_dataset,
         enable_checkpointing=enable_checkpointing,
         gpus=gpu_set,
