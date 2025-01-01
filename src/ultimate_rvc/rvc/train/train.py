@@ -289,6 +289,11 @@ def main(
                     or (file_name.startswith("D_") and file_extension == ".pth")
                     or (file_name.startswith("G_") and file_extension == ".pth")
                     or (file_name.startswith("added") and file_extension == ".index")
+                    or (file_name.startswith(model_name) and file_extension == ".pth")
+                    or (
+                        file_name.startswith("training_data")
+                        and file_extension == ".json"
+                    )
                 ):
                     os.remove(file_path)
             for name in dirs:

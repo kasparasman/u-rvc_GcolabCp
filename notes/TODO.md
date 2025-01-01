@@ -30,13 +30,11 @@ Traceback (most recent call last):
                               ^^^^^^^^^^^^^^^^^^^^^^^^^
   File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\rendezvous.py", line 269, in _env_rendezvous_handler
     store = _create_c10d_store(```
-
-
-* clear-saved data only removes checkpoints and logs not model weights for each epoch. it should also delete those.
 * when setting save_all_weights false then model weights are never saved. THe best model weights should be saved at the end. (perhaps regardless of this parameter). However, if detect-overtraining is set then the best model weights are saved at each save interval.
 * actually when detect-overtraining is turned on then model weights are saved every epoch instaed of according to what the save interval is.
 * when setting save_all_checkpoints to true, then when starting training again it does not pick up from the latest saved checkpoint. It should do this.It seems that it always pickups up from the checkpoint that is overwritten which is not written to at all when save_all_checkpoints is false?
   * actually it seems like this is not really an issue? maybe just sporadic? need to investigate further.
+
 * Add reset settings button for each step in train multistep tab?
 * combine step 0: data population and step 1: dataset preprocsessing into one step?
   * need a (dataset) source dropdown with two options: existing dataset and new dataset
