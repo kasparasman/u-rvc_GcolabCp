@@ -55,6 +55,8 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = True
 torch.multiprocessing.set_start_method("spawn", force=True)
 
+randomized = True
+optimizer = "RAdam"  # "AdamW"
 global_step = 0
 lowest_g_value = {"value": float("inf"), "epoch": 0}
 lowest_d_value = {"value": float("inf"), "epoch": 0}
@@ -281,7 +283,7 @@ def run(
         device (torch.device): The device to use for training (CPU or GPU).
 
     """
-    global global_step
+    global global_step, optimizer
 
     if rank == 0:
         writer_eval = SummaryWriter(log_dir=os.path.join(experiment_dir, "eval"))
@@ -346,6 +348,7 @@ def run(
         sr=sample_rate,
         vocoder=vocoder,
         checkpointing=checkpointing,
+        randomized=randomized,
     )
 
     net_d = MultiPeriodDiscriminator(
@@ -361,13 +364,18 @@ def run(
         net_g.to(device)
         net_d.to(device)
 
-    optim_g = torch.optim.AdamW(
+    if optimizer == "AdamW":
+        optimizer = torch.optim.AdamW
+    elif optimizer == "RAdam":
+        optimizer = torch.optim.RAdam
+
+    optim_g = optimizer(
         net_g.parameters(),
         config.train.learning_rate,
         betas=config.train.betas,
         eps=config.train.eps,
     )
-    optim_d = torch.optim.AdamW(
+    optim_d = optimizer(
         net_d.parameters(),
         config.train.learning_rate,
         betas=config.train.betas,
@@ -641,12 +649,13 @@ def train_and_evaluate(
                     model_output
                 )
                 # slice of the original waveform to match a generate slice
-                wave = commons.slice_segments(
-                    wave,
-                    ids_slice * config.data.hop_length,
-                    config.train.segment_size,
-                    dim=3,
-                )
+                if randomized:
+                    wave = commons.slice_segments(
+                        wave,
+                        ids_slice * config.data.hop_length,
+                        config.train.segment_size,
+                        dim=3,
+                    )
                 y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
                 with autocast("cuda", enabled=False):
                     # if vocoder == "HiFi-GAN":
@@ -778,12 +787,15 @@ def train_and_evaluate(
             config.data.mel_fmax,
         )
         # used for tensorboard chart - slice/mel_org
-        y_mel = commons.slice_segments(
-            mel,
-            ids_slice,
-            config.train.segment_size // config.data.hop_length,
-            dim=3,
-        )
+        if randomized:
+            y_mel = commons.slice_segments(
+                mel,
+                ids_slice,
+                config.train.segment_size // config.data.hop_length,
+                dim=3,
+            )
+        else:
+            y_mel = mel
         # used for tensorboard chart - slice/mel_gen
         with autocast("cuda", enabled=False):
             y_hat_mel = mel_spectrogram_torch(
