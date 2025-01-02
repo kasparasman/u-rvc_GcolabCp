@@ -42,17 +42,6 @@ def extract_model(
         model_dir_path = os.path.dirname(model_dir)
         os.makedirs(model_dir_path, exist_ok=True)
 
-        if "best_epoch" in model_dir:
-            pth_file = f"{name}_{epoch}e_{step}s_best_epoch.pth"
-        else:
-            pth_file = f"{name}_{epoch}e_{step}s.pth"
-
-        pth_file_old_version_path = os.path.join(
-            model_dir_path,
-            f"{pth_file}_old_version.pth",
-        )
-
-        model_dir_path = os.path.dirname(model_dir)
         if os.path.exists(os.path.join(model_dir_path, "model_info.json")):
             with open(os.path.join(model_dir_path, "model_info.json")) as f:
                 data = json.load(f)
@@ -105,29 +94,18 @@ def extract_model(
         opt["embedder_model"] = embedder_model
         opt["speakers_id"] = speakers_id
         opt["vocoder"] = vocoder
-
-        torch.save(opt, os.path.join(model_dir_path, pth_file))
-
-        # Create a backwards-compatible checkpoint
-        model = torch.load(
-            model_dir,
-            map_location=torch.device("cpu"),
-            weights_only=False,
-        )
         torch.save(
             replace_keys_in_dict(
                 replace_keys_in_dict(
-                    model,
+                    opt,
                     ".parametrizations.weight.original1",
                     ".weight_v",
                 ),
                 ".parametrizations.weight.original0",
                 ".weight_g",
             ),
-            pth_file_old_version_path,
+            model_dir,
         )
-        os.remove(model_dir)
-        os.rename(pth_file_old_version_path, model_dir)
         print(f"Saved model '{model_dir}' (epoch {epoch} and step {step})")
 
     except Exception as error:
