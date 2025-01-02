@@ -7,19 +7,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import json
 from pathlib import Path
 
 from ultimate_rvc.core.common import display_progress, validate_model_exists
 from ultimate_rvc.core.exceptions import (
     Entity,
     ModelAsssociatedEntityNotFoundError,
+    Step,
 )
-from ultimate_rvc.typing_extra import (
-    IndexAlgorithm,
-    RVCVersion,
-    TrainingSampleRate,
-    Vocoder,
-)
+from ultimate_rvc.typing_extra import IndexAlgorithm, Vocoder
 
 if TYPE_CHECKING:
     import gradio as gr
@@ -27,8 +24,6 @@ if TYPE_CHECKING:
 
 def run_training(
     model_name: str,
-    sample_rate: TrainingSampleRate = TrainingSampleRate.HZ_40K,
-    rvc_version: RVCVersion = RVCVersion.V2,
     vocoder: Vocoder = Vocoder.HIFI_GAN,
     index_algorithm: IndexAlgorithm = IndexAlgorithm.AUTO,
     num_epochs: int = 500,
@@ -56,11 +51,6 @@ def run_training(
     ----------
     model_name : str
         The name of the voice model to train.
-    sample_rate : TrainingSampleRate, default=TrainingSampleRate.HZ_40K
-        The sample rate of the audio files in the preprocessed dataset
-        associated with the voice model.
-    rvc_version : RVCVersion, default=RVCVersion.V2
-        The version of RVC architecture that the voice model should use.
     vocoder : Vocoder, default=Vocoder.HIFI_GAN
         The vocoder to use for audio synthesis during training. HiFi-GAN
         provides basic audio fidelity, while RefineGAN provides the
@@ -145,7 +135,19 @@ def run_training(
     model_path = validate_model_exists(model_name, Entity.TRAINING_MODEL)
     filelist_path = model_path / "filelist.txt"
     if not filelist_path.exists():
-        raise ModelAsssociatedEntityNotFoundError(Entity.DATASET_FILE_LIST, model_name)
+        raise ModelAsssociatedEntityNotFoundError(
+            Entity.DATASET_FILE_LIST,
+            model_name,
+            Step.FEATURE_EXTRACTION,
+        )
+
+    model_info_path = model_path / "model_info.json"
+    with model_info_path.open("r") as f:
+        model_info = json.load(f)
+
+    rvc_version: str = model_info["rvc_version"]
+    sample_rate: int = model_info["sample_rate"]
+
     pg, pd = "", ""
     if use_pretrained:
         if custom_pretrained is not None:
@@ -176,7 +178,7 @@ def run_training(
                 rvc_version,
                 vocoder,
                 pitch_guidance=True,
-                sample_rate=int(sample_rate),
+                sample_rate=sample_rate,
             )
 
     display_progress("[~] training voice model...", percentage[0], progress_bar)
@@ -184,7 +186,7 @@ def run_training(
 
     train_main(
         model_name,
-        int(sample_rate),
+        sample_rate,
         rvc_version,
         vocoder,
         num_epochs,

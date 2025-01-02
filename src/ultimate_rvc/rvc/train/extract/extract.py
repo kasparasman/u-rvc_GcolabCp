@@ -311,6 +311,7 @@ def initialize_extraction(
 
 def update_model_info(
     exp_dir: str,
+    rvc_version: str,
     embedder_model: str,
     custom_embedder_model_hash: str | None,
 ) -> None:
@@ -320,6 +321,7 @@ def update_model_info(
             data = json.load(f)
     else:
         data = {}
+    data["rvc_version"] = rvc_version
     data["embedder_model"] = embedder_model
     data["custom_embedder_model_hash"] = custom_embedder_model_hash
     with open(file_path, "w") as f:

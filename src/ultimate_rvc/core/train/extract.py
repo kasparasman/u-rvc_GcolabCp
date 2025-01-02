@@ -14,12 +14,15 @@ from ultimate_rvc.core.common import (
     get_combined_file_hash,
     validate_model_exists,
 )
-from ultimate_rvc.core.exceptions import Entity, ModelAsssociatedEntityNotFoundError
+from ultimate_rvc.core.exceptions import (
+    Entity,
+    ModelAsssociatedEntityNotFoundError,
+    Step,
+)
 from ultimate_rvc.typing_extra import (
     EmbedderModel,
     RVCVersion,
     TrainingF0Method,
-    TrainingSampleRate,
 )
 
 if TYPE_CHECKING:
@@ -28,7 +31,6 @@ if TYPE_CHECKING:
 
 def extract_features(
     model_name: str,
-    sample_rate: TrainingSampleRate = TrainingSampleRate.HZ_40K,
     rvc_version: RVCVersion = RVCVersion.V2,
     f0_method: TrainingF0Method = TrainingF0Method.RMVPE,
     hop_length: int = 128,
@@ -48,9 +50,6 @@ def extract_features(
     ----------
     model_name : str
         The name of the voice model to be trained.
-    sample_rate : TrainingSampleRate, default=TrainingSampleRate.HZ_40K
-        The sample rate of the audio files in the preprocessed
-        dataset associated with the voice model to be trained.
     rvc_version : RVCVersion, default=RVCVersion.V2
         Version of RVC to use for training the voice model.
     f0_method : TrainingF0Method, default=TrainingF0Method.RMVPE
@@ -92,6 +91,7 @@ def extract_features(
         raise ModelAsssociatedEntityNotFoundError(
             Entity.PREPROCESSED_AUDIO_DATASET_FILES,
             model_name,
+            Step.DATASET_PREPROCESSING,
         )
 
     custom_embedder_model_path, combined_file_hash = None, None
@@ -126,6 +126,7 @@ def extract_features(
     )
     extract.update_model_info(
         str(model_path),
+        rvc_version,
         chosen_embedder_model,
         combined_file_hash,
     )
@@ -148,11 +149,10 @@ def extract_features(
     # so we import it here manually
     from ultimate_rvc.rvc.train.extract import preparing_files  # noqa: PLC0415
 
-    preparing_files.generate_config(rvc_version, sample_rate, str(model_path))
+    preparing_files.generate_config(rvc_version, str(model_path))
     preparing_files.generate_filelist(
         str(model_path),
         rvc_version,
-        sample_rate,
         include_mutes,
         f0_method_id,
         embedder_model_id,

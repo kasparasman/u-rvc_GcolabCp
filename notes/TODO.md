@@ -1,12 +1,6 @@
 # TODO
-
-* training does evaluation on training data and not an unbiased test set, which should be fixed perhaps
-  * also perhaps we should use another metric than the loss function for evaluation
 * for the training function there is no option to just use gpu
-  * if no device is chosen then device will be 0 but gpu will always be chosen if its available.S
-
-* we should have preprocessed sample rate to the model_info.json file in the preprocess dataset step. then we can read the sample rate in the next steps instead of having to give it as parameter. 
-* we should do the same for the rvc version first used in step: extract features.
+  * if no device is chosen then device will be 0 but gpu will always be chosen if its available.
 
 * we are getting the the following error during training sporadically:
 ```
@@ -68,7 +62,8 @@ Traceback (most recent call last):
 * should remove input validation from modules from core package
   * typer handles this on the cli part
   * for gradio we should make a wrapper functio nthat provides the needed validation
-
+* training does evaluation on training data and not an unbiased test set, which should be fixed perhaps
+  * also perhaps we should use another metric than the loss function for evaluation
 * add feature for comparing two models using their  cosine similarity or other metric?
 
 * add to ui feature for extracting specific weigth from specific epoch of training 

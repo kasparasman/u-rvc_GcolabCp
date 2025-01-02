@@ -84,6 +84,13 @@ class Location(StrEnum):
     EXTRACTED_ZIP_FILE = "extracted zip file"
 
 
+class Step(StrEnum):
+    """Enumeration of steps that can be run."""
+
+    DATASET_PREPROCESSING = "dataset preprocessing"
+    FEATURE_EXTRACTION = "feature extraction"
+
+
 class UIMessage(StrEnum):
     """
     Enumeration of messages that can be displayed in the UI
@@ -213,14 +220,19 @@ class ModelNotFoundError(OSError):
 class ModelAsssociatedEntityNotFoundError(OSError):
     """Raised when an entity associated with a model is not found."""
 
-    def __init__(self, entity: Entity, model_name: str) -> None:
+    def __init__(
+        self,
+        entity: Entity,
+        model_name: str,
+        required_step: Step | None = None,
+    ) -> None:
         r"""
         Initialize a ModelAsssociatedEntityNotFoundError instance.
 
         Exception message will be formatted as:
 
         'No `<entity>` associated with the model with name
-        "`<model_name>`".'
+        "`<model_name>`". [Please run `<required_step>` first.]'
 
         Parameters
         ----------
@@ -229,11 +241,15 @@ class ModelAsssociatedEntityNotFoundError(OSError):
         model_name : str
             The name of the model that the entity is not associated
             with.
+        required_step : str, default=None
+            The required step that needs to be run before will be
+            associated with the model.
 
         """
+        suffix = f"Please run {required_step} first." if required_step else ""
         super().__init__(
             f"No {entity.capitalize()} associated with the model with name"
-            f" {model_name}.",
+            f" {model_name}. {suffix}",
         )
 
 

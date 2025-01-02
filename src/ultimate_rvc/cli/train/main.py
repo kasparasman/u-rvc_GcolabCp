@@ -236,16 +236,6 @@ def extract_features(
         str,
         typer.Argument(help="The name of the voice model to be trained."),
     ],
-    sample_rate: Annotated[
-        TrainingSampleRate,
-        typer.Option(
-            help=(
-                "The sample rate of the audio files in the preprocessed dataset"
-                " associated with the voice model to be trained."
-            ),
-            min=1,
-        ),
-    ] = TrainingSampleRate.HZ_40K,
     rvc_version: Annotated[
         RVCVersion,
         typer.Option(
@@ -332,7 +322,6 @@ def extract_features(
     gpu_set = set(gpus) if gpus is not None else None
     _extract_features(
         model_name=model_name,
-        sample_rate=sample_rate,
         rvc_version=rvc_version,
         f0_method=f0_method,
         hop_length=hop_length,
@@ -356,27 +345,6 @@ def run_training(
             help="The name of the voice model to train.",
         ),
     ],
-    sample_rate: Annotated[
-        TrainingSampleRate,
-        typer.Option(
-            rich_help_panel=PanelName.MAIN_OPTIONS,
-            case_sensitive=False,
-            autocompletion=complete_training_sample_rate,
-            help=(
-                "The sample rate of the audio files in the preprocessed dataset"
-                " associated with the voice model."
-            ),
-        ),
-    ] = TrainingSampleRate.HZ_40K,
-    rvc_version: Annotated[
-        RVCVersion,
-        typer.Option(
-            rich_help_panel=PanelName.MAIN_OPTIONS,
-            case_sensitive=False,
-            autocompletion=complete_rvc_version,
-            help="Version of RVC to use for training the model.",
-        ),
-    ] = RVCVersion.V2,
     vocoder: Annotated[
         Vocoder,
         typer.Option(
@@ -558,8 +526,6 @@ def run_training(
     gpu_set = set(gpus) if gpus is not None else None
     model_file, index_file = _run_training(
         model_name=model_name,
-        sample_rate=sample_rate,
-        rvc_version=rvc_version,
         vocoder=vocoder,
         index_algorithm=index_algorithm,
         num_epochs=num_epochs,
