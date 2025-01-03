@@ -93,7 +93,7 @@ class EpochRecorder:
         elapsed_time = round(elapsed_time, 1)
         elapsed_time_str = str(datetime.timedelta(seconds=int(elapsed_time)))
         current_time = datetime.datetime.now().strftime("%H:%M:%S")
-        return f"time={current_time} | training_speed={elapsed_time_str}"
+        return f"time={current_time} | speed={elapsed_time_str}"
 
 
 def verify_checkpoint_shapes(checkpoint_path: str, model: torch.nn.Module) -> None:
@@ -142,6 +142,11 @@ def main(
     """Start the training process."""
     experiment_dir = os.path.join(TRAINING_MODELS_DIR, model_name)
     config_save_path = os.path.join(experiment_dir, "config.json")
+
+    # Use a Manager to create a shared list
+    manager = mp.Manager()
+    global_gen_loss = manager.list([0] * total_epoch)
+    global_disc_loss = manager.list([0] * total_epoch)
 
     with open(config_save_path) as f:
         config = json.load(f)
@@ -219,6 +224,8 @@ def main(
                         overtraining_threshold,
                         checkpointing,
                         cache_data_in_gpu,
+                        global_gen_loss,
+                        global_disc_loss,
                     ),
                 )
                 children.append(subproc)
@@ -267,6 +274,8 @@ def run(
     overtraining_threshold,
     checkpointing,
     cache_data_in_gpu,
+    global_gen_loss,
+    global_disc_loss,
 ):
     """
     Runs the training loop on a specific GPU or CPU.
@@ -527,6 +536,7 @@ def run(
             config,
             [net_g, net_d],
             [optim_g, optim_d],
+            [scheduler_g, scheduler_d],
             scaler,
             [train_loader, None],
             [writer_eval],
@@ -547,10 +557,9 @@ def run(
             overtraining_detector,
             overtraining_threshold,
             cache_data_in_gpu,
+            global_gen_loss,
+            global_disc_loss,
         )
-
-        scheduler_g.step()
-        scheduler_d.step()
 
 
 def train_and_evaluate(
@@ -559,6 +568,7 @@ def train_and_evaluate(
     config,
     nets,
     optims,
+    schedulers,
     scaler,
     loaders,
     writers,
@@ -579,6 +589,8 @@ def train_and_evaluate(
     overtraining_detector,
     overtraining_threshold,
     cache_data_in_gpu,
+    global_gen_loss,
+    global_disc_loss,
 ) -> None:
     """Train and evaluates the model for one epoch."""
     global global_step, lowest_g_value, lowest_d_value, consecutive_increases_gen, consecutive_increases_disc
@@ -587,10 +599,13 @@ def train_and_evaluate(
     epoch_gen_sum = 0.0
 
     model_add = []
+    checkpoint_idxs = [2333333]
     done = False
 
     net_g, net_d = nets
     optim_g, optim_d = optims
+    scheduler_g, scheduler_d = schedulers
+    skip_g_scheduler, skip_d_scheduler = False, False
     train_loader = loaders[0] if loaders is not None else None
     if writers is not None:
         writer = writers[0]
@@ -665,6 +680,7 @@ def train_and_evaluate(
                     loss_disc, _, _ = discriminator_loss(y_d_hat_r, y_d_hat_g)
             # Discriminator backward and update
             epoch_disc_sum += loss_disc
+            global_disc_loss[epoch - 1] += loss_disc.item()
             optim_d.zero_grad()
             scaler.scale(loss_disc).backward()
             scaler.unscale_(optim_d)
@@ -673,7 +689,9 @@ def train_and_evaluate(
                 max_norm=1000.0,
             )
             scaler.step(optim_d)
+            d_scale = scaler.get_scale()
             scaler.update()
+            skip_d_scheduler = d_scale > scaler.get_scale()
             # if not math.isfinite(grad_norm_d):
             #    print("\nWarning: grad_norm_d is NaN or Inf")
 
@@ -694,6 +712,7 @@ def train_and_evaluate(
                     loss_gen, _ = generator_loss(y_d_hat_g)
                     loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl + loss_env
             epoch_gen_sum += loss_gen_all
+            global_gen_loss[epoch - 1] += loss_gen_all.item()
             optim_g.zero_grad()
             scaler.scale(loss_gen_all).backward()
             scaler.unscale_(optim_g)
@@ -702,7 +721,9 @@ def train_and_evaluate(
                 max_norm=1000.0,
             )
             scaler.step(optim_g)
+            g_scale = scaler.get_scale()
             scaler.update()
+            skip_g_scheduler = g_scale > scaler.get_scale()
             # if not math.isfinite(grad_norm_g):
             #    print("\n Warning: grad_norm_g is NaN or Inf")
 
@@ -746,30 +767,37 @@ def train_and_evaluate(
 
             pbar.update(1)
 
+    if not skip_d_scheduler:
+        scheduler_d.step()
+    if not skip_g_scheduler:
+        scheduler_g.step()
+
     with torch.no_grad():
         torch.cuda.empty_cache()
-
     # Logging and checkpointing
     if rank == 0:
-        avg_disc_loss = epoch_disc_sum.item() / len(train_loader)
-        avg_gen_loss = epoch_gen_sum.item() / len(train_loader)
-        avg_losses["disc_loss_queue"].append(avg_disc_loss)
-        avg_losses["gen_loss_queue"].append(avg_gen_loss)
+        avg_losses["disc_loss_queue"].append(epoch_disc_sum.item() / len(train_loader))
+        avg_losses["gen_loss_queue"].append(epoch_gen_sum.item() / len(train_loader))
+        avg_global_disc_loss = global_disc_loss[epoch - 1] / len(train_loader.dataset)
+        avg_global_gen_loss = global_gen_loss[epoch - 1] / len(train_loader.dataset)
 
         min_delta = 0.004
 
-        if avg_disc_loss < lowest_d_value["value"] - min_delta:
-            lowest_d_value = {"value": avg_disc_loss, "epoch": epoch}
+        if avg_global_disc_loss < lowest_d_value["value"] - min_delta:
+            lowest_d_value = {"value": avg_global_disc_loss, "epoch": epoch}
             consecutive_increases_disc = 0
         else:
             consecutive_increases_disc += 1
 
-        if avg_gen_loss < lowest_g_value["value"] - min_delta:
-            print(
-                f"New best epoch {epoch} with average generator loss"
-                f" {avg_gen_loss:.3f} and discriminator loss {avg_disc_loss:.3f}",
+        if avg_global_gen_loss < lowest_g_value["value"] - min_delta:
+            logger.info(
+                "New best epoch %d with average generator loss %.3f and discriminator"
+                " loss %.3f",
+                epoch,
+                avg_global_gen_loss,
+                avg_global_disc_loss,
             )
-            lowest_g_value = {"value": avg_gen_loss, "epoch": epoch}
+            lowest_g_value = {"value": avg_global_gen_loss, "epoch": epoch}
             consecutive_increases_gen = 0
             model_add.append(
                 os.path.join(experiment_dir, f"{model_name}_best.pth"),
@@ -837,47 +865,43 @@ def train_and_evaluate(
             "all/mel": plot_spectrogram_to_numpy(mel[0].data.cpu().numpy()),
         }
         overtrain_info = ""
+        # Print training progress
+        lowest_g_value_rounded = float(lowest_g_value["value"])
+        lowest_g_value_rounded = round(lowest_g_value_rounded, 3)
+
+        record = f"{model_name} | epoch={epoch} | {epoch_recorder.record()}"
+        record += (
+            f" | best avg-gen-loss={lowest_g_value_rounded:.3f} (epoch"
+            f" {lowest_g_value['epoch']})"
+        )
         # Check overtraining
         if overtraining_detector:
             overtrain_info = (
-                f"Average epoch generator loss {avg_gen_loss:.3f} and epoch"
-                f" discriminator loss {avg_disc_loss:.3f}"
+                f"Average epoch generator loss {avg_global_gen_loss:.3f} and"
+                f" discriminator loss {avg_global_disc_loss:.3f}"
+            )
+
+            remaining_epochs_gen = overtraining_threshold - consecutive_increases_gen
+            remaining_epochs_disc = (
+                overtraining_threshold * 2 - consecutive_increases_disc
+            )
+            record += (
+                " | overtrain countdown: g="
+                f"{remaining_epochs_gen},d={remaining_epochs_disc} |"
+                f" avg-gen-loss={avg_global_gen_loss:.3f} | avg-"
+                f"disc-loss={avg_global_disc_loss:.3f}"
             )
 
             if (
                 consecutive_increases_gen == overtraining_threshold
                 or consecutive_increases_disc == overtraining_threshold * 2
             ):
-                print(
-                    f"Overtraining detected at epoch {epoch} with average generator"
-                    f" loss {avg_gen_loss:.3f} and discriminator loss"
-                    f" {avg_disc_loss:.3f}",
+                record += (
+                    f"\nOvertraining detected at epoch {epoch} with average"
+                    f" generator loss {avg_global_gen_loss:.3f} and discriminator loss"
+                    f" {avg_global_disc_loss:.3f}"
                 )
                 done = True
-
-        # Print training progress
-        lowest_g_value_rounded = float(lowest_g_value["value"])
-        lowest_g_value_rounded = round(lowest_g_value_rounded, 3)
-
-        record = f"{model_name} | epoch={epoch}| {epoch_recorder.record()}"
-        record = (
-            record
-            + f" | lowest average generator loss ={lowest_g_value_rounded} (epoch"
-            f" {lowest_g_value['epoch']})"
-        )
-
-        if overtraining_detector:
-            remaining_epochs_gen = overtraining_threshold - consecutive_increases_gen
-            remaining_epochs_disc = (
-                overtraining_threshold * 2 - consecutive_increases_disc
-            )
-            record = (
-                record
-                + " | Number of epochs remaining for overtraining: g/total:"
-                f" {remaining_epochs_gen} d/total: {remaining_epochs_disc} |"
-                f" average generator loss ={avg_gen_loss:.3f} |"
-                f" average discriminator loss ={avg_disc_loss:.3f}"
-            )
         print(record)
 
         # Save weights, checkpoints and reference inference resulsts
@@ -897,24 +921,9 @@ def train_and_evaluate(
                 audios=audio_dict,
                 audio_sample_rate=config.data.sample_rate,
             )
-            checkpoint_idxs = [2333333]
             if not save_only_latest:
                 checkpoint_idxs.append(epoch)
-            for idx in checkpoint_idxs:
-                save_checkpoint(
-                    net_g,
-                    optim_g,
-                    config.train.learning_rate,
-                    epoch,
-                    os.path.join(experiment_dir, f"G_{idx}.pth"),
-                )
-                save_checkpoint(
-                    net_d,
-                    optim_d,
-                    config.train.learning_rate,
-                    epoch,
-                    os.path.join(experiment_dir, f"D_{idx}.pth"),
-                )
+
             if custom_save_every_weights:
                 model_add.append(
                     os.path.join(experiment_dir, f"{model_name}_{epoch}.pth"),
@@ -926,7 +935,21 @@ def train_and_evaluate(
                 images=image_dict,
                 scalars=scalar_dict,
             )
-
+        for idx in checkpoint_idxs:
+            save_checkpoint(
+                net_g,
+                optim_g,
+                config.train.learning_rate,
+                epoch,
+                os.path.join(experiment_dir, f"G_{idx}.pth"),
+            )
+            save_checkpoint(
+                net_d,
+                optim_d,
+                config.train.learning_rate,
+                epoch,
+                os.path.join(experiment_dir, f"D_{idx}.pth"),
+            )
         if model_add:
             ckpt = (
                 net_g.module.state_dict()
@@ -953,8 +976,8 @@ def train_and_evaluate(
             lowest_g_value_rounded = round(lowest_g_value_rounded, 3)
             print(
                 f"Training has been successfully completed with {epoch} epoch(s),"
-                f" {global_step} step(s) and {round(loss_gen_all.item(), 3)} generator"
-                " loss.",
+                f" {global_step} step(s) and {round(avg_global_gen_loss, 3)} average"
+                " generator loss.",
             )
             print(
                 f"Lowest average generator loss: {lowest_g_value_rounded} at epoch"
@@ -962,7 +985,8 @@ def train_and_evaluate(
             )
 
             done = True
-
+        with torch.no_grad():
+            torch.cuda.empty_cache()
         if done:
             pid_file_path = os.path.join(experiment_dir, "config.json")
             with open(pid_file_path) as pid_file:
@@ -971,6 +995,3 @@ def train_and_evaluate(
                 pid_data.pop("process_pids", None)
                 json.dump(pid_data, pid_file, indent=4)
             os._exit(2333333)
-
-        with torch.no_grad():
-            torch.cuda.empty_cache()

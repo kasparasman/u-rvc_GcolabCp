@@ -1,4 +1,5 @@
 import glob
+import logging
 import os
 from collections import OrderedDict
 
@@ -8,6 +9,8 @@ import numpy as np
 import torch
 
 import soundfile as sf
+
+logger = logging.getLogger(__name__)
 
 MATPLOTLIB_FLAG = False
 
@@ -126,7 +129,7 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path)
         ".weight_g",
     )
     torch.save(checkpoint_data, checkpoint_path)
-    print(f"Saved model '{checkpoint_path}' (epoch {iteration})")
+    logger.info("Saved model '%s' (epoch %d)", checkpoint_path, iteration)
 
 
 def summarize(

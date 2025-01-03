@@ -1,11 +1,14 @@
 import datetime
 import hashlib
 import json
+import logging
 import os
 import sys
 from collections import OrderedDict
 
 import torch
+
+logger = logging.getLogger(__name__)
 
 now_dir = os.getcwd()
 sys.path.append(now_dir)
@@ -106,7 +109,7 @@ def extract_model(
             ),
             model_dir,
         )
-        print(f"Saved model '{model_dir}' (epoch {epoch} and step {step})")
+        logger.info("Saved model '%s' (epoch %d and step %d)", model_dir, epoch, step)
 
     except Exception as error:
         print(f"An error occurred extracting the model: {error}")

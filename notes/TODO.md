@@ -1,5 +1,6 @@
 # TODO
 
+* starting training is slow -- optimize
 * we should make a queue for training tab event listener so that only one event listener can be executed at a time
   * specifically we dont want to be able to extract features if dataset preprocessing is already running
   * and we dont want to be able to train a model if feature extraction is already running

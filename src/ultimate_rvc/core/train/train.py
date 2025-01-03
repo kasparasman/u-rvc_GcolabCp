@@ -202,7 +202,7 @@ def run_training(
     )
 
     display_progress(
-        "[~] Generating index file for trained voice model",
+        "[~] Generating index file for trained voice model...",
         percentage[1],
         progress_bar,
     )
