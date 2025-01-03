@@ -37,7 +37,7 @@ def run_training(
     use_pretrained: bool = True,
     custom_pretrained: str | None = None,
     preload_dataset: bool = False,
-    enable_checkpointing: bool = False,
+    save_memory: bool = False,
     gpus: set[int] | None = None,
     progress_bar: gr.Progress | None = None,
     percentage: tuple[float, float] = (0.0, 0.5),
@@ -75,37 +75,34 @@ def run_training(
         The maximum number of epochs to continue training without any
         observed improvement in voice model performance.
     save_interval : int, default=10
-        The epoch interval at which to save voice model weights, voice
-        model checkpoints and logs during training.
+        The epoch interval at which to to save voice model weights and
+        checkpoints. The best model weights and latest model checkpoint
+        are always saved regardless of this setting.
     save_all_checkpoints : bool, default=False
-        Whether the current voice model checkpoint should be saved to a
-        new file at each save interval. If False, only the latest
-        checkpoint will be saved.
+        Whether to save a voice model checkpoint at each save interval.
+        If False, only the latest voice model checkpoint will be saved.
     save_all_weights : bool, default=True
         Whether to save voice model weights at each save interval.
-        If False, only the best voice model weights will be saved at the
-        end of training.
+        If False, only the best voice model weights will be saved.
     clear_saved_data : bool, default=False
         Whether to delete any existing saved training data associated
         with the voice model before starting a new training session.
         Enable this setting only if you are training a new voice model
         from scratch or restarting training.
     use_pretrained : bool, default=True
-        Whether to use a pretrained generator/discriminator model for
-        training. This reduces training time and improves overall voice
-        model performance.
+        Whether to use a pretrained model for training. This reduces
+        training time and improves overall voice model performance.
     custom_pretrained: str, optional
-        The name of a custom pretrained generator/discriminator
-        model to use for training. Using a custom
-        generator/discriminator model can lead to superior results, as
+        The name of a custom pretrained model to use for training.
+        Using a custom pretrained model can lead to superior results, as
         selecting the most suitable pretrained model tailored to the
         specific use case can significantly enhance performance.
     preload_dataset : bool, default=False
         Whether to preload all training data into GPU memory. This can
         improve training speed but requires a lot of VRAM.
-    enable_checkpointing : bool, default=False
-        Whether to enable memory-efficient training . This reduces VRAM
-        usage at the cost of slower training speed. It is useful for
+    save_memory : bool, default=False
+        Whether to reduce VRAM usage at the cost of slower training
+        speed by enabling activation checkpointing. This is useful for
         GPUs with limited memory (e.g., <6GB VRAM) or when training with
         a batch size larger than what your GPU can normally accommodate.
     gpus : set[int], optional
@@ -200,7 +197,7 @@ def run_training(
         overtraining_threshold,
         clear_saved_data,
         preload_dataset,
-        enable_checkpointing,
+        save_memory,
         gpus if gpus is not None else {0},
     )
 
@@ -215,5 +212,6 @@ def run_training(
 
     extract_index_main(str(model_path), rvc_version, index_algorithm)
 
-    # TODO should return the model and index file paths
-    return Path(), Path()
+    model_file = model_path / f"{model_name}_best.pth"
+    index_file = model_path / f"added_{model_name}_{rvc_version}.index"
+    return model_file, index_file

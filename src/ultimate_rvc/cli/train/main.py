@@ -420,8 +420,9 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
-                "The epoch interval at which to save voice model weights, voice model"
-                " checkpoints and logs during training."
+                "The epoch interval at which to save voice model weights and"
+                " checkpoints. The best model weights and latest model checkpoint are"
+                " always saved regardless of this setting."
             ),
             min=1,
         ),
@@ -431,9 +432,8 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
-                "Whether the current voice model checkpoint should be saved to a new"
-                " file at each save interval. If False, only the latest checkpoint"
-                " saved."
+                "Whether to save a voice model checkpoint at each save interval. If"
+                " False, only the latest voice model checkpoint will be saved."
             ),
         ),
     ] = False,
@@ -443,8 +443,7 @@ def run_training(
             rich_help_panel=PanelName.SAVE_OPTIONS,
             help=(
                 "Whether to save voice model weights at each save interval. If False,"
-                " only the best voice model weights will be saved at the end of"
-                " training."
+                " only the best voice model weights will be saved."
             ),
         ),
     ] = False,
@@ -465,9 +464,8 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.PRETRAINED_MODEL_OPTIONS,
             help=(
-                "Whether to use a pretrained generator/discriminator model for"
-                " training. This reduces training time and improves overall voice model"
-                " performance."
+                "Whether to use a pretrained model for training. This reduces training"
+                " time and improves overall voice model performance."
             ),
         ),
     ] = True,
@@ -476,11 +474,10 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.PRETRAINED_MODEL_OPTIONS,
             help=(
-                "The name of a custom pretrained generator/discriminator model to use"
-                " for training. Using a custom generator/discriminator model can lead"
-                " to superior results, as selecting the most suitable pretrained model"
-                " tailored to the specific use case can significantly enhance"
-                " performance."
+                "The name of a custom pretrained model to use for training. Using a"
+                " custom generator/discriminator model can lead to superior results, as"
+                " selecting the most suitable pretrained modeltailored to the specific"
+                " use case can significantly enhanceperformance."
             ),
         ),
     ] = None,
@@ -494,13 +491,13 @@ def run_training(
             ),
         ),
     ] = False,
-    enable_checkpointing: Annotated[
+    save_memory: Annotated[
         bool,
         typer.Option(
             rich_help_panel=PanelName.MEMORY_OPTIONS,
             help=(
-                "Whether to enable memory-efficient training. This reduces VRAM usage"
-                " at the cost of slower training speed. It is useful for GPUs with"
+                "Whether to reduce VRAM usage at the cost of slower training speed by"
+                " enabling activation checkpointing. This is useful for GPUs with"
                 " limited memory (e.g., <6GB VRAM) or when training with a batch size"
                 " larger than what your GPU can normally accommodate."
             ),
@@ -539,7 +536,7 @@ def run_training(
         use_pretrained=use_pretrained,
         custom_pretrained=custom_pretrained,
         preload_dataset=preload_dataset,
-        enable_checkpointing=enable_checkpointing,
+        save_memory=save_memory,
         gpus=gpu_set,
     )
 
