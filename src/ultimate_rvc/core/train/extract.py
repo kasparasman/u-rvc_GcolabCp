@@ -19,7 +19,9 @@ from ultimate_rvc.core.exceptions import (
     ModelAsssociatedEntityNotFoundError,
     Step,
 )
+from ultimate_rvc.core.train.common import validate_devices
 from ultimate_rvc.typing_extra import (
+    DeviceType,
     EmbedderModel,
     RVCVersion,
     TrainingF0Method,
@@ -38,7 +40,8 @@ def extract_features(
     custom_embedder_model: str | None = None,
     include_mutes: int = 2,
     cpu_cores: int = cpu_count(),
-    gpus: set[int] | None = None,
+    hardware_acceleration: DeviceType = DeviceType.AUTOMATIC,
+    gpu_ids: set[int] | None = None,
     progress_bar: gr.Progress | None = None,
     percentage: tuple[float, float] = (0.0, 0.5),
 ) -> None:
@@ -70,9 +73,13 @@ def extract_features(
         silence, set this to 0.
     cpu_cores : int, default=cpu_count()
         The number of CPU cores to use for feature extraction.
-    gpus : set[int], optional
-        The device ids of the GPUs to use for feature extraction.
-        If None, only CPU will be used.
+    hardware_acceleration : DeviceType, default=DeviceType.AUTOMATIC
+        The type of hardware acceleration to use for feature extraction.
+        `AUTOMATIC` will select the first available GPU and fall back to
+        CPU if no GPUs are available.
+    gpu_ids : set[int], optional
+        Set of ids of the GPUs to use for feature extraction when `GPU`
+        is selected for hardware acceleration.
     progress_bar : gr.Progress, optional
         The progress bar to update as the features are extracted.
     percentage : float, optional
@@ -112,8 +119,13 @@ def extract_features(
     if f0_method in {TrainingF0Method.CREPE, TrainingF0Method.CREPE_TINY}:
         f0_method_id = f"{f0_method}_{hop_length}"
 
-    devices = [f"cuda:{gpu}" for gpu in gpus] if gpus else ["cpu"]
+    device_type, device_ids = validate_devices(hardware_acceleration, gpu_ids)
 
+    devices = (
+        [f"{device_type}:{device_id}" for device_id in device_ids]
+        if device_ids
+        else [device_type]
+    )
     # NOTE The lazy_import function does not work with the package below
     # so we import it here manually
     from ultimate_rvc.rvc.train.extract import extract  # noqa: PLC0415

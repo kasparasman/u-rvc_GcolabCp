@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import json
-from pathlib import Path
 
 from ultimate_rvc.core.common import display_progress, validate_model_exists
 from ultimate_rvc.core.exceptions import (
@@ -16,9 +15,12 @@ from ultimate_rvc.core.exceptions import (
     ModelAsssociatedEntityNotFoundError,
     Step,
 )
-from ultimate_rvc.typing_extra import IndexAlgorithm, Vocoder
+from ultimate_rvc.core.train.common import validate_devices
+from ultimate_rvc.typing_extra import DeviceType, IndexAlgorithm, Vocoder
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import gradio as gr
 
 
@@ -38,7 +40,8 @@ def run_training(
     custom_pretrained: str | None = None,
     preload_dataset: bool = False,
     save_memory: bool = False,
-    gpus: set[int] | None = None,
+    hardware_acceleration: DeviceType = DeviceType.AUTOMATIC,
+    gpu_ids: set[int] | None = None,
     progress_bar: gr.Progress | None = None,
     percentage: tuple[float, float] = (0.0, 0.5),
 ) -> tuple[Path, Path]:
@@ -105,9 +108,13 @@ def run_training(
         speed by enabling activation checkpointing. This is useful for
         GPUs with limited memory (e.g., <6GB VRAM) or when training with
         a batch size larger than what your GPU can normally accommodate.
-    gpus : set[int], optional
-        The device ids of the GPUs to use for training. If None, only
-        CPU will be used.
+    hardware_acceleration : DeviceType, default=DeviceType.AUTOMATIC
+        The type of hardware acceleration to use when training the voice
+        model. `AUTOMATIC` will select the first available GPU and fall
+        back to CPU if no GPUs are available.
+    gpu_ids : set[int], optional
+        Set of ids of the GPUs to use for training the voice model when
+        `GPU` is selected for hardware acceleration.
     progress_bar : gr.Progress, optional
         The progress bar to display during training.
     percentage : tuple[float, float], default=(0.0, 0.5)
@@ -181,6 +188,8 @@ def run_training(
     display_progress("[~] training voice model...", percentage[0], progress_bar)
     from ultimate_rvc.rvc.train.train import main as train_main  # noqa: PLC0415
 
+    device_type, device_ids = validate_devices(hardware_acceleration, gpu_ids)
+
     train_main(
         model_name,
         sample_rate,
@@ -198,7 +207,8 @@ def run_training(
         clear_saved_data,
         preload_dataset,
         save_memory,
-        gpus if gpus is not None else {0},
+        device_type,
+        device_ids,
     )
 
     display_progress(

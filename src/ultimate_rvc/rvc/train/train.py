@@ -137,9 +137,16 @@ def main(
     cleanup: bool,
     cache_data_in_gpu: bool,
     checkpointing: bool,
-    gpus: set[int],
+    device_type: str,
+    gpus: set[int] | None,
 ) -> None:
-    """Start the training process."""
+    """
+    Start the training process.
+
+    Raises:
+        RuntimeError: If the sample rate of the pretrained model does not match the dataset audio sample rate.
+
+    """
     experiment_dir = os.path.join(TRAINING_MODELS_DIR, model_name)
     config_save_path = os.path.join(experiment_dir, "config.json")
 
@@ -173,17 +180,11 @@ def main(
     else:
         logger.warning("No wav file found.")
 
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        n_gpus = len(gpus)
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-        gpus = {0}
-        n_gpus = 1
-    else:
-        device = torch.device("cpu")
-        gpus = {0}
-        n_gpus = 1
+    device = torch.device(device_type)
+    gpus = gpus or {0}
+    n_gpus = len(gpus)
+
+    if device.type == "cpu":
         logger.warning("Training with CPU, this will take a long time.")
 
     def start() -> None:

@@ -79,6 +79,14 @@ class AudioExt(StrEnum):
     AAC = "aac"
 
 
+class DeviceType(StrEnum):
+    """Enumeration of device types for training voice models."""
+
+    AUTOMATIC = "Automatic"
+    CPU = "CPU"
+    GPU = "GPU"
+
+
 class TrainingSampleRate(StrEnum):
     """Enumeration of sample rates for training voice models."""
 

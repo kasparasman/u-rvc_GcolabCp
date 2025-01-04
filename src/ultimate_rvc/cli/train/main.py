@@ -18,6 +18,7 @@ from rich.table import Table
 
 from ultimate_rvc.cli.common import (
     complete_audio_split_method,
+    complete_device_type,
     complete_embedder_model,
     complete_f0_method,
     complete_index_algorithm,
@@ -34,6 +35,7 @@ from ultimate_rvc.core.train.prepare import preprocess_dataset as _preprocess_da
 from ultimate_rvc.core.train.train import run_training as _run_training
 from ultimate_rvc.typing_extra import (
     AudioSplitMethod,
+    DeviceType,
     EmbedderModel,
     IndexAlgorithm,
     RVCVersion,
@@ -304,14 +306,27 @@ def extract_features(
             max=cpu_count(),
         ),
     ] = cpu_count(),
-    gpus: Annotated[
+    hardware_acceleration: Annotated[
+        DeviceType,
+        typer.Option(
+            rich_help_panel=PanelName.DEVICE_OPTIONS,
+            autocompletion=complete_device_type,
+            help=(
+                "The type of hardware acceleration to use for feature extraction."
+                " `AUTOMATIC` will automatically select the first available GPU and"
+                " fall back to CPU if no GPUs are available."
+            ),
+        ),
+    ] = DeviceType.AUTOMATIC,
+    gpu_id: Annotated[
         list[int] | None,
         typer.Option(
             rich_help_panel=PanelName.DEVICE_OPTIONS,
             min=0,
             help=(
-                "The device ids of the GPUs to use for extracting audio embeddings. If"
-                " None, only CPU will be used."
+                "The id of a GPU to use for feature extraction when `GPU` is selected"
+                " for hardware acceleration. This option can be provided multiple times"
+                " to use multiple GPUs in parallel."
             ),
         ),
     ] = None,
@@ -322,7 +337,7 @@ def extract_features(
     """
     start_time = time.perf_counter()
 
-    gpu_set = set(gpus) if gpus is not None else None
+    gpu_id_set = set(gpu_id) if gpu_id is not None else None
     _extract_features(
         model_name=model_name,
         rvc_version=rvc_version,
@@ -332,7 +347,8 @@ def extract_features(
         custom_embedder_model=custom_embedder_model,
         include_mutes=include_mutes,
         cpu_cores=cpu_cores,
-        gpus=gpu_set,
+        hardware_acceleration=hardware_acceleration,
+        gpu_ids=gpu_id_set,
     )
 
     rprint("[+] Dataset features succesfully extracted!")
@@ -506,13 +522,26 @@ def run_training(
             ),
         ),
     ] = False,
-    gpus: Annotated[
+    hardware_acceleration: Annotated[
+        DeviceType,
+        typer.Option(
+            rich_help_panel=PanelName.DEVICE_OPTIONS,
+            autocompletion=complete_device_type,
+            help=(
+                "The type of hardware acceleration to use for training the voice model."
+                "`AUTOMATIC`will automatically select the first available GPU and fall"
+                " back to CPU if no GPUs are available."
+            ),
+        ),
+    ] = DeviceType.AUTOMATIC,
+    gpu_id: Annotated[
         list[int] | None,
         typer.Option(
             rich_help_panel=PanelName.DEVICE_OPTIONS,
             help=(
-                "The device ids of the GPUs to use for training. If None, only CPU will"
-                " be used."
+                "The id of a GPU to use for training the voice model when `GPU` is"
+                " selected for hardware acceleration. This option can be provided"
+                " multiple times to use multiple GPUs in parallel."
             ),
         ),
     ] = None,
@@ -523,7 +552,7 @@ def run_training(
     """
     start_time = time.perf_counter()
 
-    gpu_set = set(gpus) if gpus is not None else None
+    gpu_id_set = set(gpu_id) if gpu_id is not None else None
     model_file, index_file = _run_training(
         model_name=model_name,
         vocoder=vocoder,
@@ -540,7 +569,8 @@ def run_training(
         custom_pretrained=custom_pretrained,
         preload_dataset=preload_dataset,
         save_memory=save_memory,
-        gpus=gpu_set,
+        hardware_acceleration=hardware_acceleration,
+        gpu_ids=gpu_id_set,
     )
 
     rprint("[+] Voice model succesfully trained!")

@@ -48,9 +48,12 @@ class Entity(StrEnum):
     DATASET_FILE_LIST = "dataset file list"
     PREPROCESSED_AUDIO_DATASET_FILES = "preprocessed dataset audio files"
 
-    # Source entitiess
+    # Source entities
     SOURCE = "source"
     URL = "URL"
+
+    # GPU entities
+    GPU_IDS = "GPU IDs"
 
 
 AudioFileEntity = Literal[
@@ -137,6 +140,9 @@ class UIMessage(StrEnum):
         "No source provided. Please provide a valid text string or path to a text file."
     )
 
+    # GPU messages
+    NO_GPUS = "No GPUs selected."
+
 
 class NotProvidedError(ValueError):
     """Raised when an entity is not provided."""
@@ -215,6 +221,28 @@ class ModelNotFoundError(OSError):
 
         """
         super().__init__(f"{entity.capitalize()} with name '{name}' not found.")
+
+
+class GPUNotFoundError(OSError):
+    """Raised when a GPU with a given id is not found."""
+
+    def __init__(self, device_id: int | None = None) -> None:
+        r"""
+        Initialize a GPUNotFoundError instance.
+
+        Exception message will be formatted as:
+
+        'GPU with id `<id>` not found.'
+
+        Parameters
+        ----------
+        device_id : int, optional
+            The id of a GPU that is not found.
+
+        """
+        super().__init__(
+            f"No GPU with id {device_id} found.",
+        )
 
 
 class ModelAsssociatedEntityNotFoundError(OSError):

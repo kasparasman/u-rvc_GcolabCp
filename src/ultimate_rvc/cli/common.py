@@ -3,6 +3,7 @@
 from ultimate_rvc.typing_extra import (
     AudioExt,
     AudioSplitMethod,
+    DeviceType,
     EmbedderModel,
     F0Method,
     IndexAlgorithm,
@@ -208,3 +209,23 @@ def complete_index_algorithm(incomplete: str) -> list[str]:
 
     """
     return complete_name(incomplete, list(IndexAlgorithm))
+
+
+def complete_device_type(incomplete: str) -> list[str]:
+    """
+    Return a list of device types that start with the incomplete
+    string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of device types that start with the incomplete
+        string.
+
+    """
+    return complete_name(incomplete, list(DeviceType))

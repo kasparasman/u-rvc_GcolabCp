@@ -1,12 +1,6 @@
 # TODO
 
-
-* for the training function there is no option to just use gpu
-  * if no device is chosen then device will be 0 but gpu will always be chosen if its available.
-
-* for feature extractio nwe also need to have some validation when a gpu id is chosen. we need to check if the given id actually refer to existing gpus
-
-* we should have a hardware acceleration option which can have cpu, gpu or automatic as options. if automatic is chosen then gpu is used if available otherwise cpu is used. If gpu is selected but gpu is not available then an error is raised.The list of gpu ids apply only when gpu is chosen (either automatically or manually). if no gpu list is provided then the first gpu is chosen. if an empty gpu list is provided then an error is raised. Otherwise the gpus with the given ids are used. if the list contains an id that does not refer to an existing gpu then an error is raised.
+* need to test new changes to device options (hardware acceleration option and gpu_ids option) using CLI
 
 * we should make a queue for training tab event listener so that only one event listener can be executed at a time
   * specifically we dont want to be able to extract features if dataset preprocessing is already running

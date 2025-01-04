@@ -21,6 +21,7 @@ from ultimate_rvc.core.train.prepare import (
 from ultimate_rvc.typing_extra import (
     AudioExt,
     AudioSplitMethod,
+    DeviceType,
     EmbedderModel,
     RVCVersion,
     TrainingF0Method,
@@ -358,25 +359,48 @@ def render(
                         ),
                     )
                 with gr.Row():
-                    cpu_cores_extract = gr.Slider(
-                        1,
-                        cpu_count(),
-                        cpu_count(),
-                        step=1,
-                        label="CPU cores",
-                        info=(
-                            "The number of CPU cores to use for feature"
-                            " extraction.<br><br>"
-                        ),
-                    )
-                    gpu_choices = get_gpu_info()
-                    gpus = gr.Dropdown(
-                        choices=gpu_choices,
-                        value=gpu_choices[0][1] if gpu_choices else None,
-                        label="GPU(s)",
-                        info="The GPU(s) to use for feature extraction.",
-                        multiselect=True,
-                    )
+                    with gr.Column():
+                        cpu_cores_extract = gr.Slider(
+                            1,
+                            cpu_count(),
+                            cpu_count(),
+                            step=1,
+                            label="CPU cores",
+                            info=(
+                                "The number of CPU cores to use for feature"
+                                " extraction.<br><br><br>"
+                            ),
+                        )
+                    with gr.Column():
+                        gpu_choices = get_gpu_info()
+                        hardware_acceleration = gr.Dropdown(
+                            choices=list(DeviceType),
+                            value=DeviceType.AUTOMATIC,
+                            label="Hardware acceleration",
+                            info=(
+                                "The type of hardware acceleration to use for feature"
+                                " extraction. 'Automatic' will automatically select the"
+                                " first available GPU and fall back to CPU if no GPUs"
+                                " are available."
+                            ),
+                        )
+                        gpus = gr.Dropdown(
+                            choices=gpu_choices,
+                            label="GPU(s)",
+                            info="The GPU(s) to use for feature extraction.",
+                            multiselect=True,
+                            visible=False,
+                        )
+                hardware_acceleration.change(
+                    partial(
+                        toggle_visibility,
+                        targets={DeviceType.GPU},
+                        default=gpu_choices[0][1] if gpu_choices else None,
+                    ),
+                    inputs=hardware_acceleration,
+                    outputs=gpus,
+                    show_progress="hidden",
+                )
             with gr.Row(equal_height=True):
                 extract_btn = gr.Button("Extract features", variant="primary")
                 extract_msg = gr.Textbox(label="Output message", interactive=False)
@@ -394,6 +418,7 @@ def render(
                         custom_embedder_model,
                         include_mutes,
                         cpu_cores_extract,
+                        hardware_acceleration,
                         gpus,
                     ],
                     outputs=extract_msg,
