@@ -311,6 +311,7 @@ def extract_features(
         typer.Option(
             rich_help_panel=PanelName.DEVICE_OPTIONS,
             autocompletion=complete_device_type,
+            case_sensitive=False,
             help=(
                 "The type of hardware acceleration to use for feature extraction."
                 " `AUTOMATIC` will automatically select the first available GPU and"
@@ -527,6 +528,7 @@ def run_training(
         typer.Option(
             rich_help_panel=PanelName.DEVICE_OPTIONS,
             autocompletion=complete_device_type,
+            case_sensitive=False,
             help=(
                 "The type of hardware acceleration to use for training the voice model."
                 "`AUTOMATIC`will automatically select the first available GPU and fall"
@@ -538,6 +540,7 @@ def run_training(
         list[int] | None,
         typer.Option(
             rich_help_panel=PanelName.DEVICE_OPTIONS,
+            min=0,
             help=(
                 "The id of a GPU to use for training the voice model when `GPU` is"
                 " selected for hardware acceleration. This option can be provided"

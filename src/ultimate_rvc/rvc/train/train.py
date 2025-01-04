@@ -310,7 +310,7 @@ def run(
 
     torch.manual_seed(config.train.seed)
 
-    if torch.cuda.is_available():
+    if device.type == "cuda":
         torch.cuda.set_device(device_id)
 
     # Create datasets and dataloaders
@@ -367,7 +367,7 @@ def run(
         checkpointing=checkpointing,
     )
 
-    if torch.cuda.is_available():
+    if device.type == "cuda":
         net_g = net_g.cuda(device_id)
         net_d = net_d.cuda(device_id)
     else:
