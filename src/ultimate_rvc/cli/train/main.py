@@ -309,7 +309,10 @@ def extract_features(
         typer.Option(
             rich_help_panel=PanelName.DEVICE_OPTIONS,
             min=0,
-            help="The device ids of the GPUs to use for extracting audio embeddings.",
+            help=(
+                "The device ids of the GPUs to use for extracting audio embeddings. If"
+                " None, only CPU will be used."
+            ),
         ),
     ] = None,
 ) -> None:

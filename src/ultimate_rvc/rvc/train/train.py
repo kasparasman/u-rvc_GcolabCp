@@ -165,13 +165,11 @@ def main(
     if wavs:
         _, sr = load_wav_to_torch(wavs[0])
         if sr != sample_rate:
-            logger.error(
-                "Error: Pretrained model sample rate (%d Hz) does not match dataset"
-                " audio sample rate (%d Hz).",
-                sample_rate,
-                sr,
+            error_message = (
+                f"Error: Pretrained model sample rate ({sample_rate} Hz) does not match"
+                f" dataset audio sample rate ({sr} Hz)."
             )
-            os._exit(1)
+            raise RuntimeError(error_message)
     else:
         logger.warning("No wav file found.")
 
@@ -235,6 +233,8 @@ def main(
 
         for i in range(n_gpus):
             children[i].join()
+            if children[i].exitcode != 0:
+                sys.exit(1)
 
     if cleanup:
         logger.info("Removing files from the prior training attempt...")
@@ -414,7 +414,7 @@ def run(
         epoch_str += 1
         global_step = (epoch_str - 1) * len(train_loader)
 
-    except:
+    except Exception:
         epoch_str = 1
         global_step = 0
         if pretrain_g not in {"", "None"}:
@@ -994,4 +994,4 @@ def train_and_evaluate(
             with open(pid_file_path, "w") as pid_file:
                 pid_data.pop("process_pids", None)
                 json.dump(pid_data, pid_file, indent=4)
-            os._exit(2333333)
+            os._exit(0)

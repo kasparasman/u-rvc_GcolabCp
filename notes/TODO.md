@@ -1,6 +1,13 @@
 # TODO
 
-* starting training is slow -- optimize
+
+* for the training function there is no option to just use gpu
+  * if no device is chosen then device will be 0 but gpu will always be chosen if its available.
+
+* for feature extractio nwe also need to have some validation when a gpu id is chosen. we need to check if the given id actually refer to existing gpus
+
+* we should have a hardware acceleration option which can have cpu, gpu or automatic as options. if automatic is chosen then gpu is used if available otherwise cpu is used. If gpu is selected but gpu is not available then an error is raised.The list of gpu ids apply only when gpu is chosen (either automatically or manually). if no gpu list is provided then the first gpu is chosen. if an empty gpu list is provided then an error is raised. Otherwise the gpus with the given ids are used. if the list contains an id that does not refer to an existing gpu then an error is raised.
+
 * we should make a queue for training tab event listener so that only one event listener can be executed at a time
   * specifically we dont want to be able to extract features if dataset preprocessing is already running
   * and we dont want to be able to train a model if feature extraction is already running
@@ -13,47 +20,19 @@
    * in that case the name of the voice model in the voice model folder will be the same as the name of the voice model in the training folder. so if there is already a voice model with that name in the voice model folder then an error will be raised. but only after training has completed
    * it might be better with a separate button for this so that the user can choose to do this after training has completed and they can choose which name they want to give the voice model in the voice model folder. the button should be in a new accordion called "post training" or something like that?
 
-* for the training function there is no option to just use gpu
-  * if no device is chosen then device will be 0 but gpu will always be chosen if its available.
-
-* we are getting the the following error during training sporadically:
-```
-[W101 01:15:16.000000000 socket.cpp:518] [c10d] The server socket has failed to bind to [Christians-Desktop]:51023 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
-[W101 01:15:16.000000000 socket.cpp:518] [c10d] The server socket has failed to bind to Christians-Desktop:51023 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
-[E101 01:15:16.000000000 socket.cpp:554] [c10d] The server socket has failed to listen on any local network address.
-Process Process-1:
-Traceback (most recent call last):
-  File "C:\Users\Jacki\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\process.py", line 314, in _bootstrap
-    self.run()
-  File "C:\Users\Jacki\AppData\Local\Programs\Python\Python312\Lib\multiprocessing\process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "C:\Users\Jacki\repositories\ultimate-rvc\src\ultimate_rvc\rvc\train\train.py", line 358, in run
-    dist.init_process_group(
-  File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\c10d_logger.py", line 83, in wrapper
-    return func(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\c10d_logger.py", line 97, in wrapper
-    func_return = func(*args, **kwargs)
-                  ^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\distributed_c10d.py", line 1520, in init_process_group
-    store, rank, world_size = next(rendezvous_iterator)
-                              ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\torch\distributed\rendezvous.py", line 269, in _env_rendezvous_handler
-    store = _create_c10d_store(```
-
 * Add reset settings button for each step in train multistep tab?
 * combine step 0: data population and step 1: dataset preprocsessing into one step?
   * need a (dataset) source dropdown with two options: existing dataset and new dataset
   * if existing is chosen then a text field for chosen a path to an existing dataset should appear
   * if new is chosen then two components should appear: one a textbox for dataset name and the other a file upload component for uploading one or more files to the components. this should upload automatically without need to press a button.
+* consider fixing step 0: dataset population so that completion message is more clear
+  * instead of having a button and text component for completion message instead  just have automatically add files as they are added via upload component and then show a pop up message with completion status
 * fix error saying that selected edge tts voice is not in list (occurs sporadically ?)
 * use the validate_model_exists for functions defined in manage.models
 * also define a validate_model_not_exists to use for functions defined in manage.models
 * we should fix static_ffmpeg and static_sox so that the weak parameter works.
   * other we will keep adding values to environment variables each time their add_paths()function is called
-  * add the same time we should also try and fix static_sox.add_paths so that it works with spawn multiprocessing on ubuntu 24.04. Currently a "version `GLIBC_2.38' not found" error is raised because static_sox.add_paths adds a ../sox_folder/libm.so.6 to LD_PRELOAD, but libm.so.6 requires GLIBC_2.38 which is below the default which is GLIBC_2.39 on ubuntu 24.04.
-  * But sox still seems to work (at least the pitch shifting ) without libm.so.6 being preloaded so we can probably just remove it from the LD_PRELOAD list in static_sox.add_paths?
-    * as a matter of fact, for pitch shifting only "libgsm.so.1","libltdl.so.7","libsox.so.3" seem to be needed.
+  * we should also add a remove_paths() function to remove the paths from the environment variables
 * lazy_import function also does not seem to work with static_ffmpeg and yt_dlp. If we instead delay import them manually, then we can get the CLI startup time down to 0.5 sec from 1.1 sec.
 * instead of having custom embedder models, just allow users to download new embedder models which will be shown in the main embedder models dropdown (and perhaps also saved in the main embedder models dir?)
 
@@ -64,20 +43,20 @@ Traceback (most recent call last):
   * The same for the number of arguments to the manage models and manage audio tabs render functions
     * we can combine similar input params into lists like we have done with song_dirs before?
 
-* extend caching of training feature extraction so that a separate `filelist.txt` file is generated for each set of hyperparameters (f0 method, rvc version, embedder model and sample rate). This then also requires giving a specific "filelist" file as input when calling the training method/command.
 * for those packages that dont work with lazy_import function make wrapper functions
 (similar to get audio_separator and get_voice_converter) that do the import and return an object
 * add fcpe method for training
 * also consider implementing a one-click training tab
+* extend caching of training feature extraction so that a separate `filelist.txt` file is generated for each set of hyperparameters (f0 method, rvc version, embedder model and sample rate). This then also requires giving a specific "filelist" file as input when calling the training method/command.
+* starting training is slow -- optimize
 
-* consider fixing step 0: dataset population so that completion message is more clear
-  * instead of having a button and text component for completion message instead  just have automatically add files as they are added via upload component and then show a pop up message with completion status
+* training does evaluation on training data and not an unbiased test set, which should be fixed perhaps
+  * also perhaps we should use another metric than the loss function for evaluation
 
 * should remove input validation from modules from core package
   * typer handles this on the cli part
   * for gradio we should make a wrapper functio nthat provides the needed validation
-* training does evaluation on training data and not an unbiased test set, which should be fixed perhaps
-  * also perhaps we should use another metric than the loss function for evaluation
+
 * add feature for comparing two models using their  cosine similarity or other metric?
 
 * add to ui feature for extracting specific weigth from specific epoch of training 
