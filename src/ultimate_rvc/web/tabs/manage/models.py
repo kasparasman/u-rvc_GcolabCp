@@ -12,14 +12,20 @@ import gradio as gr
 from ultimate_rvc.common import lazy_import
 from ultimate_rvc.core.manage.models import (
     delete_all_custom_embedder_models,
+    delete_all_custom_pretrained_models,
     delete_all_models,
     delete_all_training_models,
     delete_custom_embedder_models,
+    delete_custom_pretrained_models,
     delete_training_models,
     delete_voice_models,
+    download_pretrained_model,
     download_voice_model,
     filter_public_models_table,
+    get_available_pretrained_model_names,
+    get_available_pretrained_sample_rates,
     get_custom_embedder_model_names,
+    get_custom_pretrained_model_names,
     get_public_model_tags,
     get_training_model_names,
     get_voice_model_names,
@@ -114,9 +120,33 @@ def _autofill_model_name_and_url(
     raise TypeError(err_msg)
 
 
+def _update_pretrained_sample_rates(name: str) -> gr.Dropdown:
+    """
+    Update the dropdown for pretrained sample rates based on the
+    selected pretrained model.
+
+    Parameters
+    ----------
+    name : str
+        The name of the selected pretrained model.
+
+    Returns
+    -------
+    pretrained_sample_rate : gr.Dropdown
+        The updated dropdown for pretrained sample rates.
+
+    """
+    pretrained_sample_rates = get_available_pretrained_sample_rates(name)
+    return gr.Dropdown(
+        choices=pretrained_sample_rates,
+        value=pretrained_sample_rates[0],
+    )
+
+
 def render(
     voice_model_delete: gr.Dropdown,
     embedder_delete: gr.Dropdown,
+    pretrained_model_delete: gr.Dropdown,
     training_model_delete: gr.Dropdown,
     song_cover_voice_model_1click: gr.Dropdown,
     song_cover_voice_model_multi: gr.Dropdown,
@@ -129,6 +159,8 @@ def render(
     preprocess_model_multi: gr.Dropdown,
     training_embedder_multi: gr.Dropdown,
     extract_model_multi: gr.Dropdown,
+    pretrained_model_multi: gr.Dropdown,
+    train_model_multi: gr.Dropdown,
 ) -> None:
     """
 
@@ -141,6 +173,9 @@ def render(
         "Delete models" tab.
     embedder_delete : gr.Dropdown
         Dropdown for selecting custom embedder models to delete in the
+        "Delete models" tab.
+    pretrained_model_delete : gr.Dropdown
+        Dropdown for selecting pretrained models to delete in the
         "Delete models" tab.
     training_model_delete : gr.Dropdown
         Dropdown for selecting training models to delete in the
@@ -179,87 +214,158 @@ def render(
         Dropdown for selecting a voice model with an associated
         preprocessed dataset to extract features from in the
         "Train models - multi-step generation" tab
+    pretrained_model_multi : gr.Dropdown
+        Dropdown for selecting a pretrained model to use in the
+        "Train models - multi-step generation" tab.
+    train_model_multi : gr.Dropdown
+        Dropdown for selecting a training model to use in the
+        "Train models - multi-step generation" tab.
 
     """
     # Download tab
 
     dummy_checkbox = gr.Checkbox(visible=False)
-    with gr.Tab("Download voice models"):
-        with gr.Accordion("View public models table", open=False):
-            gr.Markdown("")
-            gr.Markdown("*HOW TO USE*")
-            gr.Markdown(
-                "- Filter voice models by selecting one or more tags and/or providing a"
-                " search query.",
-            )
-            gr.Markdown(
-                "- Select a row in the table to autofill the name and"
-                " URL for the given voice model in the form fields below.",
-            )
-            gr.Markdown("")
-            with gr.Row():
-                search_query = gr.Textbox(label="Search query")
-                tags = gr.CheckboxGroup(
-                    value=[],
-                    label="Tags",
-                    choices=get_public_model_tags(),
+    with gr.Tab("Download models"):
+        with gr.Accordion("Voice models"):
+            with gr.Accordion("View public models table", open=False):
+                gr.Markdown("")
+                gr.Markdown("*HOW TO USE*")
+                gr.Markdown(
+                    "- Filter voice models by selecting one or more tags and/or"
+                    " providing a search query.",
                 )
+                gr.Markdown(
+                    "- Select a row in the table to autofill the name and"
+                    " URL for the given voice model in the form fields below.",
+                )
+                gr.Markdown("")
+                with gr.Row():
+                    search_query = gr.Textbox(label="Search query")
+                    tags = gr.CheckboxGroup(
+                        value=[],
+                        label="Tags",
+                        choices=get_public_model_tags(),
+                    )
+                with gr.Row():
+                    public_models_table = gr.Dataframe(
+                        value=_filter_public_models_table,
+                        inputs=[tags, search_query],
+                        headers=[
+                            "Name",
+                            "Description",
+                            "Tags",
+                            "Credit",
+                            "Added",
+                            "URL",
+                        ],
+                        label="Public models table",
+                        interactive=False,
+                    )
+
             with gr.Row():
-                public_models_table = gr.Dataframe(
-                    value=_filter_public_models_table,
-                    inputs=[tags, search_query],
-                    headers=["Name", "Description", "Tags", "Credit", "Added", "URL"],
-                    label="Public models table",
+                voice_model_url = gr.Textbox(
+                    label="Model URL",
+                    info=(
+                        "Should point to a zip file containing a .pth model file and"
+                        " optionally also an .index file."
+                    ),
+                )
+                voice_model_name = gr.Textbox(
+                    label="Model name",
+                    info="Enter a unique name for the voice model.",
+                )
+
+            with gr.Row(equal_height=True):
+                download_voice_btn = gr.Button(
+                    "Download 🌐",
+                    variant="primary",
+                    scale=19,
+                )
+                download_voice_msg = gr.Textbox(
+                    label="Output message",
                     interactive=False,
+                    scale=20,
                 )
 
-        with gr.Row():
-            voice_model_url = gr.Textbox(
-                label="Model URL",
-                info=(
-                    "Should point to a zip file containing a .pth model file and"
-                    " optionally also an .index file."
+            public_models_table.select(
+                _autofill_model_name_and_url,
+                inputs=public_models_table,
+                outputs=[voice_model_name, voice_model_url],
+                show_progress="hidden",
+            )
+
+            download_voice_btn_click = download_voice_btn.click(
+                partial(
+                    exception_harness(download_voice_model),
+                    progress_bar=PROGRESS_BAR,
                 ),
+                inputs=[voice_model_url, voice_model_name],
+                outputs=download_voice_msg,
+            ).success(
+                partial(
+                    render_msg,
+                    "[+] Succesfully downloaded voice model!",
+                ),
+                outputs=download_voice_msg,
+                show_progress="hidden",
             )
-            voice_model_name = gr.Textbox(
-                label="Model name",
-                info="Enter a unique name for the voice model.",
+        with gr.Accordion("Pretrained models", open=False):
+            with gr.Row():
+
+                default_pretrained_model = "Titan"
+                default_sample_rates = get_available_pretrained_sample_rates(
+                    default_pretrained_model,
+                )
+
+                pretrained_model = gr.Dropdown(
+                    label="Pretrained model",
+                    choices=get_available_pretrained_model_names(),
+                    info="Select the pretrained model you want to download.",
+                    value=default_pretrained_model,
+                )
+                pretrained_sample_rate = gr.Dropdown(
+                    label="Sample rate",
+                    choices=default_sample_rates,
+                    value=default_sample_rates[0],
+                    info="Select the sample rate for the pretrained model.",
+                )
+
+                pretrained_model.change(
+                    _update_pretrained_sample_rates,
+                    inputs=pretrained_model,
+                    outputs=pretrained_sample_rate,
+                    show_progress="hidden",
+                )
+            with gr.Row(equal_height=True):
+                download_pretrained_btn = gr.Button(
+                    "Download 🌐",
+                    variant="primary",
+                    scale=19,
+                )
+                download_pretrained_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                    scale=20,
+                )
+            download_pretrained_btn_click = download_pretrained_btn.click(
+                partial(
+                    exception_harness(download_pretrained_model),
+                    progress_bar=PROGRESS_BAR,
+                ),
+                inputs=[pretrained_model, pretrained_sample_rate],
+                outputs=download_pretrained_msg,
+            ).success(
+                partial(
+                    render_msg,
+                    "[+] Succesfully downloaded pretrained model!",
+                ),
+                outputs=download_pretrained_msg,
+                show_progress="hidden",
             )
-
-        with gr.Row(equal_height=True):
-            download_btn = gr.Button("Download 🌐", variant="primary", scale=19)
-            download_msg = gr.Textbox(
-                label="Output message",
-                interactive=False,
-                scale=20,
-            )
-
-        public_models_table.select(
-            _autofill_model_name_and_url,
-            inputs=public_models_table,
-            outputs=[voice_model_name, voice_model_url],
-            show_progress="hidden",
-        )
-
-        download_btn_click = download_btn.click(
-            partial(
-                exception_harness(download_voice_model),
-                progress_bar=PROGRESS_BAR,
-            ),
-            inputs=[voice_model_url, voice_model_name],
-            outputs=download_msg,
-        ).success(
-            partial(
-                render_msg,
-                "[+] Succesfully downloaded voice model!",
-            ),
-            outputs=download_msg,
-            show_progress="hidden",
-        )
 
     # Upload tab
     with gr.Tab("Upload models"):
-        with gr.Accordion("Voice models", open=False):
+        with gr.Accordion("Voice models", open=True):
             with gr.Accordion("HOW TO USE"):
                 gr.Markdown("")
                 gr.Markdown(
@@ -370,6 +476,19 @@ def render(
                     label="Output message",
                     interactive=False,
                 )
+        with gr.Accordion("Custom pretrained models", open=False), gr.Row():
+            with gr.Column():
+                pretrained_model_delete.render()
+                delete_pretrained_btn = gr.Button(
+                    "Delete selected",
+                    variant="secondary",
+                )
+                delete_all_pretrained_btn = gr.Button("Delete all", variant="primary")
+            with gr.Column():
+                delete_pretrained_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                )
 
         with gr.Accordion("Training models", open=False), gr.Row():
             with gr.Column():
@@ -447,6 +566,46 @@ def render(
             outputs=delete_embedder_msg,
             show_progress="hidden",
         )
+
+        delete_pretrained_btn_click = delete_pretrained_btn.click(
+            partial(
+                confirmation_harness(delete_custom_pretrained_models),
+                progress_bar=PROGRESS_BAR,
+            ),
+            inputs=[dummy_checkbox, pretrained_model_delete],
+            outputs=delete_pretrained_msg,
+            js=confirm_box_js(
+                "Are you sure you want to delete the selected custom pretrained"
+                " models?",
+            ),
+        ).success(
+            partial(
+                render_msg,
+                "[-] Successfully deleted selected custom pretrained models!",
+            ),
+            outputs=delete_pretrained_msg,
+            show_progress="hidden",
+        )
+
+        delete_all_pretrained_btn_click = delete_all_pretrained_btn.click(
+            partial(
+                confirmation_harness(delete_all_custom_pretrained_models),
+                progress_bar=PROGRESS_BAR,
+            ),
+            inputs=dummy_checkbox,
+            outputs=delete_pretrained_msg,
+            js=confirm_box_js(
+                "Are you sure you want to delete all custom pretrained models?",
+            ),
+        ).success(
+            partial(
+                render_msg,
+                "[-] Successfully deleted all custom pretrained models!",
+            ),
+            outputs=delete_pretrained_msg,
+            show_progress="hidden",
+        )
+
         delete_train_btn_click = delete_train_btn.click(
             partial(
                 confirmation_harness(delete_training_models),
@@ -504,7 +663,7 @@ def render(
             show_progress="hidden",
         )
         for click_event in [
-            download_btn_click,
+            download_voice_btn_click,
             upload_voice_btn_click,
             delete_voice_btn_click,
             delete_all_voice_btn_click,
@@ -533,16 +692,31 @@ def render(
         ]
     ]
 
+    *_, all_model_update = [
+        click_event.success(
+            partial(update_dropdowns, get_custom_pretrained_model_names, 2, [], [1]),
+            outputs=[pretrained_model_multi, pretrained_model_delete],
+            show_progress="hidden",
+        )
+        for click_event in [
+            download_pretrained_btn_click,
+            delete_pretrained_btn_click,
+            delete_all_pretrained_btn_click,
+            all_model_update,
+        ]
+    ]
+
     for click_event in [
         delete_train_btn_click,
         delete_all_train_btn_click,
         all_model_update,
     ]:
         click_event.success(
-            partial(update_dropdowns, get_training_model_names, 3, [], [0, 2]),
+            partial(update_dropdowns, get_training_model_names, 4, [], [0, 3]),
             outputs=[
                 preprocess_model_multi,
                 extract_model_multi,
+                train_model_multi,
                 training_model_delete,
             ],
             show_progress="hidden",

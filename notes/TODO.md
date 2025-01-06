@@ -1,16 +1,16 @@
 # TODO
 
+
+* need to fix custom pretrain dropdown where it is not possible to deselect a value once it is selected
+  * solution: have a use custom pretrained model checkbox that when checked will enable the custom pretrained model dropdown and then you have to choose a value
+* need to test using custom pretrained models and figure out why it is not working
+* need to figure out why gradio app freezes gets stuck when something fails in the training loop (in a spawned process)
 * we should make a queue for training tab event listener so that only one event listener can be executed at a time
   * specifically we dont want to be able to extract features if dataset preprocessing is already running
   * and we dont want to be able to train a model if feature extraction is already running
 
 * we should have a button for quitting training. We can do as they do in applio
   * the same method can also be used for quitting any other ongoing process from the UI.
-
-* we should also have a button for tranfering generated voice model files to the voice model folder?
-   *  this can also be a checkbox option instead
-   * in that case the name of the voice model in the voice model folder will be the same as the name of the voice model in the training folder. so if there is already a voice model with that name in the voice model folder then an error will be raised. but only after training has completed
-   * it might be better with a separate button for this so that the user can choose to do this after training has completed and they can choose which name they want to give the voice model in the voice model folder. the button should be in a new accordion called "post training" or something like that?
 
 * Add reset settings button for each step in train multistep tab?
 * combine step 0: data population and step 1: dataset preprocsessing into one step?

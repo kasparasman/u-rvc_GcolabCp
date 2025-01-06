@@ -93,10 +93,20 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, load_opt=1):
         optimizer,
         checkpoint_dict.get("learning_rate", 0),
         checkpoint_dict["iteration"],
+        checkpoint_dict.get("lowest_value", {"value": float("inf"), "epoch": 0}),
+        checkpoint_dict.get("consecutive_increases", 0),
     )
 
 
-def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path):
+def save_checkpoint(
+    model,
+    optimizer,
+    learning_rate,
+    iteration,
+    lowest_value,
+    consecutive_increases,
+    checkpoint_path,
+):
     """
     Save the model and optimizer state to a checkpoint file.
 
@@ -114,6 +124,8 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path)
     checkpoint_data = {
         "model": state_dict,
         "iteration": iteration,
+        "lowest_value": lowest_value,
+        "consecutive_increases": consecutive_increases,
         "optimizer": optimizer.state_dict(),
         "learning_rate": learning_rate,
     }

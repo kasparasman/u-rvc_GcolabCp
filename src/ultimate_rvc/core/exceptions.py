@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Literal
 from enum import StrEnum
 
 if TYPE_CHECKING:
-    from ultimate_rvc.typing_extra import StrPath
+    from ultimate_rvc.typing_extra import PretrainedSampleRate, StrPath
 
 
 class Entity(StrEnum):
@@ -25,6 +25,7 @@ class Entity(StrEnum):
     # Model entities
     MODEL_NAME = "model name"
     MODEL_NAMES = "model names"
+    UPLOAD_NAME = "upload name"
     VOICE_MODEL = "voice model"
     TRAINING_MODEL = "training model"
     CUSTOM_EMBEDDER_MODEL = "custom embedder model"
@@ -127,9 +128,8 @@ class UIMessage(StrEnum):
     NO_TRAINING_MODELS = "No training models selected."
     NO_CUSTOM_EMBEDDER_MODEL = "No custom embedder model selected."
     NO_CUSTOM_EMBEDDER_MODELS = "No custom embedder models selected."
+    NO_CUSTOM_PRETRAINED_MODELS = "No custom pretrained models selected."
     NO_CUSTOM_PRETRAINED_MODEL = "No custom pretrained model selected."
-    NO_CUSTOM_GENERATOR = "No custom pretrained generator selected."
-    NO_CUSTOM_GENERATORS = "No custom pretrained generators selected."
 
     # Source messages
     NO_AUDIO_SOURCE = (
@@ -223,6 +223,40 @@ class ModelNotFoundError(OSError):
         super().__init__(f"{entity.capitalize()} with name '{name}' not found.")
 
 
+class PretrainedModelNotAvailableError(OSError):
+    """Raised when a pretrained model is not available for download."""
+
+    def __init__(
+        self,
+        name: str,
+        sample_rate: PretrainedSampleRate | None = None,
+    ) -> None:
+        r"""
+        Initialize a PretrainedModelNotAvailableError instance.
+
+        Exception message will be formatted as:
+
+        'Pretrained model with name "`<name>`"
+        [and sample rate `<sample_rate>`] is not available for
+        download.'
+
+        Parameters
+        ----------
+        name : str
+            The name of the pretrained model that is not available for
+            download.
+        sample_rate : PretrainedSampleRate, optional
+            The sample rate of the pretrained model that is not
+            available for download.
+
+        """
+        suffix = f" and sample rate {sample_rate}" if sample_rate else ""
+        super().__init__(
+            f"Pretrained model with name '{name}'{suffix} is not available for"
+            " download.",
+        )
+
+
 class GPUNotFoundError(OSError):
     """Raised when a GPU with a given id is not found."""
 
@@ -304,6 +338,35 @@ class ModelExistsError(OSError):
         super().__init__(
             f"{entity.capitalize()} with name '{name}' already exists. Please provide a"
             f" different name for your {entity}.",
+        )
+
+
+class PretrainedModelExistsError(OSError):
+    """
+    Raised when a pretrained model with a given name and sample rate
+    already exists.
+    """
+
+    def __init__(self, name: str, sample_rate: PretrainedSampleRate) -> None:
+        r"""
+        Initialize a PretrainedModelExistsError instance.
+
+        Exception message will be formatted as:
+
+        'Pretrained model with name "`<name>`" and sample rate
+        `<sample_rate>` already exists.'
+
+        Parameters
+        ----------
+        name : str
+            The name of the pretrained model that already exists.
+        sample_rate : PretrainedSampleRate
+            The sample rate of the pretrained model that already exists.
+
+        """
+        super().__init__(
+            f"Pretrained model with name '{name}' and sample rate {sample_rate} already"
+            " exists.",
         )
 
 

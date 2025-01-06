@@ -3,7 +3,12 @@ from typing import TYPE_CHECKING
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-from ultimate_rvc.common import RVC_MODELS_DIR, lazy_import
+from ultimate_rvc.common import (
+    EMBEDDER_MODELS_DIR,
+    PRETRAINED_MODELS_DIR,
+    RVC_MODELS_DIR,
+    lazy_import,
+)
 
 if TYPE_CHECKING:
     import requests
@@ -15,7 +20,7 @@ else:
     tqdm = lazy_import("tqdm")
 
 
-url_base = "https://huggingface.co/IAHispano/Applio/resolve/main/Resources"
+url_base = "https://huggingface.co/JackismyShephard/ultimate-rvc/resolve/main/Resources"
 
 pretraineds_v1_list = [
     (
@@ -67,17 +72,17 @@ executables_list = [
 ]
 
 folder_mapping_list = {
-    "pretrained_v1/": str(RVC_MODELS_DIR / "pretraineds/pretrained_v1/"),
-    "pretrained_v2/": str(RVC_MODELS_DIR / "pretraineds/pretrained_v2/"),
-    "embedders/contentvec/": str(RVC_MODELS_DIR / "embedders/contentvec/"),
+    "pretrained_v1/": str(PRETRAINED_MODELS_DIR / "pretrained_v1/"),
+    "pretrained_v2/": str(PRETRAINED_MODELS_DIR / "pretrained_v2/"),
+    "embedders/contentvec/": str(EMBEDDER_MODELS_DIR / "contentvec/"),
     "embedders/chinese_hubert_base/": str(
-        RVC_MODELS_DIR / "embedders/chinese_hubert_base/",
+        EMBEDDER_MODELS_DIR / "chinese_hubert_base/",
     ),
     "embedders/japanese_hubert_base/": str(
-        RVC_MODELS_DIR / "embedders/japanese_hubert_base/",
+        EMBEDDER_MODELS_DIR / "japanese_hubert_base/",
     ),
     "embedders/korean_hubert_base/": str(
-        RVC_MODELS_DIR / "embedders/korean_hubert_base/",
+        EMBEDDER_MODELS_DIR / "korean_hubert_base/",
     ),
     "predictors/": str(RVC_MODELS_DIR / "predictors/"),
     "formant/": str(RVC_MODELS_DIR / "formant/"),

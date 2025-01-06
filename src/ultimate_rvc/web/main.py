@@ -33,6 +33,7 @@ from ultimate_rvc.core.manage.audio import (
 )
 from ultimate_rvc.core.manage.models import (
     get_custom_embedder_model_names,
+    get_custom_pretrained_model_names,
     get_training_model_names,
     get_voice_model_names,
 )
@@ -90,8 +91,12 @@ def _init_app() -> list[gr.Dropdown]:
     custom_embedder_models = [
         gr.Dropdown(choices=get_custom_embedder_model_names()) for _ in range(6)
     ]
+
+    custom_pretrained_models = [
+        gr.Dropdown(choices=get_custom_pretrained_model_names()) for _ in range(2)
+    ]
     training_models = [
-        gr.Dropdown(choices=get_training_model_names()) for _ in range(3)
+        gr.Dropdown(choices=get_training_model_names()) for _ in range(4)
     ]
 
     # Initialize audio dropdowns
@@ -114,6 +119,7 @@ def _init_app() -> list[gr.Dropdown]:
         *voice_models,
         voice_model_delete,
         *custom_embedder_models,
+        *custom_pretrained_models,
         *training_models,
         *cached_songs,
         *song_dirs,
@@ -206,6 +212,23 @@ def render_app() -> gr.Blocks:
             multiselect=True,
             render=False,
         )
+
+        pretrained_model_multi = gr.Dropdown(
+            label="Custom pretrained model",
+            info=(
+                "A custom pretrained model to finetune. If none is selected, a"
+                " default pretrained model will be finetuned instead"
+            ),
+            value=None,
+            render=False,
+            visible=True,
+        )
+
+        pretrained_model_delete = gr.Dropdown(
+            label="Custom pretrained models",
+            multiselect=True,
+            render=False,
+        )
         preprocess_model_multi = gr.Dropdown(
             label="Model name",
             info=(
@@ -223,6 +246,15 @@ def render_app() -> gr.Blocks:
                 "Name of the model with an associated preprocessed dataset to extract"
                 " training features from. When a new dataset is preprocessed, its"
                 " associated model is selected by default."
+            ),
+            render=False,
+        )
+
+        train_model_multi = gr.Dropdown(
+            label="Model name",
+            info=(
+                "Name of the model to train. When training features are extracted for a"
+                " new model, its name is selected by default."
             ),
             render=False,
         )
@@ -336,19 +368,27 @@ def render_app() -> gr.Blocks:
                 speech_audio,
                 output_audio,
             )
-        with gr.Tab("Train models"):
+        with gr.Tab("Train voice models"):
             render_train_multi_step_tab(
                 dataset,
                 preprocess_model_multi,
                 training_embedder_multi,
                 extract_model_multi,
+                pretrained_model_multi,
+                train_model_multi,
+                song_cover_voice_model_1click,
+                song_cover_voice_model_multi,
+                speech_voice_model_1click,
+                speech_voice_model_multi,
                 training_model_delete,
+                voice_model_delete,
                 dataset_audio,
             )
         with gr.Tab("Manage models"):
             render_manage_models_tab(
                 voice_model_delete,
                 embedder_delete,
+                pretrained_model_delete,
                 training_model_delete,
                 song_cover_voice_model_1click,
                 song_cover_voice_model_multi,
@@ -361,6 +401,8 @@ def render_app() -> gr.Blocks:
                 preprocess_model_multi,
                 training_embedder_multi,
                 extract_model_multi,
+                pretrained_model_multi,
+                train_model_multi,
             )
         with gr.Tab("Manage audio"):
             render_manage_audio_tab(
@@ -392,8 +434,11 @@ def render_app() -> gr.Blocks:
                 speech_embedder_multi,
                 training_embedder_multi,
                 embedder_delete,
+                pretrained_model_multi,
+                pretrained_model_delete,
                 preprocess_model_multi,
                 extract_model_multi,
+                train_model_multi,
                 training_model_delete,
                 intermediate_audio,
                 cached_song_1click,

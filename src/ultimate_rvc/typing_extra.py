@@ -92,8 +92,17 @@ class TrainingSampleRate(StrEnum):
 
     HZ_32K = "32000"
     HZ_40K = "40000"
-    HZ_41K = "41000"
+    HZ_44K = "44100"
     HZ_48K = "48000"
+
+
+class PretrainedSampleRate(StrEnum):
+    """Enumeration of valid sample rates for pretrained models."""
+
+    HZ_32K = "32k"
+    HZ_40K = "40k"
+    HZ_41K = "41k"
+    HZ_48K = "48k"
 
 
 class RVCVersion(StrEnum):
@@ -133,6 +142,6 @@ class Vocoder(StrEnum):
 class IndexAlgorithm(StrEnum):
     """Enumeration of indexing algorithms for training voice models."""
 
-    AUTO = "auto"
+    AUTO = "Auto"
     FAISS = "Faiss"
     KMEANS = "KMeans"

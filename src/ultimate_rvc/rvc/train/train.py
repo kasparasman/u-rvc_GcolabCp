@@ -293,7 +293,7 @@ def run(
         device (torch.device): The device to use for training (CPU or GPU).
 
     """
-    global global_step, optimizer
+    global global_step, optimizer, lowest_d_value, lowest_g_value, consecutive_increases_gen, consecutive_increases_disc
 
     if rank == 0:
         writer_eval = SummaryWriter(log_dir=os.path.join(experiment_dir, "eval"))
@@ -402,12 +402,14 @@ def run(
     # Load checkpoint if available
     try:
         logger.info("Starting training...")
-        _, _, _, epoch_str = load_checkpoint(
-            latest_checkpoint_path(experiment_dir, "D_*.pth"),
-            net_d,
-            optim_d,
+        _, _, _, epoch_str, lowest_d_value, consecutive_increases_disc = (
+            load_checkpoint(
+                latest_checkpoint_path(experiment_dir, "D_*.pth"),
+                net_d,
+                optim_d,
+            )
         )
-        _, _, _, epoch_str = load_checkpoint(
+        _, _, _, epoch_str, lowest_g_value, consecutive_increases_gen = load_checkpoint(
             latest_checkpoint_path(experiment_dir, "G_*.pth"),
             net_g,
             optim_g,
@@ -600,7 +602,7 @@ def train_and_evaluate(
     epoch_gen_sum = 0.0
 
     model_add = []
-    checkpoint_idxs = [2333333]
+    checkpoint_idxs = []
     done = False
 
     net_g, net_d = nets
@@ -905,7 +907,7 @@ def train_and_evaluate(
                 done = True
         print(record)
 
-        # Save weights, checkpoints and reference inference resulsts
+        # Save weights, checkpoints and reference inference results
         # every N epochs
         if epoch % save_every_epoch == 0:
             with torch.no_grad():
@@ -922,6 +924,7 @@ def train_and_evaluate(
                 audios=audio_dict,
                 audio_sample_rate=config.data.sample_rate,
             )
+            checkpoint_idxs.append(2333333)
             if not save_only_latest:
                 checkpoint_idxs.append(epoch)
 
@@ -942,6 +945,8 @@ def train_and_evaluate(
                 optim_g,
                 config.train.learning_rate,
                 epoch,
+                lowest_g_value,
+                consecutive_increases_gen,
                 os.path.join(experiment_dir, f"G_{idx}.pth"),
             )
             save_checkpoint(
@@ -949,6 +954,8 @@ def train_and_evaluate(
                 optim_d,
                 config.train.learning_rate,
                 epoch,
+                lowest_d_value,
+                consecutive_increases_disc,
                 os.path.join(experiment_dir, f"D_{idx}.pth"),
             )
         if model_add:

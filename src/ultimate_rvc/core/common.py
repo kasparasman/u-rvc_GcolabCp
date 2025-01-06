@@ -20,6 +20,7 @@ from ultimate_rvc.common import (
     MODELS_DIR,
     TRAINING_MODELS_DIR,
     VOICE_MODELS_DIR,
+    lazy_import,
 )
 from ultimate_rvc.core.exceptions import (
     AudioDirectoryEntity,
@@ -36,9 +37,14 @@ from ultimate_rvc.core.exceptions import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    import requests
+
     import gradio as gr
 
     from ultimate_rvc.typing_extra import Json, StrPath
+else:
+    requests = lazy_import("requests")
+
 
 RVC_DOWNLOAD_URL = "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/"
 INTERMEDIATE_AUDIO_BASE_DIR = AUDIO_DIR / "intermediate"
@@ -284,6 +290,26 @@ def get_combined_file_hash(files: Sequence[StrPath], size: int = 5) -> str:
                 hasher.update(chunk)
 
     return hasher.hexdigest()
+
+
+def get_file_size(url: str) -> int:
+    """
+    Get the size of a file at a given URL.
+
+    Parameters
+    ----------
+    url : str
+        The URL of the file to get the size of.
+
+    Returns
+    -------
+    int
+        The size of the file at the given URL.
+
+    """
+    response = requests.head(url)
+    response.raise_for_status()
+    return int(response.headers.get("content-length", 0))
 
 
 def validate_audio_file_exists(

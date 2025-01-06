@@ -40,7 +40,7 @@ class SpeechSourceType(StrEnum):
     LOCAL_FILE = "Local file"
 
 
-class ComponentVisibilityKwArgs(TypedDict):
+class ComponentVisibilityKwArgs(TypedDict, total=False):
     """
     Keyword arguments for setting component visibility.
 

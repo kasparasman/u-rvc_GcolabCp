@@ -189,9 +189,12 @@ def update_values(*xs: str) -> tuple[dict[str, Any], ...]:
     return tuple(gr.update(value=x) for x in xs)
 
 
-def toggle_visibility[
-    T
-](value: T, targets: set[T], default: str | float | None = None) -> dict[str, Any]:
+def toggle_visibility[T](
+    value: T,
+    targets: set[T],
+    default: str | float | None = None,
+    update_default: bool = True,
+) -> dict[str, Any]:
     """
     Toggle the visibility of a component based on equality of
     a value and one of a set of targets.
@@ -204,6 +207,8 @@ def toggle_visibility[
         The set of targets to compare the value against.
     default : str | float | None, optional
         Default value for the component.
+    update_default : bool, default=False
+        Whether to update the default value of the component.
 
     Returns
     -------
@@ -211,7 +216,10 @@ def toggle_visibility[
         Dictionary which updates the visibility of the component.
 
     """
-    return gr.update(visible=value in targets, value=default)
+    update_args: ComponentVisibilityKwArgs = {"visible": value in targets}
+    if update_default:
+        update_args["value"] = default
+    return gr.update(**update_args)
 
 
 def toggle_visibilities[T](
@@ -289,16 +297,14 @@ def toggle_visible_component(
             return tuple(gr.update(**update_args) for update_args in update_args_list)
 
 
-def update_dropdowns[
-    **P
-](
+def update_dropdowns[**P](
     fn: Callable[P, DropdownChoices],
     num_components: int,
     value: DropdownValue = None,
     value_indices: Sequence[int] = [],
     *args: P.args,
     **kwargs: P.kwargs,
-) -> (gr.Dropdown | tuple[gr.Dropdown, ...]):
+) -> gr.Dropdown | tuple[gr.Dropdown, ...]:
     """
     Update the choices and optionally the value of one or more dropdown
     components.
@@ -383,9 +389,7 @@ def toggle_intermediate_audio(
     return [gr.Accordion(visible=visible, open=False), *accordions]
 
 
-def update_output_name[
-    **P
-](
+def update_output_name[**P](
     fn: Callable[..., str],
     update_placeholder: bool = False,
     *args: P.args,

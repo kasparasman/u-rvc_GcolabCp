@@ -300,7 +300,6 @@ def extract_features(
     cpu_cores: Annotated[
         int,
         typer.Option(
-            rich_help_panel=PanelName.DEVICE_OPTIONS,
             help="The number of CPU cores to use for feature extraction.",
             min=1,
             max=cpu_count(),
@@ -309,7 +308,6 @@ def extract_features(
     hardware_acceleration: Annotated[
         DeviceType,
         typer.Option(
-            rich_help_panel=PanelName.DEVICE_OPTIONS,
             autocompletion=complete_device_type,
             case_sensitive=False,
             help=(
@@ -322,7 +320,6 @@ def extract_features(
     gpu_id: Annotated[
         list[int] | None,
         typer.Option(
-            rich_help_panel=PanelName.DEVICE_OPTIONS,
             min=0,
             help=(
                 "The id of a GPU to use for feature extraction when `GPU` is selected"
@@ -365,38 +362,14 @@ def run_training(
             help="The name of the voice model to train.",
         ),
     ],
-    vocoder: Annotated[
-        Vocoder,
-        typer.Option(
-            rich_help_panel=PanelName.MAIN_OPTIONS,
-            case_sensitive=False,
-            autocompletion=complete_vocoder,
-            help=(
-                "The vocoder to use for audio synthesis during training. HiFi-GAN"
-                " provides basic audio fidelity, while RefineGAN provides the highest"
-                " audio fidelity."
-            ),
-        ),
-    ] = Vocoder.HIFI_GAN,
-    index_algorithm: Annotated[
-        IndexAlgorithm,
-        typer.Option(
-            rich_help_panel=PanelName.MAIN_OPTIONS,
-            case_sensitive=False,
-            autocompletion=complete_index_algorithm,
-            help=(
-                "The method to use for generating an index file for the trained voice"
-                " model. KMeans is a clustering algorithm that divides the dataset"
-                " into K clusters. This setting is particularly useful for large"
-                " datasets."
-            ),
-        ),
-    ] = IndexAlgorithm.AUTO,
     num_epochs: Annotated[
         int,
         typer.Option(
             rich_help_panel=PanelName.TRAINING_OPTIONS,
-            help="The number of epochs to train the voice model.",
+            help=(
+                "The number of epochs to train the voice model.A higher number can"
+                " improve voice model performance but may lead to overtraining."
+            ),
             min=1,
         ),
     ] = 500,
@@ -435,14 +408,63 @@ def run_training(
             min=1,
         ),
     ] = 50,
+    vocoder: Annotated[
+        Vocoder,
+        typer.Option(
+            rich_help_panel=PanelName.ALGORITHMIC_OPTIONS,
+            case_sensitive=False,
+            autocompletion=complete_vocoder,
+            help=(
+                "The vocoder to use for audio synthesis during training. HiFi-GAN"
+                " provides basic audio fidelity, while RefineGAN provides the highest"
+                " audio fidelity."
+            ),
+        ),
+    ] = Vocoder.HIFI_GAN,
+    index_algorithm: Annotated[
+        IndexAlgorithm,
+        typer.Option(
+            rich_help_panel=PanelName.ALGORITHMIC_OPTIONS,
+            case_sensitive=False,
+            autocompletion=complete_index_algorithm,
+            help=(
+                "The method to use for generating an index file for the trained voice"
+                " model. KMeans is particularly useful for large datasets."
+            ),
+        ),
+    ] = IndexAlgorithm.AUTO,
+    finetune_pretrained: Annotated[
+        bool,
+        typer.Option(
+            rich_help_panel=PanelName.ALGORITHMIC_OPTIONS,
+            help=(
+                "Whether to finetune a pretrained model rather than train a new voice"
+                " model from scratch. This can reduce training time and improve overall"
+                " voice model performance."
+            ),
+        ),
+    ] = True,
+    custom_pretrained: Annotated[
+        str | None,
+        typer.Option(
+            rich_help_panel=PanelName.ALGORITHMIC_OPTIONS,
+            help=(
+                "The name of a custom pretrained model to finetune. Finetuning a custom"
+                " pretrained model can lead to superior results, as selecting the most"
+                " suitable pretrained model tailored to the specific use case can"
+                " significantly enhance performance. If none is provided, a default"
+                " pretrained model is used."
+            ),
+        ),
+    ] = None,
     save_interval: Annotated[
         int,
         typer.Option(
-            rich_help_panel=PanelName.SAVE_OPTIONS,
+            rich_help_panel=PanelName.DATA_STORAGE_OPTIONS,
             help=(
-                "The epoch interval at which to save voice model weights and"
-                " checkpoints. The best model weights and latest model checkpoint are"
-                " always saved regardless of this setting."
+                "The epoch interval at which to to save voice model weights and"
+                " checkpoints. The best model weights are always saved regardless of"
+                " this setting."
             ),
             min=1,
         ),
@@ -450,88 +472,62 @@ def run_training(
     save_all_checkpoints: Annotated[
         bool,
         typer.Option(
-            rich_help_panel=PanelName.SAVE_OPTIONS,
+            rich_help_panel=PanelName.DATA_STORAGE_OPTIONS,
             help=(
-                "Whether to save a voice model checkpoint at each save interval. If"
-                " False, only the latest voice model checkpoint will be saved."
+                " Whether to save a unique checkpoint at each save interval. If not"
+                " enabled, only the latest checkpoint will be saved at each interval."
             ),
         ),
     ] = False,
     save_all_weights: Annotated[
         bool,
         typer.Option(
-            rich_help_panel=PanelName.SAVE_OPTIONS,
+            rich_help_panel=PanelName.DATA_STORAGE_OPTIONS,
             help=(
-                "Whether to save voice model weights at each save interval. If False,"
-                " only the best voice model weights will be saved."
+                "Whether to save unique voice model weights at each save interval. If"
+                " not enabled, only the best voice model weights will be saved."
             ),
         ),
     ] = False,
     clear_saved_data: Annotated[
         bool,
         typer.Option(
-            rich_help_panel=PanelName.SAVE_OPTIONS,
+            rich_help_panel=PanelName.DATA_STORAGE_OPTIONS,
             help=(
-                "Whether to delete any existing saved training data associated with the"
-                " voice model before starting a new training session. Enable this"
-                " settingonly if you are training a new voice model from scratch or"
-                " restarting training."
+                "Whether to delete any existing training data associated with the"
+                " voice model before training commences. Enable this setting only if"
+                " you are training a new voice model from scratch or restarting"
+                " training."
             ),
         ),
     ] = False,
-    use_pretrained: Annotated[
+    upload_model: Annotated[
         bool,
         typer.Option(
-            rich_help_panel=PanelName.PRETRAINED_MODEL_OPTIONS,
+            rich_help_panel=PanelName.MAIN_OPTIONS,
             help=(
-                "Whether to use a pretrained model for training. This reduces training"
-                " time and improves overall voice model performance."
+                "Whether to automatically upload the trained voice model so that it"
+                " can be used for generation tasks audio generation tasks within the"
+                " Ultimate RVC app."
             ),
         ),
-    ] = True,
-    custom_pretrained: Annotated[
+    ] = False,
+    upload_name: Annotated[
         str | None,
         typer.Option(
-            rich_help_panel=PanelName.PRETRAINED_MODEL_OPTIONS,
-            help=(
-                "The name of a custom pretrained model to use for training. Using a"
-                " custom generator/discriminator model can lead to superior results, as"
-                " selecting the most suitable pretrained modeltailored to the specific"
-                " use case can significantly enhanceperformance."
-            ),
+            rich_help_panel=PanelName.MAIN_OPTIONS,
+            help="The name to give the uploaded voice model.",
         ),
     ] = None,
-    preload_dataset: Annotated[
-        bool,
-        typer.Option(
-            rich_help_panel=PanelName.MEMORY_OPTIONS,
-            help=(
-                "Whether to preload all training data into GPU memory. This can improve"
-                " training speed but requires a lot of VRAM."
-            ),
-        ),
-    ] = False,
-    save_memory: Annotated[
-        bool,
-        typer.Option(
-            rich_help_panel=PanelName.MEMORY_OPTIONS,
-            help=(
-                "Whether to reduce VRAM usage at the cost of slower training speed by"
-                " enabling activation checkpointing. This is useful for GPUs with"
-                " limited memory (e.g., <6GB VRAM) or when training with a batch size"
-                " larger than what your GPU can normally accommodate."
-            ),
-        ),
-    ] = False,
     hardware_acceleration: Annotated[
         DeviceType,
         typer.Option(
-            rich_help_panel=PanelName.DEVICE_OPTIONS,
+            rich_help_panel=PanelName.DEVICE_AND_MEMORY_OPTIONS,
             autocompletion=complete_device_type,
             case_sensitive=False,
             help=(
                 "The type of hardware acceleration to use for training the voice model."
-                "`AUTOMATIC`will automatically select the first available GPU and fall"
+                "`AUTOMATIC` will automatically select the first available GPU and fall"
                 " back to CPU if no GPUs are available."
             ),
         ),
@@ -539,7 +535,7 @@ def run_training(
     gpu_id: Annotated[
         list[int] | None,
         typer.Option(
-            rich_help_panel=PanelName.DEVICE_OPTIONS,
+            rich_help_panel=PanelName.DEVICE_AND_MEMORY_OPTIONS,
             min=0,
             help=(
                 "The id of a GPU to use for training the voice model when `GPU` is"
@@ -548,6 +544,28 @@ def run_training(
             ),
         ),
     ] = None,
+    preload_dataset: Annotated[
+        bool,
+        typer.Option(
+            rich_help_panel=PanelName.DEVICE_AND_MEMORY_OPTIONS,
+            help=(
+                "Whether to preload all training data into GPU memory. This can improve"
+                " training speed but requires a lot of VRAM."
+            ),
+        ),
+    ] = False,
+    reduce_memory_usage: Annotated[
+        bool,
+        typer.Option(
+            rich_help_panel=PanelName.DEVICE_AND_MEMORY_OPTIONS,
+            help=(
+                "Whether to reduce VRAM usage at the cost of slower training speed by"
+                " enabling activation checkpointing. This is useful for GPUs with"
+                " limited memory (e.g., <6GB VRAM) or when training with a batch size"
+                " larger than what your GPU can normally accommodate."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """
     Train a voice model using its associated preprocessed dataset and
@@ -558,22 +576,24 @@ def run_training(
     gpu_id_set = set(gpu_id) if gpu_id is not None else None
     model_file, index_file = _run_training(
         model_name=model_name,
-        vocoder=vocoder,
-        index_algorithm=index_algorithm,
         num_epochs=num_epochs,
         batch_size=batch_size,
         detect_overtraining=detect_overtraining,
         overtraining_threshold=overtraining_threshold,
+        vocoder=vocoder,
+        index_algorithm=index_algorithm,
+        finetune_pretrained=finetune_pretrained,
+        custom_pretrained=custom_pretrained,
         save_interval=save_interval,
         save_all_checkpoints=save_all_checkpoints,
         save_all_weights=save_all_weights,
         clear_saved_data=clear_saved_data,
-        use_pretrained=use_pretrained,
-        custom_pretrained=custom_pretrained,
-        preload_dataset=preload_dataset,
-        save_memory=save_memory,
+        upload_model=upload_model,
+        upload_name=upload_name,
         hardware_acceleration=hardware_acceleration,
         gpu_ids=gpu_id_set,
+        preload_dataset=preload_dataset,
+        reduce_memory_usage=reduce_memory_usage,
     )
 
     rprint("[+] Voice model succesfully trained!")
