@@ -207,7 +207,7 @@ def toggle_visibility[T](
         The set of targets to compare the value against.
     default : str | float | None, optional
         Default value for the component.
-    update_default : bool, default=False
+    update_default : bool, default=True
         Whether to update the default value of the component.
 
     Returns

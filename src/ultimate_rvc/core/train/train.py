@@ -174,7 +174,7 @@ def run_training(
         if not upload_name:
             raise NotProvidedError(Entity.UPLOAD_NAME)
         upload_model_path = VOICE_MODELS_DIR / upload_name.strip()
-        if upload_model_path.exists():
+        if upload_model_path.is_dir():
             raise ModelExistsError(Entity.VOICE_MODEL, upload_name)
 
     with (model_path / "model_info.json").open("r") as f:

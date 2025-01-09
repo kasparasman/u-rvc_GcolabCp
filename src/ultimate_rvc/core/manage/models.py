@@ -10,7 +10,6 @@ import urllib.request
 import zipfile
 
 # TODO no sure if this should be lazily imported
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ultimate_rvc.common import (
@@ -54,6 +53,7 @@ if TYPE_CHECKING:
     from typing import NoReturn
 
     from _collections_abc import Sequence
+    from concurrent import futures as concurrent_futures
 
     import requests
 
@@ -64,6 +64,7 @@ if TYPE_CHECKING:
 else:
     requests = lazy_import("requests")
     tqdm = lazy_import("tqdm")
+    concurrent_futures = lazy_import("concurrent.futures")
 
 PUBLIC_MODELS_JSON = json_load(Path(__file__).parent / "public_models.json")
 PUBLIC_MODELS_TABLE = VoiceModelMetaDataTable.model_validate(PUBLIC_MODELS_JSON)
@@ -543,7 +544,7 @@ def download_pretrained_model(
             unit_scale=True,
             desc="Downloading files",
         ) as tqdm_bar,
-        ThreadPoolExecutor() as executor,
+        concurrent_futures.ThreadPoolExecutor() as executor,
     ):
         futures = [
             executor.submit(

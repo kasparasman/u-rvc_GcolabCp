@@ -101,7 +101,7 @@ class PretrainedSampleRate(StrEnum):
 
     HZ_32K = "32k"
     HZ_40K = "40k"
-    HZ_41K = "41k"
+    HZ_44K = "44k"
     HZ_48K = "48k"
 
 
