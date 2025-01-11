@@ -257,6 +257,37 @@ class PretrainedModelNotAvailableError(OSError):
         )
 
 
+class IncompatiblePretrainedModelError(OSError):
+    """
+    Raised when a pretrained model is incompatible with a given sample
+    rate.
+    """
+
+    def __init__(self, name: str, sample_rate: int) -> None:
+        r"""
+        Initialize an IncompatiblePretrainedModelError instance.
+
+        Exception message will be formatted as:
+
+        'Pretrained model with name "`<name>`" is incompatible with
+        sample rate `<sample_rate>`.'
+
+        Parameters
+        ----------
+        name : str
+            The name of the pretrained model that is incompatible with
+            a given sample rate.
+        sample_rate : PretrainedSampleRate
+            The sample rate that the pretrained model is incompatible
+            with.
+
+        """
+        super().__init__(
+            f"Pretrained model with name '{name}' is incompatible with sample rate"
+            f" {sample_rate}.",
+        )
+
+
 class GPUNotFoundError(OSError):
     """Raised when a GPU with a given id is not found."""
 

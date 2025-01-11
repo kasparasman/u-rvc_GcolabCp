@@ -1,5 +1,5 @@
 """
-Module which defines extra types for used by modules in the
+Module which defines extra types used by modules in the
 ultimate_rvc.core.manage package.
 """
 

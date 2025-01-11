@@ -504,7 +504,7 @@ def run_training(
     upload_model: Annotated[
         bool,
         typer.Option(
-            rich_help_panel=PanelName.MAIN_OPTIONS,
+            rich_help_panel=PanelName.DATA_STORAGE_OPTIONS,
             help=(
                 "Whether to automatically upload the trained voice model so that it"
                 " can be used for generation tasks audio generation tasks within the"
@@ -515,7 +515,7 @@ def run_training(
     upload_name: Annotated[
         str | None,
         typer.Option(
-            rich_help_panel=PanelName.MAIN_OPTIONS,
+            rich_help_panel=PanelName.DATA_STORAGE_OPTIONS,
             help="The name to give the uploaded voice model.",
         ),
     ] = None,

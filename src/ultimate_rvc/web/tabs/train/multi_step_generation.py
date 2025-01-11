@@ -5,13 +5,13 @@ Module which defines the code for the
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from functools import partial
 from multiprocessing import cpu_count
 
 import gradio as gr
 
+from ultimate_rvc.common import TRAINING_MODELS_DIR
+from ultimate_rvc.core.common import json_load
 from ultimate_rvc.core.manage.audio import get_audio_datasets, get_named_audio_datasets
 from ultimate_rvc.core.manage.models import (
     get_training_model_names,
@@ -24,6 +24,7 @@ from ultimate_rvc.core.train.prepare import (
     preprocess_dataset,
 )
 from ultimate_rvc.core.train.train import run_training
+from ultimate_rvc.core.train.typing_extra import ModelInfo
 from ultimate_rvc.typing_extra import (
     AudioExt,
     AudioSplitMethod,
@@ -45,36 +46,37 @@ from ultimate_rvc.web.common import (
     update_value,
 )
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-    from pathlib import Path
 
-
-def _run_training_wrapper[**P](
-    fn: Callable[P, tuple[Path, Path]],
-) -> Callable[P, list[str]]:
+def _get_trained_model_files(model_name: str) -> list[str] | None:
     """
-    Wrap a function in a harness which converts the two paths it returns
-    to a list of strings.
-
-    Only intended to be used applied to `run_training`.
+    Get the best weights file and the index file for a trained voice
+    model, if they exist.
 
     Parameters
     ----------
-    fn : Callable[P, tuple[Path, Path]]
-        The function to wrap. Should be `run_training`.
+    model_name : str
+        The name of the trained voice model.
 
     Returns
     -------
-    Callable[P, list[str]]
-        The wrapped function.
+    list[str] | None
+        A list containing the paths to the best weights file and the
+        index file for the trained voice model, if they exist.
+        Otherwise, None.
 
     """
-
-    def _wrapped_fn(*args: P.args, **kwargs: P.kwargs) -> list[str]:
-        return list(map(str, fn(*args, **kwargs)))
-
-    return _wrapped_fn
+    model_path = TRAINING_MODELS_DIR / model_name
+    model_info_path = model_path / "model_info.json"
+    if not model_info_path.is_file():
+        return None
+    model_info_dict = json_load(model_info_path)
+    model_info = ModelInfo.model_validate(model_info_dict)
+    rvc_version = model_info.rvc_version
+    model_file = model_path / f"{model_name}_best.pth"
+    index_file = model_path / f"added_{model_name}_{rvc_version}.index"
+    if not model_file.is_file() or not index_file.is_file():
+        return None
+    return [str(model_file), str(index_file)]
 
 
 def _normalize_and_update(value: str) -> gr.Dropdown:
@@ -728,13 +730,17 @@ def render(
                                 " than what your GPU can normally accommodate."
                             ),
                         )
+            with gr.Accordion("Output", open=True):
+                voice_model_files = gr.File(
+                    label="Voice model files",
+                    interactive=False,
+                )
             with gr.Row(equal_height=True):
                 train_btn = gr.Button("Train voice model", variant="primary")
-                voice_model_files = gr.File(label="Voice model files")
+                train_msg = gr.Textbox(label="Output message", interactive=False)
                 train_btn.click(
                     partial(
-                        _run_training_wrapper(exception_harness(run_training)),
-                        progress_bar=PROGRESS_BAR,
+                        exception_harness(run_training),
                     ),
                     inputs=[
                         train_model,
@@ -757,9 +763,15 @@ def render(
                         preload_dataset,
                         reduce_memory_usage,
                     ],
-                    outputs=voice_model_files,
+                    outputs=train_msg,
                 ).success(
                     partial(render_msg, "[+] Voice model successfully trained!"),
+                    outputs=train_msg,
+                    show_progress="hidden",
+                ).then(
+                    _get_trained_model_files,
+                    inputs=train_model,
+                    outputs=voice_model_files,
                     show_progress="hidden",
                 ).then(
                     partial(update_dropdowns, get_voice_model_names, 5, [], [4]),

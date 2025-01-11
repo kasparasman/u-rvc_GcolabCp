@@ -1,10 +1,24 @@
 # TODO
 
 
+* have run_training return nothing and then use the get_training_model files function in cli and web to get the trained model files
+* getting this after doing inference after training:
+  """
+  OMP: Error #15: Initializing libomp140.x86_64.dll, but found libiomp5md.dll already initialized.
+  OMP: Hint This means that multiple copies of the OpenMP runtime have been linked into the program. That is dangerous, since it can degrade performance or cause incorrect results. The best thing to do is to ensure that only a single OpenMP runtime is linked into the process, e.g. by avoiding static linking of the OpenMP runtime in any library. As an unsafe, unsupported, undocumented workaround you can set the environment variable KMP_DUPLICATE_LIB_OK=TRUE to allow the program to continue to execute, but that may cause crashes or silently produce incorrect results. For more information, please see http://openmp.llvm.org/
+  """
+* incorporate latest changes from applio
+* need to fix issue with ports when using training:
+  """
+  torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. The server socket has failed to bind to [Christians-Desktop]:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.). The server socket has failed to bind to Christians-Desktop:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
+  """s
+  * seems to be due to us choosing a port that is protected by windows when using torch.distributed for training. should figure out which port it is
 * need to fix custom pretrain dropdown where it is not possible to deselect a value once it is selected
-  * solution: have a use custom pretrained model checkbox that when checked will enable the custom pretrained model dropdown and then you have to choose a value
-* need to test using custom pretrained models and figure out why it is not working
-* need to figure out why gradio app freezes gets stuck when something fails in the training loop (in a spawned process)
+  * solution: instead of finetune_pretrained checkbox have a pretrained model dropdown with the options
+    * None
+    * Default
+    * Custom
+  * then when custom is selected the custom pretrained model dropdown should appear
 * we should make a queue for training tab event listener so that only one event listener can be executed at a time
   * specifically we dont want to be able to extract features if dataset preprocessing is already running
   * and we dont want to be able to train a model if feature extraction is already running

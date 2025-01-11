@@ -7,22 +7,25 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import json
+import re
 
 from ultimate_rvc.core.common import (
     VOICE_MODELS_DIR,
     copy_files_to_new_dir,
     display_progress,
+    json_load,
     validate_model_exists,
 )
 from ultimate_rvc.core.exceptions import (
     Entity,
+    IncompatiblePretrainedModelError,
     ModelAsssociatedEntityNotFoundError,
     ModelExistsError,
     NotProvidedError,
     Step,
 )
 from ultimate_rvc.core.train.common import validate_devices
+from ultimate_rvc.core.train.typing_extra import ModelInfo
 from ultimate_rvc.typing_extra import DeviceType, IndexAlgorithm, Vocoder
 
 if TYPE_CHECKING:
@@ -159,11 +162,16 @@ def run_training(
     ModelExistsError
         If a voice with the provided upload name already exists when the
         upload parameter is set
+    IncompatiblePretrainedModelError
+        if a custom pretrained model is not compatible with the sample
+        rate of the preprocessed dataset associated with the voice model
+        to be trained
+
 
     """
     model_path = validate_model_exists(model_name, Entity.TRAINING_MODEL)
     filelist_path = model_path / "filelist.txt"
-    if not filelist_path.exists():
+    if not filelist_path.is_file():
         raise ModelAsssociatedEntityNotFoundError(
             Entity.DATASET_FILE_LIST,
             model_name,
@@ -177,32 +185,52 @@ def run_training(
         if upload_model_path.is_dir():
             raise ModelExistsError(Entity.VOICE_MODEL, upload_name)
 
-    with (model_path / "model_info.json").open("r") as f:
-        model_info = json.load(f)
+    model_info_dict = json_load(model_path / "model_info.json")
 
-    rvc_version: str = model_info["rvc_version"]
-    sample_rate: int = model_info["sample_rate"]
+    model_info = ModelInfo.model_validate(model_info_dict)
+    rvc_version = model_info.rvc_version
+    sample_rate = model_info.sample_rate
 
     pg, pd = "", ""
+    # TODO move all pretrained validation and processing to a separate function
     if finetune_pretrained:
         if custom_pretrained is not None:
             custom_pretrained_path = validate_model_exists(
                 custom_pretrained,
                 Entity.CUSTOM_PRETRAINED_MODEL,
             )
-            generator_path = next(custom_pretrained_path.glob("G*.pth"), None)
-            if generator_path is None:
+
+            # TODO need to make this cleaner
+            custom_pretrained_sample_rate = int(custom_pretrained[-3:-1]) * 1000
+            if not custom_pretrained_sample_rate == sample_rate:
+                raise IncompatiblePretrainedModelError(custom_pretrained, sample_rate)
+
+            pg = next(
+                (
+                    str(path)
+                    for path in custom_pretrained_path.iterdir()
+                    if re.match(r"^(G|f0G).*\.pth$|.*G\.pth$", path.name)
+                ),
+                None,
+            )
+            if pg is None:
                 raise ModelAsssociatedEntityNotFoundError(
                     Entity.GENERATOR,
                     custom_pretrained,
                 )
-            discriminator_path = next(custom_pretrained_path.glob("D*.pth"), None)
-            if discriminator_path is None:
+            pd = next(
+                (
+                    str(path)
+                    for path in custom_pretrained_path.iterdir()
+                    if re.match(r"^(D|f0D).*\.pth$|.*D\.pth$", path.name)
+                ),
+                None,
+            )
+            if pd is None:
                 raise ModelAsssociatedEntityNotFoundError(
                     Entity.DISCRIMINATOR,
                     custom_pretrained,
                 )
-            pg, pd = str(generator_path), str(discriminator_path)
 
         else:
             from ultimate_rvc.rvc.lib.tools.pretrained_selector import (  # noqa: PLC0415

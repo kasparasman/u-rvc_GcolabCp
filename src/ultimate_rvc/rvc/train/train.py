@@ -165,6 +165,7 @@ def main(
     # machine. master port is randomly selected
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = str(randint(20000, 55555))
+    logger.info("MASTER_PORT: %s", os.environ["MASTER_PORT"])
     # Check sample rate
     wavs = glob.glob(
         os.path.join(experiment_dir, "sliced_audios", "*.wav"),
@@ -235,7 +236,11 @@ def main(
         for i in range(n_gpus):
             children[i].join()
             if children[i].exitcode != 0:
-                sys.exit(1)
+                error_message = (
+                    f"Process running on device {device_id} exited with code"
+                    f" {children[i].exitcode}."
+                )
+                raise RuntimeError(error_message)
 
     if cleanup:
         logger.info("Removing files from the prior training attempt...")
@@ -884,9 +889,13 @@ def train_and_evaluate(
                 f" discriminator loss {avg_global_disc_loss:.3f}"
             )
 
-            remaining_epochs_gen = overtraining_threshold - consecutive_increases_gen
-            remaining_epochs_disc = (
-                overtraining_threshold * 2 - consecutive_increases_disc
+            remaining_epochs_gen = max(
+                overtraining_threshold - consecutive_increases_gen,
+                0,
+            )
+            remaining_epochs_disc = max(
+                overtraining_threshold * 2 - consecutive_increases_disc,
+                0,
             )
             record += (
                 " | overtrain countdown: g="
@@ -895,10 +904,7 @@ def train_and_evaluate(
                 f"disc-loss={avg_global_disc_loss:.3f}"
             )
 
-            if (
-                consecutive_increases_gen == overtraining_threshold
-                or consecutive_increases_disc == overtraining_threshold * 2
-            ):
+            if remaining_epochs_disc == 0 or remaining_epochs_gen == 0:
                 record += (
                     f"\nOvertraining detected at epoch {epoch} with average"
                     f" generator loss {avg_global_gen_loss:.3f} and discriminator loss"
