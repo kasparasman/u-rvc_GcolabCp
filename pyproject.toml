@@ -46,7 +46,7 @@ dependencies = [
     "onnxruntime-gpu==1.19.2",
     "local-attention",
     "einops",
-    "transformers==4.44.2",
+    "transformers==4.48.0",
     "diffq==0.2.4",
     "tensorboardX==2.6.2.2",
     "tensorboard",
