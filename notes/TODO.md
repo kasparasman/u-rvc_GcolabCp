@@ -14,9 +14,6 @@
     * Default
     * Custom
   * then when custom is selected the custom pretrained model dropdown should appear
-* we should make a queue for training tab event listener so that only one event listener can be executed at a time
-  * specifically we dont want to be able to extract features if dataset preprocessing is already running
-  * and we dont want to be able to train a model if feature extraction is already running
 
 * we should have a button for quitting training. We can do as they do in applio
   * the same method can also be used for quitting any other ongoing process from the UI.

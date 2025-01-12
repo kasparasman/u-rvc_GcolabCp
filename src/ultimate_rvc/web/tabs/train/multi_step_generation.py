@@ -45,6 +45,7 @@ from ultimate_rvc.web.common import (
     update_dropdowns,
     update_value,
 )
+from ultimate_rvc.web.typing_extra import ConcurrencyId
 
 
 def _get_trained_model_files(model_name: str) -> list[str] | None:
@@ -327,6 +328,8 @@ def render(
                         cpu_cores_preprocess,
                     ],
                     outputs=preprocess_msg,
+                    concurrency_limit=1,
+                    concurrency_id=ConcurrencyId.GPU,
                 ).success(
                     partial(render_msg, "[+] Dataset successfully preprocessed!"),
                     outputs=preprocess_msg,
@@ -491,6 +494,8 @@ def render(
                         extraction_gpus,
                     ],
                     outputs=extract_msg,
+                    concurrency_limit=1,
+                    concurrency_id=ConcurrencyId.GPU,
                 ).success(
                     partial(render_msg, "[+] Features successfully extracted!"),
                     outputs=extract_msg,
@@ -764,6 +769,8 @@ def render(
                         reduce_memory_usage,
                     ],
                     outputs=train_msg,
+                    concurrency_limit=1,
+                    concurrency_id=ConcurrencyId.GPU,
                 ).success(
                     partial(render_msg, "[+] Voice model successfully trained!"),
                     outputs=train_msg,
