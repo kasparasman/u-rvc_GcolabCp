@@ -32,6 +32,7 @@ from ultimate_rvc.core.train.common import get_gpu_info as _get_gpu_info
 from ultimate_rvc.core.train.extract import extract_features as _extract_features
 from ultimate_rvc.core.train.prepare import populate_dataset as _populate_dataset
 from ultimate_rvc.core.train.prepare import preprocess_dataset as _preprocess_dataset
+from ultimate_rvc.core.train.train import get_trained_model_files
 from ultimate_rvc.core.train.train import run_training as _run_training
 from ultimate_rvc.typing_extra import (
     AudioSplitMethod,
@@ -574,7 +575,7 @@ def run_training(
     start_time = time.perf_counter()
 
     gpu_id_set = set(gpu_id) if gpu_id is not None else None
-    model_file, index_file = _run_training(
+    _run_training(
         model_name=model_name,
         num_epochs=num_epochs,
         batch_size=batch_size,
@@ -595,6 +596,12 @@ def run_training(
         preload_dataset=preload_dataset,
         reduce_memory_usage=reduce_memory_usage,
     )
+
+    trained_model_files = get_trained_model_files(model_name)
+    if trained_model_files is None:
+        rprint("[!] Training failed!")
+        return
+    model_file, index_file = trained_model_files
 
     rprint("[+] Voice model succesfully trained!")
     rprint()

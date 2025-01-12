@@ -1,7 +1,5 @@
 # TODO
 
-
-* have run_training return nothing and then use the get_training_model files function in cli and web to get the trained model files
 * incorporate latest changes from applio
 * need to fix issue with ports when using training:
   """

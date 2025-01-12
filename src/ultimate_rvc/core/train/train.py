@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import re
 
 from ultimate_rvc.core.common import (
+    TRAINING_MODELS_DIR,
     VOICE_MODELS_DIR,
     copy_files_to_new_dir,
     display_progress,
@@ -29,9 +30,99 @@ from ultimate_rvc.core.train.typing_extra import ModelInfo
 from ultimate_rvc.typing_extra import DeviceType, IndexAlgorithm, Vocoder
 
 if TYPE_CHECKING:
-    from pathlib import Path
 
     import gradio as gr
+
+
+def _get_pretrained_model(
+    rvc_version: str,
+    sample_rate: int,
+    custom_pretrained: str | None = None,
+) -> tuple[str, str]:
+    """
+    Get the pretrained model to finetune a voice model on.
+
+    Parameters
+    ----------
+    rvc_version : str
+        The version of the RVC method used to train the voice model.
+    sample_rate : int
+        The sample rate of the preprocessed dataset associated with the
+        voice model to be trained.
+    custom_pretrained : str, optional
+        The name of a custom pretrained model to finetune. If none is
+        provided, a default pretrained model is used.
+
+    Returns
+    -------
+    pg : str
+        The path to the generator of the pretrained model to finetune.
+    pd : str
+        The path to the discriminator of the pretrained model to
+        finetune.
+
+    Raises
+    ------
+    ModelAsssociatedEntityNotFoundError
+        If the voice model to be trained does not have an associated
+        dataset file list or if a custom pretrained
+        generator/discriminator model does not have an associated
+        generator or discriminator.
+    IncompatiblePretrainedModelError
+        if a custom pretrained model is not compatible with the sample
+        rate of the preprocessed dataset associated with the voice model
+        to be trained.
+
+    """
+    if custom_pretrained is None:
+        from ultimate_rvc.rvc.lib.tools.pretrained_selector import (  # noqa: PLC0415
+            pretrained_selector,
+        )
+
+        pg, pd = pretrained_selector(
+            rvc_version,
+            pitch_guidance=True,
+            sample_rate=sample_rate,
+        )
+    else:
+        custom_pretrained_path = validate_model_exists(
+            custom_pretrained,
+            Entity.CUSTOM_PRETRAINED_MODEL,
+        )
+
+        # TODO need to make this cleaner
+        custom_pretrained_sample_rate = int(custom_pretrained[-3:-1]) * 1000
+        if not custom_pretrained_sample_rate == sample_rate:
+            raise IncompatiblePretrainedModelError(custom_pretrained, sample_rate)
+
+        pg = next(
+            (
+                str(path)
+                for path in custom_pretrained_path.iterdir()
+                if re.match(r"^(G|f0G).*\.pth$|.*G\.pth$", path.name)
+            ),
+            None,
+        )
+        if pg is None:
+            raise ModelAsssociatedEntityNotFoundError(
+                Entity.GENERATOR,
+                custom_pretrained,
+            )
+        pd = next(
+            (
+                str(path)
+                for path in custom_pretrained_path.iterdir()
+                if re.match(r"^(D|f0D).*\.pth$|.*D\.pth$", path.name)
+            ),
+            None,
+        )
+        if pd is None:
+            raise ModelAsssociatedEntityNotFoundError(
+                Entity.DISCRIMINATOR,
+                custom_pretrained,
+            )
+
+    return pg, pd
 
 
 def run_training(
@@ -56,7 +147,7 @@ def run_training(
     reduce_memory_usage: bool = False,
     progress_bar: gr.Progress | None = None,
     percentage: tuple[float, float] = (0.0, 0.5),
-) -> tuple[Path, Path]:
+) -> None:
     """
 
     Train a voice model using its associated preprocessed dataset and
@@ -142,30 +233,17 @@ def run_training(
     percentage : tuple[float, float], default=(0.0, 0.5)
         The percentage of the progress bar to display during training.
 
-    Returns
-    -------
-    model_file : Path
-        The path to the trained voice model file.
-    index_file : Path
-        The path to the index file generated during training.
-
     Raises
     ------
     ModelAsssociatedEntityNotFoundError
-        If the voice model toe be trained does not have an associated
-        dataset file list or if a custom pretrained
-        generator/discriminator model does not have an associated
-        generator or discriminator.
+        If the voice model to be trained does not have an associated
+        dataset file list.
     NotProvidedError
         If an upload name is not provided when the upload parameter is
         set
     ModelExistsError
         If a voice with the provided upload name already exists when the
         upload parameter is set
-    IncompatiblePretrainedModelError
-        if a custom pretrained model is not compatible with the sample
-        rate of the preprocessed dataset associated with the voice model
-        to be trained
 
 
     """
@@ -192,56 +270,8 @@ def run_training(
     sample_rate = model_info.sample_rate
 
     pg, pd = "", ""
-    # TODO move all pretrained validation and processing to a separate function
     if finetune_pretrained:
-        if custom_pretrained is not None:
-            custom_pretrained_path = validate_model_exists(
-                custom_pretrained,
-                Entity.CUSTOM_PRETRAINED_MODEL,
-            )
-
-            # TODO need to make this cleaner
-            custom_pretrained_sample_rate = int(custom_pretrained[-3:-1]) * 1000
-            if not custom_pretrained_sample_rate == sample_rate:
-                raise IncompatiblePretrainedModelError(custom_pretrained, sample_rate)
-
-            pg = next(
-                (
-                    str(path)
-                    for path in custom_pretrained_path.iterdir()
-                    if re.match(r"^(G|f0G).*\.pth$|.*G\.pth$", path.name)
-                ),
-                None,
-            )
-            if pg is None:
-                raise ModelAsssociatedEntityNotFoundError(
-                    Entity.GENERATOR,
-                    custom_pretrained,
-                )
-            pd = next(
-                (
-                    str(path)
-                    for path in custom_pretrained_path.iterdir()
-                    if re.match(r"^(D|f0D).*\.pth$|.*D\.pth$", path.name)
-                ),
-                None,
-            )
-            if pd is None:
-                raise ModelAsssociatedEntityNotFoundError(
-                    Entity.DISCRIMINATOR,
-                    custom_pretrained,
-                )
-
-        else:
-            from ultimate_rvc.rvc.lib.tools.pretrained_selector import (  # noqa: PLC0415
-                pretrained_selector,
-            )
-
-            pg, pd = pretrained_selector(
-                rvc_version,
-                pitch_guidance=True,
-                sample_rate=sample_rate,
-            )
+        pg, pd = _get_pretrained_model(rvc_version, sample_rate, custom_pretrained)
 
     display_progress("[~] training voice model...", percentage[0], progress_bar)
     from ultimate_rvc.rvc.train.train import main as train_main  # noqa: PLC0415
@@ -284,4 +314,35 @@ def run_training(
     index_file = model_path / f"added_{model_name}_{rvc_version}.index"
     if upload_model_path and model_file.is_file() and index_file.is_file():
         copy_files_to_new_dir([index_file, model_file], upload_model_path)
-    return model_file, index_file
+
+
+def get_trained_model_files(model_name: str) -> list[str] | None:
+    """
+    Get the best weights file and the index file for a trained voice
+    model, if they exist.
+
+    Parameters
+    ----------
+    model_name : str
+        The name of the trained voice model.
+
+    Returns
+    -------
+    list[str] | None
+        A list containing the paths to the best weights file and the
+        index file for the trained voice model, if they exist.
+        Otherwise, None.
+
+    """
+    model_path = TRAINING_MODELS_DIR / model_name
+    model_info_path = model_path / "model_info.json"
+    if not model_info_path.is_file():
+        return None
+    model_info_dict = json_load(model_info_path)
+    model_info = ModelInfo.model_validate(model_info_dict)
+    rvc_version = model_info.rvc_version
+    model_file = model_path / f"{model_name}_best.pth"
+    index_file = model_path / f"added_{model_name}_{rvc_version}.index"
+    if not model_file.is_file() or not index_file.is_file():
+        return None
+    return [str(model_file), str(index_file)]

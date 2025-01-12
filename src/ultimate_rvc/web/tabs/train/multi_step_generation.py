@@ -12,8 +12,6 @@ from multiprocessing import cpu_count
 
 import gradio as gr
 
-from ultimate_rvc.common import TRAINING_MODELS_DIR
-from ultimate_rvc.core.common import json_load
 from ultimate_rvc.core.manage.audio import get_audio_datasets, get_named_audio_datasets
 from ultimate_rvc.core.manage.models import (
     get_training_model_names,
@@ -25,8 +23,7 @@ from ultimate_rvc.core.train.prepare import (
     populate_dataset,
     preprocess_dataset,
 )
-from ultimate_rvc.core.train.train import run_training
-from ultimate_rvc.core.train.typing_extra import ModelInfo
+from ultimate_rvc.core.train.train import get_trained_model_files, run_training
 from ultimate_rvc.typing_extra import (
     AudioExt,
     AudioSplitMethod,
@@ -82,38 +79,6 @@ def _toggle_dataset_type(dataset_type: DatasetType) -> tuple[dict[str, Any], ...
         case DatasetType.EXISTING_DATASET:
             update_args_list[2]["visible"] = True
     return tuple(gr.update(**update_args) for update_args in update_args_list)
-
-
-def _get_trained_model_files(model_name: str) -> list[str] | None:
-    """
-    Get the best weights file and the index file for a trained voice
-    model, if they exist.
-
-    Parameters
-    ----------
-    model_name : str
-        The name of the trained voice model.
-
-    Returns
-    -------
-    list[str] | None
-        A list containing the paths to the best weights file and the
-        index file for the trained voice model, if they exist.
-        Otherwise, None.
-
-    """
-    model_path = TRAINING_MODELS_DIR / model_name
-    model_info_path = model_path / "model_info.json"
-    if not model_info_path.is_file():
-        return None
-    model_info_dict = json_load(model_info_path)
-    model_info = ModelInfo.model_validate(model_info_dict)
-    rvc_version = model_info.rvc_version
-    model_file = model_path / f"{model_name}_best.pth"
-    index_file = model_path / f"added_{model_name}_{rvc_version}.index"
-    if not model_file.is_file() or not index_file.is_file():
-        return None
-    return [str(model_file), str(index_file)]
 
 
 def _normalize_and_update(value: str) -> gr.Dropdown:
@@ -904,7 +869,7 @@ def render(
                     outputs=train_msg,
                     show_progress="hidden",
                 ).then(
-                    _get_trained_model_files,
+                    get_trained_model_files,
                     inputs=train_model,
                     outputs=voice_model_files,
                     show_progress="hidden",

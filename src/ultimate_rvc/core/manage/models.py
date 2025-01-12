@@ -8,8 +8,6 @@ import re
 import shutil
 import urllib.request
 import zipfile
-
-# TODO no sure if this should be lazily imported
 from pathlib import Path
 
 from ultimate_rvc.common import (
