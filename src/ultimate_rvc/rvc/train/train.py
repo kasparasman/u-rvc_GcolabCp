@@ -15,7 +15,6 @@ from tqdm import tqdm
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from torch.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -27,7 +26,6 @@ from ultimate_rvc.rvc.common import RVC_TRAINING_MODELS_DIR
 from ultimate_rvc.rvc.lib.algorithm import commons
 from ultimate_rvc.rvc.train.losses import (
     discriminator_loss,
-    envelope_loss,
     feature_loss,
     generator_loss,
     kl_loss,
@@ -67,7 +65,6 @@ avg_losses = {
     "gen_loss_queue": deque(maxlen=10),
     "disc_loss_queue": deque(maxlen=10),
     "disc_loss_50": deque(maxlen=50),
-    "env_loss_50": deque(maxlen=50),
     "fm_loss_50": deque(maxlen=50),
     "kl_loss_50": deque(maxlen=50),
     "mel_loss_50": deque(maxlen=50),
@@ -123,7 +120,6 @@ def verify_checkpoint_shapes(checkpoint_path: str, model: torch.nn.Module) -> No
 def main(
     model_name: str,
     sample_rate: int,
-    version: str,
     vocoder: str,
     total_epoch: int,
     batch_size: int,
@@ -215,7 +211,6 @@ def main(
                         device_id,
                         model_name,
                         sample_rate,
-                        version,
                         vocoder,
                         batch_size,
                         save_every_epoch,
@@ -271,7 +266,6 @@ def run(
     device_id,
     model_name,
     sample_rate,
-    version,
     vocoder,
     batch_size,
     save_every_epoch,
@@ -346,6 +340,38 @@ def run(
         persistent_workers=True,
         prefetch_factor=8,
     )
+    if len(train_loader) < 3:
+        logger.error(
+            "Not enough data in the training set. Perhaps you forgot to slice the"
+            " audio files in preprocess?",
+        )
+        sys.exit(1)
+    else:
+        g_file = latest_checkpoint_path(experiment_dir, "G_*.pth")
+        if g_file != None:
+            logger.info("Checking saved weights...")
+            g = torch.load(g_file, map_location="cpu")
+            if (
+                optimizer == "RAdam"
+                and "amsgrad" in g["optimizer"]["param_groups"][0].keys()
+            ):
+                optimizer = "AdamW"
+                logger.info(
+                    "Optimizer choice has been reverted to %s to match the saved D/G"
+                    " weights.",
+                    optimizer,
+                )
+            elif (
+                optimizer == "AdamW"
+                and "decoupled_weight_decay" in g["optimizer"]["param_groups"][0].keys()
+            ):
+                optimizer = "RAdam"
+                logger.info(
+                    "Optimizer choice has been reverted to %s to match the saved D/G"
+                    " weights.",
+                    optimizer,
+                )
+            del g
 
     # Initialize models and optimizers
     from ultimate_rvc.rvc.lib.algorithm.discriminators import MultiPeriodDiscriminator
@@ -359,7 +385,6 @@ def run(
         config.train.segment_size // config.data.hop_length,
         **config.model,
         use_f0=True,
-        is_half=config.train.fp16_run and device.type == "cuda",
         sr=sample_rate,
         vocoder=vocoder,
         checkpointing=checkpointing,
@@ -367,7 +392,6 @@ def run(
     )
 
     net_d = MultiPeriodDiscriminator(
-        version,
         config.model.use_spectral_norm,
         checkpointing=checkpointing,
     )
@@ -459,7 +483,7 @@ def run(
                     ],
                 )
 
-    # Initialize schedulers and scaler
+    # Initialize schedulers
     scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
         optim_g,
         gamma=config.train.lr_decay,
@@ -470,8 +494,6 @@ def run(
         gamma=config.train.lr_decay,
         last_epoch=epoch_str - 2,
     )
-
-    scaler = GradScaler("cuda", enabled=config.train.fp16_run and device.type == "cuda")
 
     cache = []
     # get the first sample as reference for tensorboard evaluation
@@ -545,7 +567,6 @@ def run(
             [net_g, net_d],
             [optim_g, optim_d],
             [scheduler_g, scheduler_d],
-            scaler,
             [train_loader, None],
             [writer_eval],
             cache,
@@ -558,7 +579,6 @@ def run(
             model_name,
             experiment_dir,
             sample_rate,
-            version,
             vocoder,
             save_every_epoch,
             save_only_latest,
@@ -577,7 +597,6 @@ def train_and_evaluate(
     nets,
     optims,
     schedulers,
-    scaler,
     loaders,
     writers,
     cache,
@@ -590,7 +609,6 @@ def train_and_evaluate(
     model_name,
     experiment_dir,
     sample_rate,
-    version,
     vocoder,
     save_every_epoch,
     save_only_latest,
@@ -657,89 +675,60 @@ def train_and_evaluate(
             ) = info
 
             # Forward pass
-            use_amp = config.train.fp16_run and device.type == "cuda"
-            with autocast("cuda", enabled=use_amp):
-                model_output = net_g(
-                    phone,
-                    phone_lengths,
-                    pitch,
-                    pitchf,
-                    spec,
-                    spec_lengths,
-                    sid,
+            model_output = net_g(
+                phone,
+                phone_lengths,
+                pitch,
+                pitchf,
+                spec,
+                spec_lengths,
+                sid,
+            )
+            y_hat, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = (
+                model_output
+            )
+            # slice of the original waveform to match a generate slice
+            if randomized:
+                wave = commons.slice_segments(
+                    wave,
+                    ids_slice * config.data.hop_length,
+                    config.train.segment_size,
+                    dim=3,
                 )
-                y_hat, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = (
-                    model_output
-                )
-                # slice of the original waveform to match a generate slice
-                if randomized:
-                    wave = commons.slice_segments(
-                        wave,
-                        ids_slice * config.data.hop_length,
-                        config.train.segment_size,
-                        dim=3,
-                    )
-                y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
-                with autocast("cuda", enabled=False):
-                    # if vocoder == "HiFi-GAN":
-                    #    loss_disc, _, _ = discriminator_loss(y_d_hat_r, y_d_hat_g)
-                    # else:
-                    #    loss_disc, _, _ = discriminator_loss_scaled(y_d_hat_r, y_d_hat_g)
-                    loss_disc, _, _ = discriminator_loss(y_d_hat_r, y_d_hat_g)
+            y_d_hat_r, y_d_hat_g, _, _ = net_d(wave, y_hat.detach())
+            loss_disc, _, _ = discriminator_loss(y_d_hat_r, y_d_hat_g)
             # Discriminator backward and update
-            epoch_disc_sum += loss_disc
+            epoch_disc_sum += loss_disc.item()
             global_disc_loss[epoch - 1] += loss_disc.item()
             optim_d.zero_grad()
-            scaler.scale(loss_disc).backward()
-            scaler.unscale_(optim_d)
+            loss_disc.backward()
             grad_norm_d = torch.nn.utils.clip_grad_norm_(
                 net_d.parameters(),
                 max_norm=1000.0,
             )
-            scaler.step(optim_d)
-            d_scale = scaler.get_scale()
-            scaler.update()
-            skip_d_scheduler = d_scale > scaler.get_scale()
-            # if not math.isfinite(grad_norm_d):
-            #    print("\nWarning: grad_norm_d is NaN or Inf")
+            optim_d.step()
 
             # Generator backward and update
-            with autocast("cuda", enabled=use_amp):
-                _, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
-                with autocast("cuda", enabled=False):
-                    loss_mel = fn_mel_loss(wave, y_hat) * config.train.c_mel / 3.0
-                    loss_env = envelope_loss(wave, y_hat)
-                    loss_kl = (
-                        kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * config.train.c_kl
-                    )
-                    loss_fm = feature_loss(fmap_r, fmap_g)
-                    # if vocoder == "HiFi-GAN":
-                    # 	loss_gen, _ = generator_loss(y_d_hat_g)
-                    # else:
-                    # 	loss_gen, _ = generator_loss_scaled(y_d_hat_g)
-                    loss_gen, _ = generator_loss(y_d_hat_g)
-                    loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl + loss_env
-            epoch_gen_sum += loss_gen_all
+            _, y_d_hat_g, fmap_r, fmap_g = net_d(wave, y_hat)
+            loss_mel = fn_mel_loss(wave, y_hat) * config.train.c_mel / 3.0
+            loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * config.train.c_kl
+            loss_fm = feature_loss(fmap_r, fmap_g)
+            loss_gen, _ = generator_loss(y_d_hat_g)
+            loss_gen_all = loss_gen + loss_fm + loss_mel + loss_kl
+            epoch_gen_sum += loss_gen_all.item()
             global_gen_loss[epoch - 1] += loss_gen_all.item()
             optim_g.zero_grad()
-            scaler.scale(loss_gen_all).backward()
-            scaler.unscale_(optim_g)
+            loss_gen_all.backward()
             grad_norm_g = torch.nn.utils.clip_grad_norm_(
                 net_g.parameters(),
                 max_norm=1000.0,
             )
-            scaler.step(optim_g)
-            g_scale = scaler.get_scale()
-            scaler.update()
-            skip_g_scheduler = g_scale > scaler.get_scale()
-            # if not math.isfinite(grad_norm_g):
-            #    print("\n Warning: grad_norm_g is NaN or Inf")
+            optim_g.step()
 
             global_step += 1
 
             # queue for rolling losses over 50 steps
             avg_losses["disc_loss_50"].append(loss_disc.detach())
-            avg_losses["env_loss_50"].append(loss_env.detach())
             avg_losses["fm_loss_50"].append(loss_fm.detach())
             avg_losses["kl_loss_50"].append(loss_kl.detach())
             avg_losses["mel_loss_50"].append(loss_mel.detach())
@@ -750,9 +739,6 @@ def train_and_evaluate(
                 scalar_dict = {
                     "loss_avg_50/d/total": torch.mean(
                         torch.stack(list(avg_losses["disc_loss_50"])),
-                    ),
-                    "loss_avg_50/g/env": torch.mean(
-                        torch.stack(list(avg_losses["env_loss_50"])),
                     ),
                     "loss_avg_50/g/fm": torch.mean(
                         torch.stack(list(avg_losses["fm_loss_50"])),
@@ -774,18 +760,17 @@ def train_and_evaluate(
                 )
 
             pbar.update(1)
-
-    if not skip_d_scheduler:
-        scheduler_d.step()
-    if not skip_g_scheduler:
-        scheduler_g.step()
+        # end of batch train
+    # end of tqdm
+    scheduler_d.step()
+    scheduler_g.step()
 
     with torch.no_grad():
         torch.cuda.empty_cache()
     # Logging and checkpointing
     if rank == 0:
-        avg_losses["disc_loss_queue"].append(epoch_disc_sum.item() / len(train_loader))
-        avg_losses["gen_loss_queue"].append(epoch_gen_sum.item() / len(train_loader))
+        avg_losses["disc_loss_queue"].append(epoch_disc_sum / len(train_loader))
+        avg_losses["gen_loss_queue"].append(epoch_gen_sum / len(train_loader))
         avg_global_disc_loss = global_disc_loss[epoch - 1] / len(train_loader.dataset)
         avg_global_gen_loss = global_gen_loss[epoch - 1] / len(train_loader.dataset)
 
@@ -833,19 +818,16 @@ def train_and_evaluate(
         else:
             y_mel = mel
         # used for tensorboard chart - slice/mel_gen
-        with autocast("cuda", enabled=False):
-            y_hat_mel = mel_spectrogram_torch(
-                y_hat.float().squeeze(1),
-                config.data.filter_length,
-                config.data.n_mel_channels,
-                config.data.sample_rate,
-                config.data.hop_length,
-                config.data.win_length,
-                config.data.mel_fmin,
-                config.data.mel_fmax,
-            )
-            if use_amp:
-                y_hat_mel = y_hat_mel.half()
+        y_hat_mel = mel_spectrogram_torch(
+            y_hat.float().squeeze(1),
+            config.data.filter_length,
+            config.data.n_mel_channels,
+            config.data.sample_rate,
+            config.data.hop_length,
+            config.data.win_length,
+            config.data.mel_fmin,
+            config.data.mel_fmax,
+        )
 
         lr = optim_g.param_groups[0]["lr"]
 
@@ -858,14 +840,9 @@ def train_and_evaluate(
             "loss/g/fm": loss_fm,
             "loss/g/mel": loss_mel,
             "loss/g/kl": loss_kl,
-            "loss/g/env": loss_env,
             "loss_avg_epoch/disc": np.mean(avg_losses["disc_loss_queue"]),
             "loss_avg_epoch/gen": np.mean(avg_losses["gen_loss_queue"]),
         }
-        # commented out
-        # scalar_dict.update({f"loss/g/{i}": v for i, v in enumerate(losses_gen)})
-        # scalar_dict.update({f"loss/d_r/{i}": v for i, v in enumerate(losses_disc_r)})
-        # scalar_dict.update({f"loss/d_g/{i}": v for i, v in enumerate(losses_disc_g)})
 
         image_dict = {
             "slice/mel_org": plot_spectrogram_to_numpy(y_mel[0].data.cpu().numpy()),
@@ -974,12 +951,10 @@ def train_and_evaluate(
                 extract_model(
                     ckpt=ckpt,
                     sr=sample_rate,
-                    pitch_guidance=True,
                     name=model_name,
                     model_dir=m,
                     epoch=epoch,
                     step=global_step,
-                    version=version,
                     hps=config,
                     overtrain_info=overtrain_info,
                     vocoder=vocoder,

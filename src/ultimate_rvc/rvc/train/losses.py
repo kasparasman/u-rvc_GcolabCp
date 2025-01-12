@@ -139,10 +139,3 @@ def kl_loss(z_p, logs_q, m_p, logs_p, z_mask):
 
 
 MaxPool = torch.nn.MaxPool1d(160)
-
-
-def envelope_loss(y, y_g):
-    loss = 0
-    loss += torch.mean(torch.abs(MaxPool(y) - MaxPool(y_g)))
-    loss += torch.mean(torch.abs(MaxPool(-y) - MaxPool(-y_g)))
-    return loss

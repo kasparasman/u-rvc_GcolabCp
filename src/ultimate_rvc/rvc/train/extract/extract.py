@@ -123,7 +123,6 @@ class FeatureInput:
         if f0_method == "rmvpe":
             self.model_rmvpe = RMVPE0Predictor(
                 os.path.join(str(RVC_MODELS_DIR), "predictors", "rmvpe.pt"),
-                is_half=False,
                 device=device,
             )
 
@@ -207,27 +206,24 @@ def run_pitch_extraction(
 
 def process_file_embedding(
     files,
-    version,
     embedder_model,
     embedder_model_custom,
     device_num,
     device,
     n_threads,
 ):
-    dtype = torch.float16 if (config.is_half and "cuda" in device) else torch.float32
-    model = load_embedding(embedder_model, embedder_model_custom).to(dtype).to(device)
+    model = load_embedding(embedder_model, embedder_model_custom).to(device).float()
+    model.eval()
     n_threads = max(1, n_threads)
 
     def worker(file_info):
         wav_file_path, _, _, out_file_path = file_info
         if os.path.exists(out_file_path):
             return
-        feats = torch.from_numpy(load_audio(wav_file_path, 16000)).to(dtype).to(device)
+        feats = torch.from_numpy(load_audio(wav_file_path, 16000)).to(device).float()
         feats = feats.view(1, -1)
         with torch.no_grad():
             result = model(feats)["last_hidden_state"]
-            if version == "v1":
-                result = model.final_proj(result[0]).unsqueeze(0)
         feats_out = result.squeeze(0).float().cpu().numpy()
         if not np.isnan(feats_out).any():
             np.save(out_file_path, feats_out, allow_pickle=False)
@@ -244,7 +240,6 @@ def process_file_embedding(
 def run_embedding_extraction(
     files: list[list[str]],
     devices: list[str],
-    version: str,
     embedder_model: str,
     embedder_model_custom: str | None,
     threads: int,
@@ -261,7 +256,6 @@ def run_embedding_extraction(
             executor.submit(
                 process_file_embedding,
                 files[i :: len(devices)],
-                version,
                 embedder_model,
                 embedder_model_custom,
                 i,
@@ -279,7 +273,6 @@ def run_embedding_extraction(
 
 def initialize_extraction(
     exp_dir: str,
-    version: str,
     f0_method: str,
     embedder_model: str,
 ) -> list[list[str]]:
@@ -287,7 +280,7 @@ def initialize_extraction(
     os.makedirs(os.path.join(exp_dir, f"f0_{f0_method}"), exist_ok=True)
     os.makedirs(os.path.join(exp_dir, f"f0_{f0_method}_voiced"), exist_ok=True)
     os.makedirs(
-        os.path.join(exp_dir, f"{version}_{embedder_model}_extracted"),
+        os.path.join(exp_dir, f"{embedder_model}_extracted"),
         exist_ok=True,
     )
 
@@ -300,7 +293,7 @@ def initialize_extraction(
             os.path.join(exp_dir, f"f0_{f0_method}_voiced", file_name + ".npy"),
             os.path.join(
                 exp_dir,
-                f"{version}_{embedder_model}_extracted",
+                f"{embedder_model}_extracted",
                 file_name.replace("wav", "npy"),
             ),
         ]
@@ -311,7 +304,6 @@ def initialize_extraction(
 
 def update_model_info(
     exp_dir: str,
-    rvc_version: str,
     embedder_model: str,
     custom_embedder_model_hash: str | None,
 ) -> None:
@@ -321,7 +313,6 @@ def update_model_info(
             data = json.load(f)
     else:
         data = {}
-    data["rvc_version"] = rvc_version
     data["embedder_model"] = embedder_model
     data["custom_embedder_model_hash"] = custom_embedder_model_hash
     with open(file_path, "w") as f:

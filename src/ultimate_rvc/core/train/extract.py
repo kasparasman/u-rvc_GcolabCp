@@ -23,7 +23,6 @@ from ultimate_rvc.core.train.common import validate_devices
 from ultimate_rvc.typing_extra import (
     DeviceType,
     EmbedderModel,
-    RVCVersion,
     TrainingF0Method,
 )
 
@@ -33,7 +32,6 @@ if TYPE_CHECKING:
 
 def extract_features(
     model_name: str,
-    rvc_version: RVCVersion = RVCVersion.V2,
     f0_method: TrainingF0Method = TrainingF0Method.RMVPE,
     hop_length: int = 128,
     embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
@@ -53,8 +51,6 @@ def extract_features(
     ----------
     model_name : str
         The name of the voice model to be trained.
-    rvc_version : RVCVersion, default=RVCVersion.V2
-        Version of RVC to use for training the voice model.
     f0_method : TrainingF0Method, default=TrainingF0Method.RMVPE
         The method to use for extracting pitch features.
     hop_length : int, default=128
@@ -132,13 +128,11 @@ def extract_features(
 
     file_infos = extract.initialize_extraction(
         str(model_path),
-        rvc_version,
         f0_method_id,
         embedder_model_id,
     )
     extract.update_model_info(
         str(model_path),
-        rvc_version,
         chosen_embedder_model,
         combined_file_hash,
     )
@@ -148,7 +142,6 @@ def extract_features(
     extract.run_embedding_extraction(
         file_infos,
         devices,
-        rvc_version,
         embedder_model,
         (
             str(custom_embedder_model_path)
@@ -161,10 +154,9 @@ def extract_features(
     # so we import it here manually
     from ultimate_rvc.rvc.train.extract import preparing_files  # noqa: PLC0415
 
-    preparing_files.generate_config(rvc_version, str(model_path))
+    preparing_files.generate_config(str(model_path))
     preparing_files.generate_filelist(
         str(model_path),
-        rvc_version,
         include_mutes,
         f0_method_id,
         embedder_model_id,

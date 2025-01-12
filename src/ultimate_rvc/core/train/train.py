@@ -20,6 +20,7 @@ from ultimate_rvc.core.common import (
 from ultimate_rvc.core.exceptions import (
     Entity,
     IncompatiblePretrainedModelError,
+    IncompatibleVocoderError,
     ModelAsssociatedEntityNotFoundError,
     ModelExistsError,
     NotProvidedError,
@@ -41,7 +42,7 @@ if TYPE_CHECKING:
 
 def _get_pretrained_model(
     pretrained_type: PretrainedType,
-    rvc_version: str,
+    vocoder: Vocoder,
     sample_rate: int,
     custom_pretrained: str | None = None,
 ) -> tuple[str, str]:
@@ -52,8 +53,9 @@ def _get_pretrained_model(
     ----------
     pretrained_type : PretrainedType
         The type of pretrained model to finetune the voice model on
-    rvc_version : str
-        The version of the RVC method used to train the voice model.
+    vocoder : str
+        The vocoder to use for audio synthesis when training the voice
+        model.
     sample_rate : int
         The sample rate of the preprocessed dataset associated with the
         voice model to be trained.
@@ -80,6 +82,10 @@ def _get_pretrained_model(
         if a custom pretrained model is not compatible with the sample
         rate of the preprocessed dataset associated with the voice model
         to be trained.
+    IncompatibleVocoderError
+        If the default pretrained model is not compatible with the
+        vocoder to be used for audio synthesis when training the voice
+        model.
 
     """
     match pretrained_type:
@@ -90,11 +96,10 @@ def _get_pretrained_model(
                 pretrained_selector,
             )
 
-            pg, pd = pretrained_selector(
-                rvc_version,
-                pitch_guidance=True,
-                sample_rate=sample_rate,
-            )
+            if not vocoder == Vocoder.HIFI_GAN:
+                raise IncompatibleVocoderError(vocoder)
+
+            pg, pd = pretrained_selector(vocoder, sample_rate=sample_rate)
         case PretrainedType.CUSTOM:
             custom_pretrained_path = validate_model_exists(
                 custom_pretrained,
@@ -278,12 +283,11 @@ def run_training(
     model_info_dict = json_load(model_path / "model_info.json")
 
     model_info = ModelInfo.model_validate(model_info_dict)
-    rvc_version = model_info.rvc_version
     sample_rate = model_info.sample_rate
 
     pg, pd = _get_pretrained_model(
         pretrained_type,
-        rvc_version,
+        vocoder,
         sample_rate,
         custom_pretrained,
     )
@@ -296,7 +300,6 @@ def run_training(
     train_main(
         model_name,
         sample_rate,
-        rvc_version,
         vocoder,
         num_epochs,
         batch_size,
@@ -323,10 +326,10 @@ def run_training(
         main as extract_index_main,
     )
 
-    extract_index_main(str(model_path), rvc_version, index_algorithm)
+    extract_index_main(str(model_path), index_algorithm)
 
     model_file = model_path / f"{model_name}_best.pth"
-    index_file = model_path / f"added_{model_name}_{rvc_version}.index"
+    index_file = model_path / f"{model_name}.index"
     if upload_model_path and model_file.is_file() and index_file.is_file():
         copy_files_to_new_dir([index_file, model_file], upload_model_path)
 
@@ -350,14 +353,8 @@ def get_trained_model_files(model_name: str) -> list[str] | None:
 
     """
     model_path = TRAINING_MODELS_DIR / model_name
-    model_info_path = model_path / "model_info.json"
-    if not model_info_path.is_file():
-        return None
-    model_info_dict = json_load(model_info_path)
-    model_info = ModelInfo.model_validate(model_info_dict)
-    rvc_version = model_info.rvc_version
     model_file = model_path / f"{model_name}_best.pth"
-    index_file = model_path / f"added_{model_name}_{rvc_version}.index"
+    index_file = model_path / f"{model_name}.index"
     if not model_file.is_file() or not index_file.is_file():
         return None
     return [str(model_file), str(index_file)]

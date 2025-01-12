@@ -23,7 +23,6 @@ from ultimate_rvc.cli.common import (
     complete_f0_method,
     complete_index_algorithm,
     complete_pretrained_type,
-    complete_rvc_version,
     complete_training_sample_rate,
     complete_vocoder,
     format_duration,
@@ -41,7 +40,6 @@ from ultimate_rvc.typing_extra import (
     EmbedderModel,
     IndexAlgorithm,
     PretrainedType,
-    RVCVersion,
     TrainingF0Method,
     TrainingSampleRate,
     Vocoder,
@@ -241,14 +239,6 @@ def extract_features(
         str,
         typer.Argument(help="The name of the voice model to be trained."),
     ],
-    rvc_version: Annotated[
-        RVCVersion,
-        typer.Option(
-            case_sensitive=False,
-            autocompletion=complete_rvc_version,
-            help="Version of RVC to use for training the voice model.",
-        ),
-    ] = RVCVersion.V2,
     f0_method: Annotated[
         TrainingF0Method,
         typer.Option(
@@ -341,7 +331,6 @@ def extract_features(
     gpu_id_set = set(gpu_id) if gpu_id is not None else None
     _extract_features(
         model_name=model_name,
-        rvc_version=rvc_version,
         f0_method=f0_method,
         hop_length=hop_length,
         embedder_model=embedder_model,

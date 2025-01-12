@@ -8,7 +8,6 @@ from ultimate_rvc.typing_extra import (
     F0Method,
     IndexAlgorithm,
     PretrainedType,
-    RVCVersion,
     TrainingSampleRate,
     Vocoder,
 )
@@ -114,24 +113,6 @@ def complete_embedder_model(incomplete: str) -> list[str]:
 
     """
     return complete_name(incomplete, list(EmbedderModel))
-
-
-def complete_rvc_version(incomplete: str) -> list[str]:
-    """
-    Return a list of RVC versions that start with the incomplete string.
-
-    Parameters
-    ----------
-    incomplete : str
-        The incomplete string to complete.
-
-    Returns
-    -------
-    list[str]
-        The list of RVC versions that start with the incomplete string.
-
-    """
-    return complete_name(incomplete, list(RVCVersion))
 
 
 def complete_audio_split_method(incomplete: str) -> list[str]:

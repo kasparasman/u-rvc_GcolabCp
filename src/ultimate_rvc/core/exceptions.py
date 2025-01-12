@@ -288,6 +288,33 @@ class IncompatiblePretrainedModelError(OSError):
         )
 
 
+class IncompatibleVocoderError(OSError):
+    """
+    Raised when a default pretrained model is incompatible with a
+    given vocoder.
+    """
+
+    def __init__(self, vocoder: str) -> None:
+        r"""
+        Initialize an IncompatibleVocoderError instance.
+
+        Exception message will be formatted as:
+
+        'The default pretrained model is incompatible with the vocoder
+        `<vocoder>`.'
+
+        Parameters
+        ----------
+        vocoder : str
+            The vocoder that the default pretrained model is
+            incompatible with.
+
+        """
+        super().__init__(
+            f"The default pretrained model is incompatible with the vocoder {vocoder}.",
+        )
+
+
 class GPUNotFoundError(OSError):
     """Raised when a GPU with a given id is not found."""
 

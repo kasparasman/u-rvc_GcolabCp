@@ -1,6 +1,8 @@
 # TODO
 
-* incorporate latest changes from applio
+* test on linux
+* update readme with info on training models
+* upload new version to pypi
 * need to fix issue with ports when using training:
   """
   torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. The server socket has failed to bind to [Christians-Desktop]:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.). The server socket has failed to bind to Christians-Desktop:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).

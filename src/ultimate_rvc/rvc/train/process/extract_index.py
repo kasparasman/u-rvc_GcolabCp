@@ -12,7 +12,7 @@ import faiss
 logger = logging.getLogger(__name__)
 
 
-def main(exp_dir: str, version: str, index_algorithm: str) -> None:
+def main(exp_dir: str, index_algorithm: str) -> None:
 
     try:
         model_info = json.load(open(os.path.join(exp_dir, "model_info.json")))
@@ -20,14 +20,11 @@ def main(exp_dir: str, version: str, index_algorithm: str) -> None:
         custom_embedder_model_hash = model_info.get("custom_embedder_model_hash", None)
         if custom_embedder_model_hash is not None:
             embedder_model = f"custom_{custom_embedder_model_hash}"
-        feature_dir = os.path.join(exp_dir, f"{version}_{embedder_model}_extracted")
+        feature_dir = os.path.join(exp_dir, f"{embedder_model}_extracted")
         model_name = os.path.basename(exp_dir)
 
-        index_filename_added = f"added_{model_name}_{version}.index"
+        index_filename_added = f"{model_name}.index"
         index_filepath_added = os.path.join(exp_dir, index_filename_added)
-
-        # index_filename_trained = f"trained_{model_name}_{version}.index"
-        # index_filepath_trained = os.path.join(exp_dir, index_filename_trained)
 
         if os.path.exists(index_filepath_added):
             pass
@@ -61,27 +58,10 @@ def main(exp_dir: str, version: str, index_algorithm: str) -> None:
                     .cluster_centers_
                 )
 
-            # np.save(os.path.join(exp_dir, "total_fea.npy"), big_npy)
-
             n_ivf = min(int(16 * np.sqrt(big_npy.shape[0])), big_npy.shape[0] // 39)
 
-            """
-            # index_trained
-            index_trained = faiss.index_factory(
-                256 if version == "v1" else 768, f"IVF{n_ivf},Flat"
-            )
-            index_ivf_trained = faiss.extract_index_ivf(index_trained)
-            index_ivf_trained.nprobe = 1
-            index_trained.train(big_npy)
-
-            faiss.write_index(index_trained, index_filepath_trained)
-            """
-
             # index_added
-            index_added = faiss.index_factory(
-                256 if version == "v1" else 768,
-                f"IVF{n_ivf},Flat",
-            )
+            index_added = faiss.index_factory(768, f"IVF{n_ivf},Flat")
             index_ivf_added = faiss.extract_index_ivf(index_added)
             index_ivf_added.nprobe = 1
             index_added.train(big_npy)

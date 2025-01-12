@@ -105,13 +105,6 @@ class PretrainedSampleRate(StrEnum):
     HZ_48K = "48k"
 
 
-class RVCVersion(StrEnum):
-    """Enumeration of RVC model versions."""
-
-    V1 = "v1"
-    V2 = "v2"
-
-
 class TrainingF0Method(StrEnum):
     """Enumeration of pitch extraction methods for training."""
 

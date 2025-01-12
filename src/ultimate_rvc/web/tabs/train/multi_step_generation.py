@@ -31,7 +31,6 @@ from ultimate_rvc.typing_extra import (
     EmbedderModel,
     IndexAlgorithm,
     PretrainedType,
-    RVCVersion,
     TrainingF0Method,
     TrainingSampleRate,
     Vocoder,
@@ -410,16 +409,6 @@ def render(
             with gr.Accordion("Settings", open=False):
                 with gr.Row():
                     with gr.Column():
-                        rvc_version = gr.Dropdown(
-                            choices=list(RVCVersion),
-                            label="RVC version",
-                            info=(
-                                "The version of RVC to use for training the selected"
-                                " model."
-                            ),
-                            value=RVCVersion.V2,
-                        )
-                    with gr.Column():
                         f0_method = gr.Dropdown(
                             choices=list(TrainingF0Method),
                             label="F0 method",
@@ -543,7 +532,6 @@ def render(
                     ),
                     inputs=[
                         extract_model,
-                        rvc_version,
                         f0_method,
                         hop_length,
                         embedder_model,
@@ -572,7 +560,6 @@ def render(
                 )
                 reset_extract_btn.click(
                     lambda: [
-                        RVCVersion.V2,
                         TrainingF0Method.RMVPE,
                         128,
                         EmbedderModel.CONTENTVEC,
@@ -583,7 +570,6 @@ def render(
                         gpu_choices[0][1] if gpu_choices else None,
                     ],
                     outputs=[
-                        rvc_version,
                         f0_method,
                         hop_length,
                         embedder_model,
