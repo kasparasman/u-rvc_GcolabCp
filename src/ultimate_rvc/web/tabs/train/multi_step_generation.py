@@ -357,8 +357,21 @@ def render(
                         info="The number of CPU cores to use for preprocessing.",
                     )
             with gr.Row(equal_height=True):
-                preprocess_btn = gr.Button("Preprocess dataset", variant="primary")
-                preprocess_msg = gr.Textbox(label="Output message", interactive=False)
+                reset_preprocess_btn = gr.Button(
+                    "Reset settings",
+                    variant="secondary",
+                    scale=2,
+                )
+                preprocess_btn = gr.Button(
+                    "Preprocess dataset",
+                    variant="primary",
+                    scale=2,
+                )
+                preprocess_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                    scale=3,
+                )
                 preprocess_btn.click(
                     partial(
                         exception_harness(preprocess_dataset),
@@ -400,6 +413,29 @@ def render(
                     update_value,
                     inputs=preprocess_model,
                     outputs=extract_model,
+                    show_progress="hidden",
+                )
+                reset_preprocess_btn.click(
+                    lambda: [
+                        TrainingSampleRate.HZ_40K,
+                        True,
+                        False,
+                        0.7,
+                        AudioSplitMethod.AUTOMATIC,
+                        3.0,
+                        0.3,
+                        cpu_count(),
+                    ],
+                    outputs=[
+                        sample_rate,
+                        filter_audio,
+                        clean_audio,
+                        clean_strength,
+                        split_method,
+                        chunk_len,
+                        overlap_len,
+                        cpu_cores_preprocess,
+                    ],
                     show_progress="hidden",
                 )
         with gr.Accordion("Step 2: feature extraction", open=True):
@@ -523,8 +559,17 @@ def render(
                     show_progress="hidden",
                 )
             with gr.Row(equal_height=True):
-                extract_btn = gr.Button("Extract features", variant="primary")
-                extract_msg = gr.Textbox(label="Output message", interactive=False)
+                reset_extract_btn = gr.Button(
+                    "Reset settings",
+                    variant="secondary",
+                    scale=2,
+                )
+                extract_btn = gr.Button("Extract features", variant="primary", scale=2)
+                extract_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                    scale=3,
+                )
                 extract_btn.click(
                     partial(
                         exception_harness(extract_features),
@@ -557,6 +602,31 @@ def render(
                     update_value,
                     inputs=extract_model,
                     outputs=train_model,
+                    show_progress="hidden",
+                )
+                reset_extract_btn.click(
+                    lambda: [
+                        RVCVersion.V2,
+                        TrainingF0Method.RMVPE,
+                        128,
+                        EmbedderModel.CONTENTVEC,
+                        None,
+                        2,
+                        cpu_count(),
+                        DeviceType.AUTOMATIC,
+                        gpu_choices[0][1] if gpu_choices else None,
+                    ],
+                    outputs=[
+                        rvc_version,
+                        f0_method,
+                        hop_length,
+                        embedder_model,
+                        custom_embedder_model,
+                        include_mutes,
+                        cpu_cores_extract,
+                        extraction_acceleration,
+                        extraction_gpus,
+                    ],
                     show_progress="hidden",
                 )
         with gr.Accordion("Step 3: model training"):
@@ -790,8 +860,17 @@ def render(
                     interactive=False,
                 )
             with gr.Row(equal_height=True):
-                train_btn = gr.Button("Train voice model", variant="primary")
-                train_msg = gr.Textbox(label="Output message", interactive=False)
+                reset_train_btn = gr.Button(
+                    "Reset settings",
+                    variant="secondary",
+                    scale=2,
+                )
+                train_btn = gr.Button("Train voice model", variant="primary", scale=2)
+                train_msg = gr.Textbox(
+                    label="Output message",
+                    interactive=False,
+                    scale=3,
+                )
                 train_btn.click(
                     partial(
                         exception_harness(run_training),
@@ -837,6 +916,47 @@ def render(
                         speech_voice_model_1click,
                         speech_voice_model_multi,
                         voice_model_delete,
+                    ],
+                    show_progress="hidden",
+                )
+                reset_train_btn.click(
+                    lambda: [
+                        500,
+                        8,
+                        False,
+                        50,
+                        Vocoder.HIFI_GAN,
+                        IndexAlgorithm.AUTO,
+                        True,
+                        None,
+                        10,
+                        False,
+                        False,
+                        False,
+                        False,
+                        DeviceType.AUTOMATIC,
+                        gpu_choices[0][1] if gpu_choices else None,
+                        False,
+                        False,
+                    ],
+                    outputs=[
+                        num_epochs,
+                        batch_size,
+                        detect_overtraining,
+                        overtraining_threshold,
+                        vocoder,
+                        index_algorithm,
+                        finetune_pretrained,
+                        custom_pretrained_model,
+                        save_interval,
+                        save_all_checkpoints,
+                        save_all_weights,
+                        clear_saved_data,
+                        upload_model,
+                        training_acceleration,
+                        training_gpus,
+                        preload_dataset,
+                        reduce_memory_usage,
                     ],
                     show_progress="hidden",
                 )

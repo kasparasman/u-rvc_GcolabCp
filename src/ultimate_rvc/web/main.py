@@ -206,7 +206,6 @@ def render_app() -> gr.Blocks:
             )
             for _ in range(5)
         ]
-        training_embedder_multi.info = f"{training_embedder_multi.info}"
         embedder_delete = gr.Dropdown(
             label="Custom embedder models",
             multiselect=True,

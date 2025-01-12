@@ -17,8 +17,6 @@
 
 * we should have a button for quitting training. We can do as they do in applio
   * the same method can also be used for quitting any other ongoing process from the UI.
-
-* Add reset settings button for each step in train multistep tab?
 * fix error saying that selected edge tts voice is not in list (occurs sporadically ?)
 * use the validate_model_exists for functions defined in manage.models
 * also define a validate_model_not_exists to use for functions defined in manage.models
