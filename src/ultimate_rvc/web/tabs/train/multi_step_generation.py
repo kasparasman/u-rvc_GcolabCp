@@ -5,6 +5,8 @@ Module which defines the code for the
 
 from __future__ import annotations
 
+from typing import Any
+
 from functools import partial
 from multiprocessing import cpu_count
 
@@ -45,7 +47,41 @@ from ultimate_rvc.web.common import (
     update_dropdowns,
     update_value,
 )
-from ultimate_rvc.web.typing_extra import ConcurrencyId
+from ultimate_rvc.web.typing_extra import (
+    ComponentVisibilityKwArgs,
+    ConcurrencyId,
+    DatasetType,
+)
+
+
+def _toggle_dataset_type(dataset_type: DatasetType) -> tuple[dict[str, Any], ...]:
+    """
+    Toggle the visibility of three different dataset input components
+    based on the selected dataset type.
+
+    Parameters
+    ----------
+    dataset_type : DatasetType
+        The type of dataset to preprocess.
+
+    Returns
+    -------
+    tuple[dict[str, Any], ...]
+        A tuple of dictionaries which update the visibility of the
+        the three dataset input components.
+
+    """
+    update_args_list: list[ComponentVisibilityKwArgs] = [
+        {"visible": False, "value": None} for _ in range(3)
+    ]
+    match dataset_type:
+        case DatasetType.NEW_DATASET:
+            update_args_list[0]["visible"] = True
+            update_args_list[0]["value"] = "My dataset"
+            update_args_list[1]["visible"] = True
+        case DatasetType.EXISTING_DATASET:
+            update_args_list[2]["visible"] = True
+    return tuple(gr.update(**update_args) for update_args in update_args_list)
 
 
 def _get_trained_model_files(model_name: str) -> list[str] | None:
@@ -163,51 +199,64 @@ def render(
     """
     current_dataset = gr.State()
     with gr.Tab("Multi-step generation"):
-        with gr.Accordion("Step 0: dataset population", open=True):
+        with gr.Accordion("Step 1: dataset preprocessing", open=True):
             with gr.Row():
+                dataset_type = gr.Dropdown(
+                    choices=list(DatasetType),
+                    label="Dataset type",
+                    info="Select the type of dataset to preprocess.",
+                    value=DatasetType.NEW_DATASET,
+                )
+                dataset.render()
                 dataset_name = gr.Textbox(
                     label="Dataset name",
                     info=(
-                        "The name of the dataset to populate. If the dataset does not"
-                        " exist, it will be created."
+                        "The name of the new dataset. If the dataset already"
+                        " exists, the provided audio files will be added to it."
                     ),
                     value="My dataset",
                 )
-                audio_files = gr.File(
-                    file_count="multiple",
-                    label="Audio files to populate the given dataset with.",
-                    file_types=[f".{e.value}" for e in AudioExt],
-                )
-            with gr.Row(equal_height=True):
-                populate_btn = gr.Button("Populate dataset", variant="primary")
-                populate_msg = gr.Textbox(label="Output message", interactive=False)
-                populate_btn.click(
-                    partial(
-                        exception_harness(populate_dataset),
-                        progress_bar=PROGRESS_BAR,
+            audio_files = gr.File(
+                file_count="multiple",
+                label="Audio files",
+                file_types=[f".{e.value}" for e in AudioExt],
+            )
+
+            dataset_type.change(
+                partial(_toggle_dataset_type),
+                inputs=dataset_type,
+                outputs=[dataset_name, audio_files, dataset],
+                show_progress="hidden",
+            )
+
+            audio_files.upload(
+                partial(
+                    exception_harness(
+                        populate_dataset,
+                        info_msg=(
+                            "[+] Audio files successfully added to the dataset with the"
+                            " provided name!"
+                        ),
                     ),
-                    inputs=[dataset_name, audio_files],
-                    outputs=current_dataset,
-                ).success(
-                    partial(
-                        render_msg,
-                        "[+] Dataset successfully populated with the provided audio"
-                        " files !",
-                    ),
-                    outputs=populate_msg,
-                ).then(
-                    partial(update_dropdowns, get_audio_datasets, 1, value_indices=[0]),
-                    inputs=current_dataset,
-                    outputs=dataset,
-                    show_progress="hidden",
-                ).then(
-                    partial(update_dropdowns, get_named_audio_datasets, 1, [], [0]),
-                    outputs=dataset_audio,
-                    show_progress="hidden",
-                )
-        with gr.Accordion("Step 1: dataset preprocessing", open=True):
+                    progress_bar=PROGRESS_BAR,
+                ),
+                inputs=[dataset_name, audio_files],
+                outputs=current_dataset,
+            ).then(
+                partial(update_value, None),
+                outputs=audio_files,
+                show_progress="hidden",
+            ).then(
+                partial(update_dropdowns, get_audio_datasets, 1, value_indices=[0]),
+                inputs=current_dataset,
+                outputs=dataset,
+                show_progress="hidden",
+            ).then(
+                partial(update_dropdowns, get_named_audio_datasets, 1, [], [0]),
+                outputs=dataset_audio,
+                show_progress="hidden",
+            )
             with gr.Row():
-                dataset.render()
                 preprocess_model.render()
             with gr.Accordion("Settings", open=False):
                 with gr.Row():

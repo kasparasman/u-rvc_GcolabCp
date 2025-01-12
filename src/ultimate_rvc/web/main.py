@@ -316,14 +316,14 @@ def render_app() -> gr.Blocks:
         )
 
         dataset = gr.Dropdown(
-            label="Dataset",
+            label="Dataset path",
             info=(
-                "The path to a dataset to preprocess. Either select an existing dataset"
-                " from the dropdown or provide the path to a new dataset. When a"
-                " new dataset is populated, its path is selected by default."
+                "The path to an existing dataset. Either select a path to a previously"
+                " created dataset or provide a path to an external dataset."
             ),
             allow_custom_value=True,
             render=False,
+            visible=False,
         )
 
         dataset_audio = gr.Dropdown(

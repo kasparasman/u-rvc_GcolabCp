@@ -153,13 +153,13 @@ def confirm_box_js(msg: str) -> str:
     return f"(x, ...args) => [confirm('{msg}'), ...args]"
 
 
-def update_value(x: str) -> dict[str, Any]:
+def update_value(x: str | None) -> dict[str, Any]:
     """
     Update the value of a component.
 
     Parameters
     ----------
-    x : str
+    x : str | None
         New value for the component.
 
     Returns

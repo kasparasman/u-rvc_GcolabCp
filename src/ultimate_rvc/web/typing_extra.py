@@ -103,3 +103,10 @@ class UpdateAudioKwArgs(TypedDict, total=False):
     """
 
     value: str | None
+
+
+class DatasetType(StrEnum):
+    """The type of dataset to train a voice model."""
+
+    NEW_DATASET = "New dataset"
+    EXISTING_DATASET = "Existing dataset"
