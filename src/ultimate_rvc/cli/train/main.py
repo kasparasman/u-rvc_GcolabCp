@@ -22,6 +22,7 @@ from ultimate_rvc.cli.common import (
     complete_embedder_model,
     complete_f0_method,
     complete_index_algorithm,
+    complete_pretrained_type,
     complete_rvc_version,
     complete_training_sample_rate,
     complete_vocoder,
@@ -39,6 +40,7 @@ from ultimate_rvc.typing_extra import (
     DeviceType,
     EmbedderModel,
     IndexAlgorithm,
+    PretrainedType,
     RVCVersion,
     TrainingF0Method,
     TrainingSampleRate,
@@ -434,27 +436,27 @@ def run_training(
             ),
         ),
     ] = IndexAlgorithm.AUTO,
-    finetune_pretrained: Annotated[
-        bool,
+    pretrained_type: Annotated[
+        PretrainedType,
         typer.Option(
             rich_help_panel=PanelName.ALGORITHMIC_OPTIONS,
+            case_sensitive=False,
+            autocompletion=complete_pretrained_type,
             help=(
-                "Whether to finetune a pretrained model rather than train a new voice"
-                " model from scratch. This can reduce training time and improve overall"
-                " voice model performance."
+                "The type of pretrained model to finetune the voice model on."
+                " `None` will train the voice model from scratch, while `Default` will"
+                " use a pretrained model tailored to the specific voice model"
+                " architecture. `Custom` will use a custom pretrained model that you"
+                " provide."
             ),
         ),
-    ] = True,
+    ] = PretrainedType.DEFAULT,
     custom_pretrained: Annotated[
         str | None,
         typer.Option(
             rich_help_panel=PanelName.ALGORITHMIC_OPTIONS,
             help=(
-                "The name of a custom pretrained model to finetune. Finetuning a custom"
-                " pretrained model can lead to superior results, as selecting the most"
-                " suitable pretrained model tailored to the specific use case can"
-                " significantly enhance performance. If none is provided, a default"
-                " pretrained model is used."
+                "The name of a custom pretrained model to finetune the voice model on."
             ),
         ),
     ] = None,
@@ -583,7 +585,7 @@ def run_training(
         overtraining_threshold=overtraining_threshold,
         vocoder=vocoder,
         index_algorithm=index_algorithm,
-        finetune_pretrained=finetune_pretrained,
+        pretrained_type=pretrained_type,
         custom_pretrained=custom_pretrained,
         save_interval=save_interval,
         save_all_checkpoints=save_all_checkpoints,

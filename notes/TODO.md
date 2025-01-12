@@ -6,12 +6,6 @@
   torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. The server socket has failed to bind to [Christians-Desktop]:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.). The server socket has failed to bind to Christians-Desktop:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
   """s
   * seems to be due to us choosing a port that is protected by windows when using torch.distributed for training. should figure out which port it is
-* need to fix custom pretrain dropdown where it is not possible to deselect a value once it is selected
-  * solution: instead of finetune_pretrained checkbox have a pretrained model dropdown with the options
-    * None
-    * Default
-    * Custom
-  * then when custom is selected the custom pretrained model dropdown should appear
 
 * we should have a button for quitting training. We can do as they do in applio
   * the same method can also be used for quitting any other ongoing process from the UI.

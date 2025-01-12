@@ -214,13 +214,9 @@ def render_app() -> gr.Blocks:
 
         pretrained_model_multi = gr.Dropdown(
             label="Custom pretrained model",
-            info=(
-                "A custom pretrained model to finetune. If none is selected, a"
-                " default pretrained model will be finetuned instead"
-            ),
-            value=None,
+            info="Select a custom pretrained model to finetune from the dropdown.",
             render=False,
-            visible=True,
+            visible=False,
         )
 
         pretrained_model_delete = gr.Dropdown(

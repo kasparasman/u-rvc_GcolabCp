@@ -145,3 +145,14 @@ class IndexAlgorithm(StrEnum):
     AUTO = "Auto"
     FAISS = "Faiss"
     KMEANS = "KMeans"
+
+
+class PretrainedType(StrEnum):
+    """
+    Enumeration of the possible types of pretrained models to finetune
+    voice models on.
+    """
+
+    NONE = "None"
+    DEFAULT = "Default"
+    CUSTOM = "Custom"

@@ -27,7 +27,12 @@ from ultimate_rvc.core.exceptions import (
 )
 from ultimate_rvc.core.train.common import validate_devices
 from ultimate_rvc.core.train.typing_extra import ModelInfo
-from ultimate_rvc.typing_extra import DeviceType, IndexAlgorithm, Vocoder
+from ultimate_rvc.typing_extra import (
+    DeviceType,
+    IndexAlgorithm,
+    PretrainedType,
+    Vocoder,
+)
 
 if TYPE_CHECKING:
 
@@ -35,6 +40,7 @@ if TYPE_CHECKING:
 
 
 def _get_pretrained_model(
+    pretrained_type: PretrainedType,
     rvc_version: str,
     sample_rate: int,
     custom_pretrained: str | None = None,
@@ -44,14 +50,16 @@ def _get_pretrained_model(
 
     Parameters
     ----------
+    pretrained_type : PretrainedType
+        The type of pretrained model to finetune the voice model on
     rvc_version : str
         The version of the RVC method used to train the voice model.
     sample_rate : int
         The sample rate of the preprocessed dataset associated with the
         voice model to be trained.
     custom_pretrained : str, optional
-        The name of a custom pretrained model to finetune. If none is
-        provided, a default pretrained model is used.
+        The name of a custom pretrained model to finetune the voice
+        model on
 
     Returns
     -------
@@ -74,53 +82,58 @@ def _get_pretrained_model(
         to be trained.
 
     """
-    if custom_pretrained is None:
-        from ultimate_rvc.rvc.lib.tools.pretrained_selector import (  # noqa: PLC0415
-            pretrained_selector,
-        )
-
-        pg, pd = pretrained_selector(
-            rvc_version,
-            pitch_guidance=True,
-            sample_rate=sample_rate,
-        )
-    else:
-        custom_pretrained_path = validate_model_exists(
-            custom_pretrained,
-            Entity.CUSTOM_PRETRAINED_MODEL,
-        )
-
-        # TODO need to make this cleaner
-        custom_pretrained_sample_rate = int(custom_pretrained[-3:-1]) * 1000
-        if not custom_pretrained_sample_rate == sample_rate:
-            raise IncompatiblePretrainedModelError(custom_pretrained, sample_rate)
-
-        pg = next(
-            (
-                str(path)
-                for path in custom_pretrained_path.iterdir()
-                if re.match(r"^(G|f0G).*\.pth$|.*G\.pth$", path.name)
-            ),
-            None,
-        )
-        if pg is None:
-            raise ModelAsssociatedEntityNotFoundError(
-                Entity.GENERATOR,
-                custom_pretrained,
+    match pretrained_type:
+        case PretrainedType.NONE:
+            pg, pd = "", ""
+        case PretrainedType.DEFAULT:
+            from ultimate_rvc.rvc.lib.tools.pretrained_selector import (  # noqa: PLC0415
+                pretrained_selector,
             )
-        pd = next(
-            (
-                str(path)
-                for path in custom_pretrained_path.iterdir()
-                if re.match(r"^(D|f0D).*\.pth$|.*D\.pth$", path.name)
-            ),
-            None,
-        )
-        if pd is None:
-            raise ModelAsssociatedEntityNotFoundError(
-                Entity.DISCRIMINATOR,
-                custom_pretrained,
+
+            pg, pd = pretrained_selector(
+                rvc_version,
+                pitch_guidance=True,
+                sample_rate=sample_rate,
             )
+        case PretrainedType.CUSTOM:
+            custom_pretrained_path = validate_model_exists(
+                custom_pretrained,
+                Entity.CUSTOM_PRETRAINED_MODEL,
+            )
+            # NOTE simply done to appease the type checker
+            custom_pretrained = custom_pretrained_path.name
+
+            # TODO need to make this cleaner
+            custom_pretrained_sample_rate = int(custom_pretrained[-3:-1]) * 1000
+            if not custom_pretrained_sample_rate == sample_rate:
+                raise IncompatiblePretrainedModelError(custom_pretrained, sample_rate)
+
+            pg = next(
+                (
+                    str(path)
+                    for path in custom_pretrained_path.iterdir()
+                    if re.match(r"^(G|f0G).*\.pth$|.*G\.pth$", path.name)
+                ),
+                None,
+            )
+            if pg is None:
+                raise ModelAsssociatedEntityNotFoundError(
+                    Entity.GENERATOR,
+                    custom_pretrained,
+                )
+            pd = next(
+                (
+                    str(path)
+                    for path in custom_pretrained_path.iterdir()
+                    if re.match(r"^(D|f0D).*\.pth$|.*D\.pth$", path.name)
+                ),
+                None,
+            )
+            if pd is None:
+                raise ModelAsssociatedEntityNotFoundError(
+                    Entity.DISCRIMINATOR,
+                    custom_pretrained,
+                )
 
     return pg, pd
 
@@ -133,7 +146,7 @@ def run_training(
     overtraining_threshold: int = 50,
     vocoder: Vocoder = Vocoder.HIFI_GAN,
     index_algorithm: IndexAlgorithm = IndexAlgorithm.AUTO,
-    finetune_pretrained: bool = True,
+    pretrained_type: PretrainedType = PretrainedType.DEFAULT,
     custom_pretrained: str | None = None,
     save_interval: int = 10,
     save_all_checkpoints: bool = False,
@@ -180,16 +193,15 @@ def run_training(
     index_algorithm : IndexAlgorithm, default=IndexAlgorithm.AUTO
         The method to use for generating an index file for the trained
         voice model. KMeans is particularly useful for large datasets.
-    finetune_pretrained : bool, default=True
-        Whether to finetune a pretrained model rather than train a
-        new voice model from scratch. This can reduce training time and
-        improve overall voice model performance.
+    pretrained_type : PretrainedType, default=PretrainedType.DEFAULT
+        The type of pretrained model to finetune the voice model on.
+        "None" will train the voice model from scratch, while
+        "Default" will use a pretrained model tailored to the specific
+        voice model architecture. "Custom" will use a custom pretrained
+        model that you provide.
     custom_pretrained: str, optional
-        The name of a custom pretrained model to finetune. Finetuning a
-        custom pretrained model can lead to superior results, as
-        selecting the most suitable pretrained model tailored to the
-        specific use case can significantly enhance performance.
-        If none is provided, a default pretrained model is used.
+        The name of a custom pretrained model to finetune the voice
+        model on.
     save_interval : int, default=10
         The epoch interval at which to to save voice model weights and
         checkpoints. The best model weights are always saved regardless
@@ -269,9 +281,12 @@ def run_training(
     rvc_version = model_info.rvc_version
     sample_rate = model_info.sample_rate
 
-    pg, pd = "", ""
-    if finetune_pretrained:
-        pg, pd = _get_pretrained_model(rvc_version, sample_rate, custom_pretrained)
+    pg, pd = _get_pretrained_model(
+        pretrained_type,
+        rvc_version,
+        sample_rate,
+        custom_pretrained,
+    )
 
     display_progress("[~] training voice model...", percentage[0], progress_bar)
     from ultimate_rvc.rvc.train.train import main as train_main  # noqa: PLC0415

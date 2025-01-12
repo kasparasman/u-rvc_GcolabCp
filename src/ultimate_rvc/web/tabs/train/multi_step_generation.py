@@ -30,6 +30,7 @@ from ultimate_rvc.typing_extra import (
     DeviceType,
     EmbedderModel,
     IndexAlgorithm,
+    PretrainedType,
     RVCVersion,
     TrainingF0Method,
     TrainingSampleRate,
@@ -675,21 +676,24 @@ def render(
                             value=IndexAlgorithm.AUTO,
                         )
                     with gr.Column():
-                        finetune_pretrained = gr.Checkbox(
-                            label="Finetune pretrained model",
+                        pretrained_type = gr.Dropdown(
+                            choices=list(PretrainedType),
+                            label="Pretrained model type",
                             info=(
-                                "Whether to finetune a pretrained model rather than"
-                                " train a new voice model from scratch. This can"
-                                " significantly reduce training time and improve"
-                                " overall voice model performance."
+                                "The type of pretrained model to finetune the voice"
+                                " model on. `None` will train the voice model from"
+                                " scratch, while `Default` will use a pretrained model"
+                                " tailored to the specific voice model architecture."
+                                " `Custom` will use a custom pretrained that you"
+                                " provide."
                             ),
-                            value=True,
+                            value=PretrainedType.DEFAULT,
                         )
                         custom_pretrained_model.render()
 
-                    finetune_pretrained.change(
-                        partial(toggle_visibility, targets={True}),
-                        inputs=finetune_pretrained,
+                    pretrained_type.change(
+                        partial(toggle_visibility, targets={PretrainedType.CUSTOM}),
+                        inputs=pretrained_type,
                         outputs=custom_pretrained_model,
                         show_progress="hidden",
                     )
@@ -848,7 +852,7 @@ def render(
                         overtraining_threshold,
                         vocoder,
                         index_algorithm,
-                        finetune_pretrained,
+                        pretrained_type,
                         custom_pretrained_model,
                         save_interval,
                         save_all_checkpoints,
@@ -892,7 +896,7 @@ def render(
                         50,
                         Vocoder.HIFI_GAN,
                         IndexAlgorithm.AUTO,
-                        True,
+                        PretrainedType.DEFAULT,
                         None,
                         10,
                         False,
@@ -911,7 +915,7 @@ def render(
                         overtraining_threshold,
                         vocoder,
                         index_algorithm,
-                        finetune_pretrained,
+                        pretrained_type,
                         custom_pretrained_model,
                         save_interval,
                         save_all_checkpoints,

@@ -7,6 +7,7 @@ from ultimate_rvc.typing_extra import (
     EmbedderModel,
     F0Method,
     IndexAlgorithm,
+    PretrainedType,
     RVCVersion,
     TrainingSampleRate,
     Vocoder,
@@ -229,3 +230,23 @@ def complete_device_type(incomplete: str) -> list[str]:
 
     """
     return complete_name(incomplete, list(DeviceType))
+
+
+def complete_pretrained_type(incomplete: str) -> list[str]:
+    """
+    Return a list of pretrained model types that start with the
+    incomplete string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of pretrained model types that start with the
+        incomplete string.
+
+    """
+    return complete_name(incomplete, list(PretrainedType))
