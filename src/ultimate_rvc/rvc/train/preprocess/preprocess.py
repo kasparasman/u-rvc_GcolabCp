@@ -26,6 +26,7 @@ import logging
 from ultimate_rvc.common import lazy_import
 from ultimate_rvc.rvc.lib.utils import load_audio
 from ultimate_rvc.rvc.train.preprocess.slicer import Slicer
+from ultimate_rvc.rvc.train.utils import remove_sox_libmso6_from_ld_preload
 from ultimate_rvc.typing_extra import AudioExt
 
 if TYPE_CHECKING:
@@ -369,6 +370,9 @@ def preprocess_training_set(
 
     # print(f"Number of files: {len(files)}")
     audio_length = []
+
+    remove_sox_libmso6_from_ld_preload()
+
     with tqdm(total=len(files)) as pbar:
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=num_processes,

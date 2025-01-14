@@ -1,14 +1,16 @@
 # TODO
-
-* test on linux
+* test training performance by comparison with applio
 * update readme with info on training models
 * upload new version to pypi
+  * test both cli and web part of the pypi version
 * need to fix issue with ports when using training:
   """
   torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. The server socket has failed to bind to [Christians-Desktop]:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.). The server socket has failed to bind to Christians-Desktop:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
      * other port when error occurs: 49865
-  """s
+  """
   * seems to be due to us choosing a port that is protected by windows when using torch.distributed for training. should figure out which port it is
+* fix error on exiting server on linux after interrupting training:
+  "/usr/lib/python3.12/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 210 leaked semaphore objects to clean up at shutdown" warnings.warn('resource_tracker: There appear to be %d '
 * it is possible to have several parallel event listeners for a component:
   * lke if we have click_event = some_component.click(...) then we can have several click.then event listeners. 
   * knowing this, simplify event listener code in the web package.

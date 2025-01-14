@@ -43,6 +43,7 @@ from ultimate_rvc.rvc.train.utils import (
     load_checkpoint,
     load_wav_to_torch,
     plot_spectrogram_to_numpy,
+    remove_sox_libmso6_from_ld_preload,
     save_checkpoint,
     summarize,
 )
@@ -144,6 +145,7 @@ def main(
         RuntimeError: If the sample rate of the pretrained model does not match the dataset audio sample rate.
 
     """
+    remove_sox_libmso6_from_ld_preload()
     experiment_dir = os.path.join(TRAINING_MODELS_DIR, model_name)
     config_save_path = os.path.join(experiment_dir, "config.json")
 
@@ -228,6 +230,7 @@ def main(
                 subproc.start()
                 pid_data["process_pids"].append(subproc.pid)
             json.dump(pid_data, pid_file, indent=4)
+        cancel_signal = signal.SIGTERM if os.name == "nt" else -signal.SIGTERM
         error_codes = []
         for i in range(n_gpus):
             children[i].join()
@@ -238,10 +241,13 @@ def main(
                     device_id,
                     exit_code,
                 )
-                if exit_code != signal.SIGTERM:
+                if exit_code != cancel_signal:
                     error_codes.append(exit_code)
         if error_codes:
-            err_msg = "One or more training processes failed. See the logs for details."
+            err_msg = (
+                "One or more training processes failed. See the logs or console for"
+                " details."
+            )
             raise RuntimeError(err_msg)
 
     if cleanup:
@@ -357,7 +363,7 @@ def run(
         g_file = latest_checkpoint_path(experiment_dir, "G_*.pth")
         if g_file != None:
             logger.info("Checking saved weights...")
-            g = torch.load(g_file, map_location="cpu")
+            g = torch.load(g_file, map_location="cpu", weights_only=False)
             if (
                 optimizer == "RAdam"
                 and "amsgrad" in g["optimizer"]["param_groups"][0].keys()
