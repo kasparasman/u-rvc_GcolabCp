@@ -23,7 +23,11 @@ from ultimate_rvc.core.train.prepare import (
     populate_dataset,
     preprocess_dataset,
 )
-from ultimate_rvc.core.train.train import get_trained_model_files, run_training
+from ultimate_rvc.core.train.train import (
+    get_trained_model_files,
+    run_training,
+    stop_training,
+)
 from ultimate_rvc.typing_extra import (
     AudioExt,
     AudioSplitMethod,
@@ -41,6 +45,7 @@ from ultimate_rvc.web.common import (
     render_msg,
     toggle_visibilities,
     toggle_visibility,
+    toggle_visible_component,
     update_dropdowns,
     update_value,
 )
@@ -821,12 +826,23 @@ def render(
                     scale=2,
                 )
                 train_btn = gr.Button("Train voice model", variant="primary", scale=2)
+                stop_train_btn = gr.Button(
+                    "Stop training",
+                    variant="primary",
+                    scale=2,
+                    visible=False,
+                )
                 train_msg = gr.Textbox(
                     label="Output message",
                     interactive=False,
                     scale=3,
                 )
                 train_btn.click(
+                    partial(toggle_visible_component, 2, 1, reset_values=False),
+                    outputs=[train_btn, stop_train_btn],
+                    show_progress="hidden",
+                )
+                train_btn_click = train_btn.click(
                     partial(
                         exception_harness(run_training),
                     ),
@@ -854,7 +870,15 @@ def render(
                     outputs=train_msg,
                     concurrency_limit=1,
                     concurrency_id=ConcurrencyId.GPU,
-                ).success(
+                )
+
+                train_btn_click.then(
+                    partial(toggle_visible_component, 2, 0, reset_values=False),
+                    outputs=[train_btn, stop_train_btn],
+                    show_progress="hidden",
+                )
+
+                train_btn_click.success(
                     partial(render_msg, "[+] Voice model successfully trained!"),
                     outputs=train_msg,
                     show_progress="hidden",
@@ -872,6 +896,12 @@ def render(
                         speech_voice_model_multi,
                         voice_model_delete,
                     ],
+                    show_progress="hidden",
+                )
+
+                stop_train_btn.click(
+                    stop_training,
+                    inputs=train_model,
                     show_progress="hidden",
                 )
                 reset_train_btn.click(

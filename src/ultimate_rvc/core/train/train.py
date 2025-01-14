@@ -7,13 +7,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import logging
+import os
 import re
+import signal
 
 from ultimate_rvc.core.common import (
     TRAINING_MODELS_DIR,
     VOICE_MODELS_DIR,
     copy_files_to_new_dir,
     display_progress,
+    json_dump,
     json_load,
     validate_model_exists,
 )
@@ -27,7 +31,7 @@ from ultimate_rvc.core.exceptions import (
     Step,
 )
 from ultimate_rvc.core.train.common import validate_devices
-from ultimate_rvc.core.train.typing_extra import ModelInfo
+from ultimate_rvc.core.train.typing_extra import ModelInfo, TrainingInfo
 from ultimate_rvc.typing_extra import (
     DeviceType,
     IndexAlgorithm,
@@ -38,6 +42,8 @@ from ultimate_rvc.typing_extra import (
 if TYPE_CHECKING:
 
     import gradio as gr
+
+logger = logging.getLogger(__name__)
 
 
 def _get_pretrained_model(
@@ -317,6 +323,11 @@ def run_training(
         device_ids,
     )
 
+    model_file = model_path / f"{model_name}_best.pth"
+
+    if not model_file.is_file():
+        return
+
     display_progress(
         "[~] Generating index file for trained voice model...",
         percentage[1],
@@ -328,7 +339,6 @@ def run_training(
 
     extract_index_main(str(model_path), index_algorithm)
 
-    model_file = model_path / f"{model_name}_best.pth"
     index_file = model_path / f"{model_name}.index"
     if upload_model_path and model_file.is_file() and index_file.is_file():
         copy_files_to_new_dir([index_file, model_file], upload_model_path)
@@ -358,3 +368,27 @@ def get_trained_model_files(model_name: str) -> list[str] | None:
     if not model_file.is_file() or not index_file.is_file():
         return None
     return [str(model_file), str(index_file)]
+
+
+def stop_training(model_name: str) -> None:
+    """
+    Stop the training of a voice model.
+
+    Parameters
+    ----------
+    model_name : str
+        The name of the voice model to stop training for.
+
+    """
+    training_info_path = TRAINING_MODELS_DIR / model_name / "config.json"
+    try:
+        training_info_dict = json_load(training_info_path)
+        training_info = TrainingInfo.model_validate(training_info_dict)
+        process_ids = training_info.process_pids
+        for pid in process_ids:
+            os.kill(pid, signal.SIGTERM)
+        training_info.process_pids = []
+        updated_training_info_dict = training_info.model_dump()
+        json_dump(updated_training_info_dict, training_info_path)
+    except Exception as e:
+        logger.error("Error stopping training: %s", e)  # noqa: TRY400

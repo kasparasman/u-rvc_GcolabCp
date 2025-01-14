@@ -6,11 +6,12 @@
 * need to fix issue with ports when using training:
   """
   torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. The server socket has failed to bind to [Christians-Desktop]:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.). The server socket has failed to bind to Christians-Desktop:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
+     * other port when error occurs: 49865
   """s
   * seems to be due to us choosing a port that is protected by windows when using torch.distributed for training. should figure out which port it is
-
-* we should have a button for quitting training. We can do as they do in applio
-  * the same method can also be used for quitting any other ongoing process from the UI.
+* it is possible to have several parallel event listeners for a component:
+  * lke if we have click_event = some_component.click(...) then we can have several click.then event listeners. 
+  * knowing this, simplify event listener code in the web package.
 * fix error saying that selected edge tts voice is not in list (occurs sporadically ?)
 * use the validate_model_exists for functions defined in manage.models
 * also define a validate_model_not_exists to use for functions defined in manage.models

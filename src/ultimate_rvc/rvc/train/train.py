@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import signal
 import sys
 from collections import deque
 from random import randint, shuffle
@@ -227,15 +228,21 @@ def main(
                 subproc.start()
                 pid_data["process_pids"].append(subproc.pid)
             json.dump(pid_data, pid_file, indent=4)
-
+        error_codes = []
         for i in range(n_gpus):
             children[i].join()
-            if children[i].exitcode != 0:
-                error_message = (
-                    f"Process running on device {device_id} exited with code"
-                    f" {children[i].exitcode}."
+            exit_code = children[i].exitcode
+            if exit_code != 0:
+                logger.warning(
+                    "Process running on device %s exited with code %s.",
+                    device_id,
+                    exit_code,
                 )
-                raise RuntimeError(error_message)
+                if exit_code != signal.SIGTERM:
+                    error_codes.append(exit_code)
+        if error_codes:
+            err_msg = "One or more training processes failed. See the logs for details."
+            raise RuntimeError(err_msg)
 
     if cleanup:
         logger.info("Removing files from the prior training attempt...")

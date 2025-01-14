@@ -255,6 +255,7 @@ def toggle_visibilities[T](
 def toggle_visible_component(
     num_components: int,
     visible_index: int,
+    reset_values: bool = True,
 ) -> dict[str, Any] | tuple[dict[str, Any], ...]:
     """
     Reveal a single component from a set of components. All other
@@ -266,6 +267,8 @@ def toggle_visible_component(
         Number of components to set visibility for.
     visible_index : int
         Index of the component to reveal.
+    reset_values : bool, default=True
+        Whether to reset the values of the components.
 
     Returns
     -------
@@ -286,9 +289,12 @@ def toggle_visible_component(
             " for."
         )
         raise ValueError(err_msg)
-    update_args_list: list[ComponentVisibilityKwArgs] = [
-        {"visible": False, "value": None} for _ in range(num_components)
-    ]
+    update_args_list: list[ComponentVisibilityKwArgs] = []
+    for _ in range(num_components):
+        update_args: ComponentVisibilityKwArgs = {"visible": False}
+        if reset_values:
+            update_args["value"] = None
+        update_args_list.append(update_args)
     update_args_list[visible_index]["visible"] = True
     match update_args_list:
         case [update_args]:
