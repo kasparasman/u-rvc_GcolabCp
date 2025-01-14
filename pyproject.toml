@@ -23,11 +23,6 @@ dependencies = [
     "yt_dlp==2025.1.12",
     "nodejs-wheel-binaries==22.11.0",
     "wget",
-    # TODO potentially add these later
-    # "deemix",
-    # "flask",
-    # "beautifulsoup4",
-    # "pypresence",
 
     # Data science
     "numpy==1.26.4",
@@ -51,9 +46,6 @@ dependencies = [
     "tensorboardX==2.6.2.2",
     "tensorboard",
     "torch-tb-profiler==0.4.3",
-    # TODO potentially add these later
-    #"torchfcpe",
-    #"libf0",
     
     # Audio
     "static-ffmpeg==2.7",
@@ -75,8 +67,6 @@ dependencies = [
     # below package outcommented until we use praat 
     # (for example for formant shifting with "change gender command")
     #"praat-parselmouth==0.4.5",
-    #"versatile-audio-upscaler-fixed==0.0.4",
-    #"stftpitchshift",
 ]
 
 [project.scripts]
