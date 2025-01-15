@@ -1,9 +1,5 @@
 # TODO
 
-* update readme with info on training models
-* upload new version to pypi
-  * test both cli and web part of the pypi version
-
 ## Project/task management
 
 * Should find tool for project/task management
