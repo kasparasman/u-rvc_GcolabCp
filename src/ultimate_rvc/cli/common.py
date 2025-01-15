@@ -3,10 +3,13 @@
 from ultimate_rvc.typing_extra import (
     AudioExt,
     AudioSplitMethod,
+    DeviceType,
     EmbedderModel,
     F0Method,
-    RVCVersion,
+    IndexAlgorithm,
+    PretrainedType,
     TrainingSampleRate,
+    Vocoder,
 )
 
 
@@ -112,24 +115,6 @@ def complete_embedder_model(incomplete: str) -> list[str]:
     return complete_name(incomplete, list(EmbedderModel))
 
 
-def complete_rvc_version(incomplete: str) -> list[str]:
-    """
-    Return a list of RVC versions that start with the incomplete string.
-
-    Parameters
-    ----------
-    incomplete : str
-        The incomplete string to complete.
-
-    Returns
-    -------
-    list[str]
-        The list of RVC versions that start with the incomplete string.
-
-    """
-    return complete_name(incomplete, list(RVCVersion))
-
-
 def complete_audio_split_method(incomplete: str) -> list[str]:
     """
     Return a list of audio split methods that start with the incomplete
@@ -168,3 +153,81 @@ def complete_training_sample_rate(incomplete: str) -> list[str]:
 
     """
     return complete_name(incomplete, list(TrainingSampleRate))
+
+
+def complete_vocoder(incomplete: str) -> list[str]:
+    """
+    Return a list of vocoders that start with the incomplete string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of vocoders that start with the incomplete string.
+
+    """
+    return complete_name(incomplete, list(Vocoder))
+
+
+def complete_index_algorithm(incomplete: str) -> list[str]:
+    """
+    Return a list of index algorithms that start with the incomplete
+    string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of index algorithms that start with the incomplete
+        string.
+
+    """
+    return complete_name(incomplete, list(IndexAlgorithm))
+
+
+def complete_device_type(incomplete: str) -> list[str]:
+    """
+    Return a list of device types that start with the incomplete
+    string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of device types that start with the incomplete
+        string.
+
+    """
+    return complete_name(incomplete, list(DeviceType))
+
+
+def complete_pretrained_type(incomplete: str) -> list[str]:
+    """
+    Return a list of pretrained model types that start with the
+    incomplete string.
+
+    Parameters
+    ----------
+    incomplete : str
+        The incomplete string to complete.
+
+    Returns
+    -------
+    list[str]
+        The list of pretrained model types that start with the
+        incomplete string.
+
+    """
+    return complete_name(incomplete, list(PretrainedType))

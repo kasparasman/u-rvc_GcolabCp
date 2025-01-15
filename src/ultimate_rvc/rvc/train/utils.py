@@ -1,4 +1,7 @@
+from typing import TYPE_CHECKING
+
 import glob
+import logging
 import os
 from collections import OrderedDict
 
@@ -9,7 +12,58 @@ import torch
 
 import soundfile as sf
 
+from ultimate_rvc.common import lazy_import
+
+if TYPE_CHECKING:
+    import static_sox.run as static_sox_run
+else:
+    static_sox_run = lazy_import("static_sox.run")
+
+logger = logging.getLogger(__name__)
+
 MATPLOTLIB_FLAG = False
+
+
+def remove_from_ld_preload(prefix: str) -> None:
+    """
+    Remove entries from the LD_PRELOAD environment variable that start
+    with the given prefix.
+
+    Parameters
+    ----------
+    prefix : str
+        The prefix to match entries in LD_PRELOAD.
+
+    """
+    # Get the current LD_PRELOAD value
+    ld_preload = os.environ.get("LD_PRELOAD", "")
+
+    # Split the LD_PRELOAD into a list of entries
+    preload_entries = ld_preload.split(os.pathsep)
+
+    # Remove the entries that start with the given prefix
+    preload_entries = [
+        entry for entry in preload_entries if not entry.startswith(prefix)
+    ]
+
+    # Join the list back into a string and update LD_PRELOAD
+    os.environ["LD_PRELOAD"] = os.pathsep.join(preload_entries)
+
+
+def remove_sox_libmso6_from_ld_preload() -> None:
+    """
+    Remove the sox `libm.so.6` library from the `LD_PRELOAD` environment
+    variable.
+
+    On ubuntu 24.04 the static_sox module does not work with
+    multiprocessing using the spawn method due to a "version
+    GLIBC_2.38 not found" error. This function fixes that by
+    removing the path to the `libm.so.6` library from the `LD_PRELOAD`
+    environment variable.
+
+    """
+    sox_exe = static_sox_run.get_or_fetch_platform_executables_else_raise()
+    remove_from_ld_preload(os.path.join(os.path.dirname(sox_exe), "libm.so.6"))
 
 
 def replace_keys_in_dict(d, old_key_part, new_key_part):
@@ -50,7 +104,11 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, load_opt=1):
         checkpoint_path,
     ), f"Checkpoint file not found: {checkpoint_path}"
 
-    checkpoint_dict = torch.load(checkpoint_path, map_location="cpu")
+    checkpoint_dict = torch.load(
+        checkpoint_path,
+        map_location="cpu",
+        weights_only=False,
+    )
     checkpoint_dict = replace_keys_in_dict(
         replace_keys_in_dict(
             checkpoint_dict,
@@ -78,18 +136,30 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, load_opt=1):
     if optimizer and load_opt == 1:
         optimizer.load_state_dict(checkpoint_dict.get("optimizer", {}))
 
-    print(
-        f"Loaded checkpoint '{checkpoint_path}' (epoch {checkpoint_dict['iteration']})",
+    logger.info(
+        "Loaded checkpoint '%s' (epoch %d)",
+        checkpoint_path,
+        checkpoint_dict["iteration"],
     )
     return (
         model,
         optimizer,
         checkpoint_dict.get("learning_rate", 0),
         checkpoint_dict["iteration"],
+        checkpoint_dict.get("lowest_value", {"value": float("inf"), "epoch": 0}),
+        checkpoint_dict.get("consecutive_increases", 0),
     )
 
 
-def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path):
+def save_checkpoint(
+    model,
+    optimizer,
+    learning_rate,
+    iteration,
+    lowest_value,
+    consecutive_increases,
+    checkpoint_path,
+):
     """
     Save the model and optimizer state to a checkpoint file.
 
@@ -107,13 +177,13 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path)
     checkpoint_data = {
         "model": state_dict,
         "iteration": iteration,
+        "lowest_value": lowest_value,
+        "consecutive_increases": consecutive_increases,
         "optimizer": optimizer.state_dict(),
         "learning_rate": learning_rate,
     }
-    torch.save(checkpoint_data, checkpoint_path)
 
     # Create a backwards-compatible checkpoint
-    old_version_path = checkpoint_path.replace(".pth", "_old_version.pth")
     checkpoint_data = replace_keys_in_dict(
         replace_keys_in_dict(
             checkpoint_data,
@@ -123,10 +193,8 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path)
         ".parametrizations.weight.original0",
         ".weight_g",
     )
-    torch.save(checkpoint_data, old_version_path)
-
-    os.replace(old_version_path, checkpoint_path)
-    print(f"Saved model '{checkpoint_path}' (epoch {iteration})")
+    torch.save(checkpoint_data, checkpoint_path)
+    logger.info("Saved model '%s' (epoch %d)", checkpoint_path, iteration)
 
 
 def summarize(

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Literal
 from enum import StrEnum
 
 if TYPE_CHECKING:
-    from ultimate_rvc.typing_extra import StrPath
+    from ultimate_rvc.typing_extra import PretrainedSampleRate, StrPath
 
 
 class Entity(StrEnum):
@@ -25,9 +25,13 @@ class Entity(StrEnum):
     # Model entities
     MODEL_NAME = "model name"
     MODEL_NAMES = "model names"
+    UPLOAD_NAME = "upload name"
     VOICE_MODEL = "voice model"
     TRAINING_MODEL = "training model"
     CUSTOM_EMBEDDER_MODEL = "custom embedder model"
+    CUSTOM_PRETRAINED_MODEL = "custom pretrained model"
+    GENERATOR = "generator"
+    DISCRIMINATOR = "discriminator"
     MODEL_FILE = "model file"
     MODEL_BIN_FILE = "pytorch_model.bin file"
     CONFIG_JSON_FILE = "config.json file"
@@ -42,10 +46,15 @@ class Entity(StrEnum):
     DATASET = "dataset"
     DATASETS = "datasets"
     DATASET_NAME = "dataset name"
+    DATASET_FILE_LIST = "dataset file list"
+    PREPROCESSED_AUDIO_DATASET_FILES = "preprocessed dataset audio files"
 
-    # Source entitiess
+    # Source entities
     SOURCE = "source"
     URL = "URL"
+
+    # GPU entities
+    GPU_IDS = "GPU IDs"
 
 
 AudioFileEntity = Literal[
@@ -62,6 +71,7 @@ ModelEntity = Literal[
     Entity.VOICE_MODEL,
     Entity.TRAINING_MODEL,
     Entity.CUSTOM_EMBEDDER_MODEL,
+    Entity.CUSTOM_PRETRAINED_MODEL,
 ]
 
 
@@ -76,6 +86,13 @@ class Location(StrEnum):
 
     # Model locations
     EXTRACTED_ZIP_FILE = "extracted zip file"
+
+
+class Step(StrEnum):
+    """Enumeration of steps that can be run."""
+
+    DATASET_PREPROCESSING = "dataset preprocessing"
+    FEATURE_EXTRACTION = "feature extraction"
 
 
 class UIMessage(StrEnum):
@@ -111,6 +128,8 @@ class UIMessage(StrEnum):
     NO_TRAINING_MODELS = "No training models selected."
     NO_CUSTOM_EMBEDDER_MODEL = "No custom embedder model selected."
     NO_CUSTOM_EMBEDDER_MODELS = "No custom embedder models selected."
+    NO_CUSTOM_PRETRAINED_MODELS = "No custom pretrained models selected."
+    NO_CUSTOM_PRETRAINED_MODEL = "No custom pretrained model selected."
 
     # Source messages
     NO_AUDIO_SOURCE = (
@@ -120,6 +139,9 @@ class UIMessage(StrEnum):
     NO_TEXT_SOURCE = (
         "No source provided. Please provide a valid text string or path to a text file."
     )
+
+    # GPU messages
+    NO_GPUS = "No GPUs selected."
 
 
 class NotProvidedError(ValueError):
@@ -201,31 +223,153 @@ class ModelNotFoundError(OSError):
         super().__init__(f"{entity.capitalize()} with name '{name}' not found.")
 
 
-class PreprocessedAudioNotFoundError(OSError):
-    """
-    Raised when no preprocessed dataset audio files are associated
-    with a model.
-    """
+class PretrainedModelNotAvailableError(OSError):
+    """Raised when a pretrained model is not available for download."""
 
-    def __init__(self, name: str) -> None:
+    def __init__(
+        self,
+        name: str,
+        sample_rate: PretrainedSampleRate | None = None,
+    ) -> None:
         r"""
-        Initialize a PreprocessedAudioNotFoundError instance.
+        Initialize a PretrainedModelNotAvailableError instance.
 
         Exception message will be formatted as:
 
-        'No preprocessed dataset audio files associated with the model
-        with name "`<name>`".'
+        'Pretrained model with name "`<name>`"
+        [and sample rate `<sample_rate>`] is not available for
+        download.'
 
         Parameters
         ----------
         name : str
-            The name of the model with no associated preprocessed
-            dataset audio files.
+            The name of the pretrained model that is not available for
+            download.
+        sample_rate : PretrainedSampleRate, optional
+            The sample rate of the pretrained model that is not
+            available for download.
+
+        """
+        suffix = f" and sample rate {sample_rate}" if sample_rate else ""
+        super().__init__(
+            f"Pretrained model with name '{name}'{suffix} is not available for"
+            " download.",
+        )
+
+
+class IncompatiblePretrainedModelError(OSError):
+    """
+    Raised when a pretrained model is incompatible with a given sample
+    rate.
+    """
+
+    def __init__(self, name: str, sample_rate: int) -> None:
+        r"""
+        Initialize an IncompatiblePretrainedModelError instance.
+
+        Exception message will be formatted as:
+
+        'Pretrained model with name "`<name>`" is incompatible with
+        sample rate `<sample_rate>`.'
+
+        Parameters
+        ----------
+        name : str
+            The name of the pretrained model that is incompatible with
+            a given sample rate.
+        sample_rate : PretrainedSampleRate
+            The sample rate that the pretrained model is incompatible
+            with.
 
         """
         super().__init__(
-            "No preprocessed dataset audio files associated with the model with name"
-            f" '{name}'.",
+            f"Pretrained model with name '{name}' is incompatible with sample rate"
+            f" {sample_rate}.",
+        )
+
+
+class IncompatibleVocoderError(OSError):
+    """
+    Raised when a default pretrained model is incompatible with a
+    given vocoder.
+    """
+
+    def __init__(self, vocoder: str) -> None:
+        r"""
+        Initialize an IncompatibleVocoderError instance.
+
+        Exception message will be formatted as:
+
+        'The default pretrained model is incompatible with the vocoder
+        `<vocoder>`.'
+
+        Parameters
+        ----------
+        vocoder : str
+            The vocoder that the default pretrained model is
+            incompatible with.
+
+        """
+        super().__init__(
+            f"The default pretrained model is incompatible with the vocoder {vocoder}.",
+        )
+
+
+class GPUNotFoundError(OSError):
+    """Raised when a GPU with a given id is not found."""
+
+    def __init__(self, device_id: int | None = None) -> None:
+        r"""
+        Initialize a GPUNotFoundError instance.
+
+        Exception message will be formatted as:
+
+        'GPU with id `<id>` not found.'
+
+        Parameters
+        ----------
+        device_id : int, optional
+            The id of a GPU that is not found.
+
+        """
+        super().__init__(
+            f"No GPU with id {device_id} found.",
+        )
+
+
+class ModelAsssociatedEntityNotFoundError(OSError):
+    """Raised when an entity associated with a model is not found."""
+
+    def __init__(
+        self,
+        entity: Entity,
+        model_name: str,
+        required_step: Step | None = None,
+    ) -> None:
+        r"""
+        Initialize a ModelAsssociatedEntityNotFoundError instance.
+
+        Exception message will be formatted as:
+
+        'No `<entity>` associated with the model with name
+        "`<model_name>`". [Please run `<required_step>` first.]'
+
+        Parameters
+        ----------
+        entity : str
+            The entity that is not associated with the model.
+        model_name : str
+            The name of the model that the entity is not associated
+            with.
+        required_step : str, default=None
+            The required step that needs to be run before will be
+            associated with the model.
+
+        """
+        suffix = f"Please run {required_step} first." if required_step else ""
+        super().__init__(
+            f"No {entity.capitalize()} associated with the model with name"
+            f" {model_name}. {suffix}",
         )
 
 
@@ -252,6 +396,35 @@ class ModelExistsError(OSError):
         super().__init__(
             f"{entity.capitalize()} with name '{name}' already exists. Please provide a"
             f" different name for your {entity}.",
+        )
+
+
+class PretrainedModelExistsError(OSError):
+    """
+    Raised when a pretrained model with a given name and sample rate
+    already exists.
+    """
+
+    def __init__(self, name: str, sample_rate: PretrainedSampleRate) -> None:
+        r"""
+        Initialize a PretrainedModelExistsError instance.
+
+        Exception message will be formatted as:
+
+        'Pretrained model with name "`<name>`" and sample rate
+        `<sample_rate>` already exists.'
+
+        Parameters
+        ----------
+        name : str
+            The name of the pretrained model that already exists.
+        sample_rate : PretrainedSampleRate
+            The sample rate of the pretrained model that already exists.
+
+        """
+        super().__init__(
+            f"Pretrained model with name '{name}' and sample rate {sample_rate} already"
+            " exists.",
         )
 
 

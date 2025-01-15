@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ultimate-rvc"
-version = "0.3.1"
+version = "0.4.0"
 description = "Ultimate RVC"
 readme = "README.md"
 requires-python = "==3.12.*"
@@ -20,14 +20,9 @@ dependencies = [
     
     # Networking
     "requests==2.32.3",
-    "yt_dlp==2024.12.23",
+    "yt_dlp==2025.1.12",
     "nodejs-wheel-binaries==22.11.0",
     "wget",
-    # TODO potentially add these later
-    # "deemix",
-    # "flask",
-    # "beautifulsoup4",
-    # "pypresence",
 
     # Data science
     "numpy==1.26.4",
@@ -43,16 +38,14 @@ dependencies = [
     "faiss-cpu==1.9.0",
     # Version of onnxruntime-gpu needs to align with what 
     # version audio-separator package uses.
-    "onnxruntime-gpu==1.19.2", 
+    "onnxruntime-gpu==1.19.2",
     "local-attention",
     "einops",
-    "transformers",
+    "transformers==4.48.0",
     "diffq==0.2.4",
     "tensorboardX==2.6.2.2",
-    # TODO potentially add these later
-    # "tensorboard",
-    # "torchfcpe",
-    # "libf0",
+    "tensorboard",
+    "torch-tb-profiler==0.4.3",
     
     # Audio
     "static-ffmpeg==2.7",
@@ -74,8 +67,6 @@ dependencies = [
     # below package outcommented until we use praat 
     # (for example for formant shifting with "change gender command")
     #"praat-parselmouth==0.4.5",
-    #"versatile-audio-upscaler-fixed==0.0.4",
-    #"stftpitchshift",
 ]
 
 [project.scripts]

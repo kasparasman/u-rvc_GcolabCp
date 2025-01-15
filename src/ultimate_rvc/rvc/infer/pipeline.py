@@ -152,7 +152,6 @@ class Pipeline:
         self.x_query = config.x_query
         self.x_center = config.x_center
         self.x_max = config.x_max
-        self.is_half = config.is_half
         self.sample_rate = 16000
         self.window = 160
         self.t_pad = self.sample_rate * self.x_pad
@@ -227,7 +226,6 @@ class Pipeline:
         self.note_dict = self.autotune.note_dict
         self.model_rmvpe = RMVPE0Predictor(
             os.path.join(str(RVC_MODELS_DIR), "predictors", "rmvpe.pt"),
-            is_half=self.is_half,
             device=self.device,
         )
 
@@ -449,18 +447,14 @@ class Pipeline:
             index: FAISS index for speaker embedding retrieval.
             big_npy: Speaker embeddings stored in a NumPy array.
             index_rate: Blending rate for speaker embedding retrieval.
-            version: Model version ("v1" or "v2").
+            version: Model version (Keep to support old models)..
             protect: Protection level for preserving the original pitch.
 
         """
         with torch.no_grad():
             pitch_guidance = pitch != None and pitchf != None
             # prepare source audio
-            feats = (
-                torch.from_numpy(audio0).half()
-                if self.is_half
-                else torch.from_numpy(audio0).float()
-            )
+            feats = torch.from_numpy(audio0).float()
             feats = feats.mean(-1) if feats.dim() == 2 else feats
             assert feats.dim() == 1, feats.dim()
             feats = feats.view(1, -1).to(self.device)
@@ -521,12 +515,10 @@ class Pipeline:
 
     def _retrieve_speaker_embeddings(self, feats, index, big_npy, index_rate):
         npy = feats[0].cpu().numpy()
-        npy = npy.astype("float32") if self.is_half else npy
         score, ix = index.search(npy, k=8)
         weight = np.square(1 / score)
         weight /= weight.sum(axis=1, keepdims=True)
         npy = np.sum(big_npy[ix] * np.expand_dims(weight, axis=2), axis=1)
-        npy = npy.astype("float16") if self.is_half else npy
         feats = (
             torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate
             + (1 - index_rate) * feats
@@ -715,15 +707,6 @@ class Pipeline:
                 self.sample_rate,
                 volume_envelope,
             )
-        # if resample_sr >= self.sample_rate and tgt_sr != resample_sr:
-        #    audio_opt = librosa.resample(
-        #        audio_opt, orig_sr=tgt_sr, target_sr=resample_sr
-        #    )
-        # audio_max = np.abs(audio_opt).max() / 0.99
-        # max_int16 = 32768
-        # if audio_max > 1:
-        #    max_int16 /= audio_max
-        # audio_opt = (audio_opt * 32768).astype(np.int16)
         audio_max = np.abs(audio_opt).max() / 0.99
         if audio_max > 1:
             audio_opt /= audio_max

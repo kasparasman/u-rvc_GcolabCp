@@ -33,6 +33,7 @@ from ultimate_rvc.core.manage.audio import (
 )
 from ultimate_rvc.core.manage.models import (
     get_custom_embedder_model_names,
+    get_custom_pretrained_model_names,
     get_training_model_names,
     get_voice_model_names,
 )
@@ -90,8 +91,12 @@ def _init_app() -> list[gr.Dropdown]:
     custom_embedder_models = [
         gr.Dropdown(choices=get_custom_embedder_model_names()) for _ in range(6)
     ]
+
+    custom_pretrained_models = [
+        gr.Dropdown(choices=get_custom_pretrained_model_names()) for _ in range(2)
+    ]
     training_models = [
-        gr.Dropdown(choices=get_training_model_names()) for _ in range(3)
+        gr.Dropdown(choices=get_training_model_names()) for _ in range(4)
     ]
 
     # Initialize audio dropdowns
@@ -114,6 +119,7 @@ def _init_app() -> list[gr.Dropdown]:
         *voice_models,
         voice_model_delete,
         *custom_embedder_models,
+        *custom_pretrained_models,
         *training_models,
         *cached_songs,
         *song_dirs,
@@ -200,9 +206,21 @@ def render_app() -> gr.Blocks:
             )
             for _ in range(5)
         ]
-        training_embedder_multi.info = f"{training_embedder_multi.info}"
         embedder_delete = gr.Dropdown(
             label="Custom embedder models",
+            multiselect=True,
+            render=False,
+        )
+
+        pretrained_model_multi = gr.Dropdown(
+            label="Custom pretrained model",
+            info="Select a custom pretrained model to finetune from the dropdown.",
+            render=False,
+            visible=False,
+        )
+
+        pretrained_model_delete = gr.Dropdown(
+            label="Custom pretrained models",
             multiselect=True,
             render=False,
         )
@@ -223,6 +241,15 @@ def render_app() -> gr.Blocks:
                 "Name of the model with an associated preprocessed dataset to extract"
                 " training features from. When a new dataset is preprocessed, its"
                 " associated model is selected by default."
+            ),
+            render=False,
+        )
+
+        train_model_multi = gr.Dropdown(
+            label="Model name",
+            info=(
+                "Name of the model to train. When training features are extracted for a"
+                " new model, its name is selected by default."
             ),
             render=False,
         )
@@ -284,14 +311,14 @@ def render_app() -> gr.Blocks:
         )
 
         dataset = gr.Dropdown(
-            label="Dataset",
+            label="Dataset path",
             info=(
-                "The path to a dataset to preprocess. Either select an existing dataset"
-                " from the dropdown or provide the path to a new dataset. When a"
-                " new dataset is populated, its path is selected by default."
+                "The path to an existing dataset. Either select a path to a previously"
+                " created dataset or provide a path to an external dataset."
             ),
             allow_custom_value=True,
             render=False,
+            visible=False,
         )
 
         dataset_audio = gr.Dropdown(
@@ -336,19 +363,27 @@ def render_app() -> gr.Blocks:
                 speech_audio,
                 output_audio,
             )
-        with gr.Tab("Train models"):
+        with gr.Tab("Train voice models"):
             render_train_multi_step_tab(
                 dataset,
                 preprocess_model_multi,
                 training_embedder_multi,
                 extract_model_multi,
+                pretrained_model_multi,
+                train_model_multi,
+                song_cover_voice_model_1click,
+                song_cover_voice_model_multi,
+                speech_voice_model_1click,
+                speech_voice_model_multi,
                 training_model_delete,
+                voice_model_delete,
                 dataset_audio,
             )
         with gr.Tab("Manage models"):
             render_manage_models_tab(
                 voice_model_delete,
                 embedder_delete,
+                pretrained_model_delete,
                 training_model_delete,
                 song_cover_voice_model_1click,
                 song_cover_voice_model_multi,
@@ -361,6 +396,8 @@ def render_app() -> gr.Blocks:
                 preprocess_model_multi,
                 training_embedder_multi,
                 extract_model_multi,
+                pretrained_model_multi,
+                train_model_multi,
             )
         with gr.Tab("Manage audio"):
             render_manage_audio_tab(
@@ -392,8 +429,11 @@ def render_app() -> gr.Blocks:
                 speech_embedder_multi,
                 training_embedder_multi,
                 embedder_delete,
+                pretrained_model_multi,
+                pretrained_model_delete,
                 preprocess_model_multi,
                 extract_model_multi,
+                train_model_multi,
                 training_model_delete,
                 intermediate_audio,
                 cached_song_1click,

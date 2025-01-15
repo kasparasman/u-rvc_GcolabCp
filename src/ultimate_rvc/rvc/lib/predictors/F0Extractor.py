@@ -85,9 +85,7 @@ class F0Extractor:
         elif method == "rmvpe":
             model_rmvpe = RMVPE0Predictor(
                 os.path.join(str(RVC_MODELS_DIR), "predictors", "rmvpe.pt"),
-                is_half=config.is_half,
                 device=config.device,
-                # hop_length=80
             )
             f0 = model_rmvpe.infer_from_audio(self.wav16k, thred=0.03)
 

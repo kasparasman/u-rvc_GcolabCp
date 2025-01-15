@@ -1,95 +1,5 @@
 # TODO
 
-* Add reset settings button for each step in train multistep tab?
-* combine step 0: data population and step 1: dataset preprocsessing into one step?
-  * need a (dataset) source dropdown with two options: existing dataset and new dataset
-  * if existing is chosen then a text field for chosen a path to an existing dataset should appear
-  * if new is chosen then two components should appear: one a textbox for dataset name and the other a file upload component for uploading one or more files to the components. this should upload automatically without need to press a button.
-* fix error saying that selected edge tts voice is not in list (occurs sporadically ?)
-* use the validate_model_exists for functions defined in manage.models
-* also define a validate_model_not_exists to use for functions defined in manage.models
-* we should fix static_ffmpeg and static_sox so that the weak parameter works.
-  * other we will keep adding values to environment variables each time their add_paths()function is called
-  * add the same time we should also try and fix static_sox.add_paths so that it works with spawn multiprocessing on ubuntu 24.04. Currently a "version `GLIBC_2.38' not found" error is raised because static_sox.add_paths adds a ../sox_folder/libm.so.6 to LD_PRELOAD, but libm.so.6 requires GLIBC_2.38 which is below the default which is GLIBC_2.39 on ubuntu 24.04.
-  * But sox still seems to work (at least the pitch shifting ) without libm.so.6 being preloaded so we can probably just remove it from the LD_PRELOAD list in static_sox.add_paths?
-    * as a matter of fact, for pitch shifting only "libgsm.so.1","libltdl.so.7","libsox.so.3" seem to be needed.
-* lazy_import function also does not seem to work with static_ffmpeg and yt_dlp. If we instead delay import them manually, then we can get the CLI startup time down to 0.5 sec from 1.1 sec.
-* instead of having custom embedder models, just allow users to download new embedder models which will be shown in the main embedder models dropdown (and perhaps also saved in the main embedder models dir?)
-
-* only have custom gradio progress bars for pipeline functions. these should be defined inline in the given function. Then we dont need to have the progress_bar and percentage(s) params for each generation function?
-  * we could also just remove the custom percentages for those components that justh ave one percetnage. in that case we might get the automatic progress bar from gradio for free
-
-* Should probably refactor web.main as it is getting too big with all the definitions
-  * The same for the number of arguments to the manage models and manage audio tabs render functions
-    * we can combine similar input params into lists like we have done with song_dirs before?
-
-* extend caching of training feature extraction so that a separate `filelist.txt` file is generated for each set of hyperparameters (f0 method, rvc version, embedder model and sample rate). This then also requires giving a specific "filelist" file as input when calling the training method/command.
-* for those packages that dont work with lazy_import function make wrapper functions
-(similar to get audio_separator and get_voice_converter) that do the import and return an object
-* add fcpe method for training
-* also consider implementing a one-click training tab
-
-* consider fixing step 0: dataset population so that completion message is more clear
-  * instead of having a button and text component for completion message instead  just have automatically add files as they are added via upload component and then show a pop up message with completion status
-
-* should remove input validation from modules from core package
-  * typer handles this on the cli part
-  * for gradio we should make a wrapper functio nthat provides the needed validation
-
-* add feature for comparing two models using their  cosine similarity or other metric?
-
-* add to ui feature for extracting specific weigth from specific epoch of training 
-  * wrapper around  run_model_extract_script
-
-* for fusion also have weights for each model -- so that the combination is weighted by cusotm values (default 0.5 and 0.5)
-  * or can have custom fusion methods
-  * add weight sum
-  * add difference
-
-* for training have a option to enhance training audio
-  * using resemble enhance
-
-* add something like an agreement to the top of the readme that says that the user agrees to the terms and conditions
-  * something like:
-  "This software is open source under the MIT license. The author does not have any control over the software. Users who use the software and distribute the sounds exported by the software are solely responsible.If you do not agree with this clause, you cannot use or reference any codes and files within the software package. See the root directory Agreement-LICENSE.txt for details."
-* move documentation on how to use webui from readme to dedicated website (like github based?)
-* also make youtube tutorials?
-* add support for downloading custom pretrained models (for training)
-  * must look in applio repo not rvc-cli repo
-* add support for extracting f0 curve file from audio track 
-  * must look in applio repo not rvc-cli repo
-  * with f0  curves files can then test the custom f0 curve file parameter for voice conversion
-* add support for blending voice models
-* add support for getting model information
-* add support for getting audio information
-* upgrade audio-separator to latest version
-  * then also update documentation as downloading diffq manually is no longer needed on windows
-* upgrade gradio to latest
-  * also remove gradio stub files as they are no longer needed
-  * but then need to make updates to gradio imports in web package
-* support more input files for tts than just .txt
-* support other initial tts models than just edge tts
-  * coqui tts
-* fix new problem with hot reload:
-
-  ```python
-  Reloading src.ultimate_rvc.web.main failed with the following exception: 
-  Traceback (most recent call last):
-    File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\gradio\utils.py", line 302, in watchfn
-      changed_module = _find_module(changed)
-                      ^^^^^^^^^^^^^^^^^^^^^
-    File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\gradio\utils.py", line 226, in _find_module
-      for s, v in sys.modules.items():
-                  ^^^^^^^^^^^^^^^^^^^
-  RuntimeError: dictionary changed size during iteration
-  ```
-* make subsections under accorditions under one click generation tab into sub accordions ?
-  * applies for voice conversion options and audio mixing options
-* fix problem with audio components restarting if play button is pressed too fast after loading new audio
-  * this is a gradio bug so report?
-
-* need to consider consolidating the commands exposed main.py, song_cover.py and tts.py under ultimate_rvc.cli.generate into just one generate command.
-
 ## Project/task management
 
 * Should find tool for project/task management
@@ -111,7 +21,7 @@
   * Todoist
     * seems to support both hierarchical tasks, custom labels, filtering on those labels, multiple users and there are unofficial plugins for vscode.
 
-## Front end
+## Web
 
 ### Modularization
 
@@ -146,6 +56,10 @@
         render the accordion for the given options and return the components defined in the accordion? Other components passed to `one_click_generation/main.py` might also need to be passed further down to `one_click_generation/option_X.py`
   * Import components instead of passing them as inputs to render functions (DIFFICULT TO IMPLEMENT)
     * We have had problems before with component ids when components are instantiated outside a Blocks context in a separate module and then import into other modules and rendered in their blocks contexts.
+  
+* Should probably refactor web.main as it is getting too big with all the definitions
+  * The same for the number of arguments to the manage models and manage audio tabs render functions
+    * we can combine similar input params into lists like we have done with song_dirs before?
 
 ### Multi-step generation
 
@@ -168,7 +82,43 @@
   * this would just be the same pop up confirmation box as before but in addition to yes and cancel options it will also have a "transfer to new input track" option.
   * we need custom javasctip for this.
 
+### one click generation
+
+* make subsections under accorditions under one click generation tab into sub accordions ?
+  * applies for voice conversion options and audio mixing options
+* implement a one-click training tab
+
 ### Common
+
+* fix problem with audio components restarting if play button is pressed too fast after loading new audio
+  * this is a gradio bug so report?
+* fix new problem with hot reload:
+
+  ```python
+  Reloading src.ultimate_rvc.web.main failed with the following exception: 
+  Traceback (most recent call last):
+    File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\gradio\utils.py", line 302, in watchfn
+      changed_module = _find_module(changed)
+                      ^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Users\Jacki\repositories\ultimate-rvc\uv\.venv\Lib\site-packages\gradio\utils.py", line 226, in _find_module
+      for s, v in sys.modules.items():
+                  ^^^^^^^^^^^^^^^^^^^
+  RuntimeError: dictionary changed size during iteration
+  ```
+
+* only have custom gradio progress bars for pipeline functions. these should be defined inline in the given function. Then we dont need to have the progress_bar and percentage(s) params for each generation function?
+  * we could also just remove the custom percentages for those components that justh ave one percetnage. in that case we might get the automatic progress bar from gradio for free
+
+* it is possible to have several parallel event listeners for a component:
+  * like if we have click_event = some_component.click(...) then we can have several click.then event listeners.
+  * knowing this, simplify event listener code in the web package.
+
+* Remove reset button on slider components
+  * change "visibility" parameter
+
+* add something like an agreement to the top of the readme that says that the user agrees to the terms and conditions
+  * something like:
+  "This software is open source under the MIT license. The author does not have any control over the software. Users who use the software and distribute the sounds exported by the software are solely responsible.If you do not agree with this clause, you cannot use or reference any codes and files within the software package. See the root directory Agreement-LICENSE.txt for details."
 
 * save default values for options for song generation in an `SongCoverOptionDefault` enum.
   * then reference this enum across the two tabs
@@ -193,10 +143,6 @@
 * fix gradio problem where last field components on a row are not aligned (DIFFICULT TO IMPLEMENT)
   * current solution with manual `<br>` padding is way too hacky.
   * this is a gradio bug so report?
-* need to fix the `INFO: Could not find files for the given pattern(s)` on startup of web application on windows (DIFFICULT TO IMPLEMENT)
-  * this is an error that gradio needs to fix
-* Remove reset button on slider components (DIFFICULT TO IMPLEMENT)
-  * this is a gradio feature that needs to be removed.
 * Fix that gradio removes special symbols from audio paths when loaded into audio components (DIFFICULT TO IMPLEMENT)
   * includes parenthesis, question marks, etc.
   * its a gradio bug so report?
@@ -213,27 +159,38 @@
 
 * make concurrency_id and concurrency limit on components be dependent on whether gpu is used or not
   * if only cpu then there should be no limit
-* increase value of `default_concurrency_limit` in `Block.queue` so that the same event listener
-  * can be called multiple times concurrently
+* increase value of `default_concurrency_limit` in `Block.queue` so that the same event listener can be called multiple times concurrently
 * use `Block.launch()` with `max_file_size` to prevent too large uploads
 * define as many functions with async as possible to increase responsiveness of app
   * and then use `Block.launch()` with `max_threads`set to an appropriate value representing the number of concurrent threads that can be run on the server (default is 40)
-* Persist state of app (currently selected settings etc.) across re-renders
 * consider setting `max_size` in `Block.queue()` to explicitly limit the number of people that can be in the queue at the same time
 * clearing of temporary files should happen after a user logs in and out
   * and in this case it should only be temporary files for the active user that are cleared
     * Is that even possible to control?
-* enable server side rendering (requires installing node and setting ssr_mode = true in .launch) (DIFFICULT TO IMPLEMENT)
-  * Also needs to set GRADIO_NODE_PATH to point to the node executable
-  * problem is that on windows there is a ERR_UNSUPPORTED_ESM_URL_SCHEME which needs to be fixed by gradio
-    * see here <https://github.com/nodejs/node/issues/31710>
-  * on linux it works but it is not possible to shutdown server using CTRL+ C
+* enable server side rendering (requires installing node and setting ssr_mode = true in .launch)
 
-## Back end
+## Core
 
-### `generate_song_cover.py`
+### Common
 
-* intermediate file prefixes should be made into enums
+* should remove input validation from modules from core package
+  * typer handles this on the cli part
+  * for gradio we should make a wrapper functio nthat provides the needed validation
+    * just checking whether value is provided or not
+  
+* lazy_import function also does not seem to work with static_ffmpeg and yt_dlp. If we instead delay import them manually, then we can get the CLI startup time down to 0.5 sec from 1.1 sec.
+
+* for those packages that dont work with lazy_import function make wrapper functions
+(similar to get audio_separator and get_voice_converter) that do the import and return an object
+
+* we should fix static_ffmpeg and static_sox so that the weak parameter works.
+  * otherwise we will keep adding values to environment variables each time their add_paths()function is called
+  * we should also add a remove_paths() function to remove the paths from the environment variables
+
+* instead of having custom embedder models, just allow users to upload new embedder models which will be shown in the main embedder models dropdown (and perhaps also saved in the main embedder models dir?)
+
+### Song cover generation
+
 * find framework for caching intermediate results rather than relying on your homemade system
 
   * Joblib: <https://medium.com/@yuxuzi/unlocking-efficiency-in-machine-learning-projects-with-joblib-a-python-pipeline-powerhouse-feb0ebfdf4df>
@@ -253,47 +210,8 @@
     * otherwise find the path in the input field in the metadata file
     * repeat
   * should also consider whether input audio file belongs to step before audio conversion step
-* use pydantic models to constrain numeric inputs (DIFFICULT TO IMPLEMENT)
-  * for inputs to `convert` function for example
-  * Use `Annotated[basic type, Field[constraint]]` syntax along with a @validate_call decorator on functions
-  * Problem is that pyright does not support `Annotated` so we would have to switch to mypy
-  
-### `manage_models.py`
 
-* use pandas.read_json to load public models table (DIFFICULT TO IMPLEMENT)
-
-## CLI
-
-### general
-
-* look into typer replacement like cyclopts
-  * so that we dont have to define separate cli wrappers for each function
-  * just need to make sure that cyclopts can also do some of the automatic input validation that typer does
-
-* replace _validate_exist and _validate_exists with _validate_provided. We dont need in the code to check whether the input exists as that is done by cli wrapper and gradio respectively. only exception is that we still need to check that model dir exists when given a model name
-
-* fix problem with not being able to rename default "Options" panel in typer
-  * the panel where "help" and other built in options are put
-
-### Add remaining CLI interfaces
-
-* Interface for `core.manage_models`
-* Interface for `core.manage_audio`
-* Interfaces for individual pipeline functions defined in `core.generate_song_covers`
-
-## python package management
-
-* need to make project version (in `pyproject.toml`) dynamic so that it is updated automatically when a new release is made
-* once diffq-fixed is used by audio-separator we can remove the url dependency on windows
-  * we will still need to wait for uv to make it easy to install package with torch dependency
-  * also it is still necessary to install pytorch first as it is not on pypi index
-* figure out way of making ./urvc commands execute faster
-  * when ultimate rvc is downloaded as a pypi package the exposed commands are much faster so investigate this
-* update dependencies in pyproject.toml
-  * use latest compatible version of all packages
-  * remove commented out code, unless strictly necessary
-
-## Audio separation
+### Audio separation
 
 * support using multiple models in parallel and combining results
   * median, mean, min, maxx
@@ -336,66 +254,9 @@
     * [Asteroid](https://github.com/asteroid-team/asteroid)
     * [Nuzzle](https://github.com/nussl/nussl)
 
-## GitHub
+### Voice conversion
 
-### Actions
-
-* linting with Ruff
-* typechecking with Pyright
-* running all tests
-* automatic building and publishing of project to pypi
-  * includes automatic update of project version number
-* or use pre-commit?
-
-### README
-
-* Fill out TBA sections in README
-* Add note about not using with VPN?
-* Add different emblems/badges in header
-  * like test coverage, build status, etc. (look at other projects for inspiration)
-* spice up text with emojis (look at tiango's projects for inspiration)
-
-### Releases
-
-* Make regular releases like done for Applio
-  * Will be an `.exe` file that when run unzips contents into application folder, where `./urvc run` can then be executed.
-  * Could it be possible to have `.exe` file just start webapp when clicked?
-* Could also include pypi package as a release?
-
-* use pyinstaller to install app into executable that also includes sox and ffmpeg as dependencies (DLLs)
-
-### Other
-
-* In the future consider detaching repo from where it is forked from:
-  * because it is not possible to make the repo private otherwise
-  * see: <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/detaching-a-fork>
-
-## Incorporate upstream changes
-
-* Incorporate RVC code from [rvc-cli](https://github.com/blaisewf/rvc-cli) (i.e. changes from Applio)
-  * more options for voice conversion and more efficient voice conversion
-  * batch conversion sub-tab
-  * TTS tab
-  * Model training tab
-  * support more pre-trained models
-    * sub-tab under "manage models" tab
-  * support for querying online database with many models that can be downloaded
-  * support for audio and model analysis.
-  * Voice blending tab
-* Incorporate latest changes from [RVC-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI)
-
-## Vocal Conversion
-
-* clone /fork applio huggingface repo and then download from your fork in prerequities_donwload.py
-
-* move all post processing to specific postprocessing step
-  * not part of voice conversion step
-
-* incorporate autotune as a post-processing step with separate package instead of as part of vocal conversion
-
-* parallelize different steps in the pipeline
-  * two pitch shifts operations that are currently executed sequentially should be executed in parallel because they are done on cpu.
-  * application of different f0 extraction methods should also be done in parallel.
+* application of different f0 extraction methods should also be done in parallel.
 
 * Add more pitch extraction methods
   * pm
@@ -411,72 +272,137 @@
 
 * formant shifting currently does not make a difference because
   * under the hood `tftPitchShift.shiftpitch` is called to pitch shift input audio with `quefrency` multiplied by `1e-3` which makes it almost equal to `0`. that might be too a value to have any effect
+
 * potentially use another library for formant shifting. for example praatio or parselmouth
   * one solution: <https://github.com/drfeinberg/Parselmouth-Guides/blob/master/ManipulatingVoices.ipynb> (look at buttom)
   * also, formant shifting is primarily meant for male to female and vice versa conversions without changing the pitch of the voice so it would actually be very useful as we can dispense wit hpitch shifting in that case
   * can also use praatio for this: <https://timmahrt.github.io/praatIO/praatio/praat_scripts.html>
 
-* f0-curve file do not really work so the --f0-file parameter does not currently make sense for the inference step
-  * should probably remove it from the inference step
-  * we can add it back in once if we are able to fix the algorithm that
-  * uses custom f0 curve files but that is probably way down the line
-
-* audio upscaler is extremely slow
-  * mention this in applio and rvc-cli
-  * also try to use audio upscaling in the app and verify it takes long there
-  * try and find a better alternatively to the current audio upscaler package
-    * or perhaps optimize it yourself.
-  * also audio upscaling does not really make sense for inference as the audio is downsampled to 16kHz
-    * only makes sense if the audio is below 16kHz in sample rate which is unlikely
-    * so maybe we should just remove the audio upscaler from the pipeline
-  * conclusion: remove audio upscaler from inference pipeline
-* audio upscaler model should be downloaded at initialization and not laziely (when first used)
-* fix that audio upscaler downsload pyorch_model.bin to cwd
-
-* currently we are not downloading any-pretraineds. Potentially enabling downloading of all when it is needed later (perhaps when we add training tab?)
-
-* info on custom embedder models
-  * when using a custom embedder model you have to use a fine-tuned model trained using that embedder model during inference.
-    * its hard to find such models only so better fine tune your own model in that case
-  * the custom embedder model should be a folder with a pytorch_model.bin file and a config.json file
+* f0-curve file do not really work
+  * fix the algorithm that uses custom f0 curve files
+* add support for extracting f0 curve file from audio track
+  * must look in applio repo not rvc-cli repo
+  * with f0  curves files can then test the custom f0 curve file parameter for voice conversion
 
 * Implement multi-gpu Inference
 
-## TTS conversion
+### Audio post-processing
 
-* also include original edge voice as output
-  * source: <https://github.com/litagin02/rvc-tts-webui>
+* move all post processing from vocal conversion step to postprocessing step
+  * this includes all the post-processing pedal effects from pedalboard but also the autotune effect that is implemented as part of vocal converson currently
 
-## Model management
+* Some effects from the `pedalboard` pakcage to support.
+  * Guitar-style effects: Chorus, Distortion, Phaser, Clipping
+  * Loudness and dynamic range effects: Compressor, Gain, Limiter
+  * Equalizers and filters: HighpassFilter, LadderFilter, LowpassFilter
+  * Spatial effects: Convolution, Delay, Reverb
+  * Pitch effects: PitchShift
+  * Lossy compression: GSMFullRateCompressor, MP3Compressor
+  * Quality reduction: Resample, Bitcrush
+  * NoiseGate
+  * PeakFilter
 
-### Training models
+### Pitch shifting
 
-* have learning rate for training
-  * source: <https://github.com/gitmylo/audio-webui>
-* have a quick training button
-  * or have preprocess dataset, extract features and generate index happen by default
+* The two pitch shifts operations that are currently executed sequentially should be executed in parallel because they are done on cpu
+
+### Audio Mixing
+
+* Add main gain loudness slider?
+
+* add more equalization options
+  * using `pydub.effects` and `pydub.scipy_effects`?
+
+* Add option to equalize output audio with respect to input audio
+  * i.e. song cover gain (and possibly also more general dynamics) should be the same as those for source song.
+  * check to see if pydub has functionality for this
+  * otherwise a simple solution would be computing the RMS of the difference between the loudness of the input and output track
+
+  ```python
+    rms = np.sqrt(np.mean(np.square(signal)))
+    dB  = 20*np.log10(rms)
+    #add db to output file in mixing function (using pydub)
+  ```
+
+  * When this option is selected the option to set main gain of ouput should be disabled?
+
+### TTTS
+
+* fix error saying that selected edge tts voice is not in list (occurs sporadically ?)
+
+* support more input files for tts than just .txt
+
+* support other initial tts models than just edge tts
+  * coqui tts
+
+### Training
+
+* extend caching of training feature extraction so that a separate `filelist.txt` file is generated for each set of hyperparameters (f0 method, rvc version, embedder model and sample rate). This then also requires giving a specific "filelist" file as input when calling the training method/command.
+
+* add fcpe method for training
+
+* have a option to enhance training audio
+  * using resemble enhance
+
+* support custom learning rate?
+
 * Support a loss/training graph
-  * source: <https://github.com/gitmylo/audio-webui>
 
-### Download models
+* optimize training pipeline steps for speed
+  * dataset preprocessing and feature extraction is 10 sec faster for applio
+  * training startup is 30 sec slower
+
+* training does evaluation on training data and not an unbiased test set, which should be fixed perhaps
+  * also perhaps we should use another metric than the loss function for evaluation
+
+* add to ui feature for extracting specific weigth from specific epoch of training
+  * wrapper around  run_model_extract_script
+
+* need to fix issue with ports when using training:
+  """
+  torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. The server socket has failed to bind to [Christians-Desktop]:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.). The server socket has failed to bind to Christians-Desktop:50376 (system error: 10013 - An attempt was made to access a socket in a way forbidden by its access permissions.).
+  * other port when error occurs: 49865
+  """
+  * seems to be due to us choosing a port that is protected by windows when using torch.distributed for training. should figure out which port it is
+
+* fix error on exiting server on linux after interrupting training:
+  "/usr/lib/python3.12/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 210 leaked semaphore objects to clean up at shutdown" warnings.warn('resource_tracker: There appear to be %d '
+
+### Model management
+
+* use the validate_model_exists for functions defined in manage.models
+* also define a validate_model_not_exists to use for functions defined in manage.models
+
+* Voice blending
+  * for fusion also have weights for each model -- so that the combination is weighted by cusotm values (default 0.5 and 0.5)
+    * or can have custom fusion methods
+    * add weight sum
+    * add difference
+* use pandas.read_json to load public models table (DIFFICULT TO IMPLEMENT)
+
+#### Download models
 
 * Support batch downloading multiple models
   * requires a tabular request form where both a link column and a name column has to be filled out
   * we can allow selecting multiple items from public models table and then copying them over
+
 * support quering online database for models matching a given search string like what is done in applio app
+  * specifically supbase
   * first n rows of online database should be shown by default in public models table
     * more rows should be retrieved by scrolling down or clicking a button
   * user search string should filter/narrow returned number of rows in public models table
   * When clicking a set of rows they should then be copied over for downloading in the "download" table
+
 * support a column with preview sample in public models table
   * Only possible if voice snippets are also returned when querying the online database
+
 * Otherwise we can always support voice snippets for voice models that have already been downloaded
   * run model on sample text ("quick brown fox runs over the lazy") after it is downloaded
   * save the results in a `audio/model_preview` folder
   * Preview can then be loaded into a preview audio component when selecting a model from a dropdown
   * or if we replace the dropdown with a table with two columns we can have the audio track displayed in the second column
 
-### Model analysis
+#### Model analysis
 
 * we could provide a new tab to analyze an existing model like what is done in applio
   * or this tab could be consolidated with the delete model tab?
@@ -484,9 +410,11 @@
 * we could also provide extra model information after model is downloaded
   * potentialy in dropdown to expand?
 
-## Audio management
+* add feature for comparing two models using their  cosine similarity or other metric?
 
-### General
+### Audio management
+
+#### General
 
 * Support audio information tool like in applio?
   * A new tab where you can upload a song to analyze?
@@ -509,37 +437,75 @@
   * this should also contain other settings such as the ability to change the theme of the app
   * there should be a button to apply settings which will reload the app with the new settings
 
-## Audio post-processing
+## CLI
 
-* Support more effects from the `pedalboard` pakcage.
-  * Guitar-style effects: Chorus, Distortion, Phaser, Clipping
-  * Loudness and dynamic range effects: Compressor, Gain, Limiter
-  * Equalizers and filters: HighpassFilter, LadderFilter, LowpassFilter
-  * Spatial effects: Convolution, Delay, Reverb
-  * Pitch effects: PitchShift
-  * Lossy compression: GSMFullRateCompressor, MP3Compressor
-  * Quality reduction: Resample, Bitcrush
-  * NoiseGate
-  * PeakFilter
+### general
 
-## Audio Mixing
+* fix problem with not being able to rename default "Options" panel in typer
+  * the panel where "help" and other built in options are put
 
-* Add main gain loudness slider?
-* Add option to equalize output audio with respect to input audio
-  * i.e. song cover gain (and possibly also more general dynamics) should be the same as those for source song.
-  * check to see if pydub has functionality for this
-  * otherwise a simple solution would be computing the RMS of the difference between the loudness of the input and output track
+### Add remaining CLI interfaces
 
-  ```python
-    rms = np.sqrt(np.mean(np.square(signal)))
-    dB  = 20*np.log10(rms)
-    #add db to output file in mixing function (using pydub)
-  ```
+* Interface for `core.manage_models`
+* Interface for `core.manage_audio`
+* Interfaces for individual pipeline functions defined in `core.generate_song_covers`
 
-  * When this option is selected the option to set main gain of ouput should be disabled?
+## python package management
 
-* add more equalization options
-  * using `pydub.effects` and `pydub.scipy_effects`?
+* upgrade gradio to latest
+  * also remove gradio stub files as they are no longer needed
+  * but then need to make updates to gradio imports in web package
+
+* upgrade audio-separator to latest version
+  * then also update documentation as downloading diffq manually is no longer needed on windows
+
+* update dependencies in pyproject.toml
+  * use latest compatible version of all packages
+
+* once diffq-fixed is used by audio-separator we can remove the url dependency on windows
+  * we will still need to wait for uv to make it easy to install package with torch dependency
+  * also it is still necessary to install pytorch first as it is not on pypi index
+
+* need to make project version (in `pyproject.toml`) dynamic so that it is updated automatically when a new release is made
+
+* figure out way of making ./urvc commands execute faster
+  * when ultimate rvc is downloaded as a pypi package the exposed commands are much faster so investigate this
+
+## GitHub
+
+### Actions
+
+* linting with Ruff
+* typechecking with Pyright
+* running all tests
+* automatic building and publishing of project to pypi
+  * includes automatic update of project version number
+* or use pre-commit?
+
+### README
+
+* Fill out TBA sections in README
+* Add note about not using with VPN?
+* Add different emblems/badges in header
+  * like test coverage, build status, etc. (look at other projects for inspiration)
+* spice up text with emojis (look at tiango's projects for inspiration)
+* move documentation on how to use webui from readme to dedicated website (like github based?)
+  * also make youtube tutorials?
+
+### Releases
+
+* Make regular releases like done for Applio
+  * Will be an `.exe` file that when run unzips contents into application folder, where `./urvc run` can then be executed.
+  * Could it be possible to have `.exe` file just start webapp when clicked?
+* Could also include pypi package as a release?
+
+* use pyinstaller to install app into executable that also includes sox and ffmpeg as dependencies (DLLs)
+
+### Other
+
+* In the future consider detaching repo from where it is forked from:
+  * because it is not possible to make the repo private otherwise
+  * see: <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/detaching-a-fork>
 
 ## Custom UI
 
@@ -591,11 +557,6 @@
 
 * Consider having concurrency limit be dynamic, i.e. instead of always being 1 for jobs using gpu consider having it depend upon what resources are available.
   * We can app set the GPU_CONCURRENCY limit to be os.envrion["GPU_CONCURRENCY_LIMIT] or 1 and then pass GPU_CONCURRENCY as input to places where event listeners are defined
-
-## Colab notebook
-
-* find way of saving virtual environment with python 3.11 in colab notebook (DIFFICULT TO IMPLEMENT)
-  * so that this environment can be loaded directly rather than downloading all dependencies every time app is opened
 
 ## Testing
 

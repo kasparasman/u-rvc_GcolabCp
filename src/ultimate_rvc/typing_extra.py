@@ -79,20 +79,30 @@ class AudioExt(StrEnum):
     AAC = "aac"
 
 
+class DeviceType(StrEnum):
+    """Enumeration of device types for training voice models."""
+
+    AUTOMATIC = "Automatic"
+    CPU = "CPU"
+    GPU = "GPU"
+
+
 class TrainingSampleRate(StrEnum):
     """Enumeration of sample rates for training voice models."""
 
     HZ_32K = "32000"
     HZ_40K = "40000"
-    HZ_41K = "41000"
+    HZ_44K = "44100"
     HZ_48K = "48000"
 
 
-class RVCVersion(StrEnum):
-    """Enumeration of RVC model versions."""
+class PretrainedSampleRate(StrEnum):
+    """Enumeration of valid sample rates for pretrained models."""
 
-    V1 = "v1"
-    V2 = "v2"
+    HZ_32K = "32k"
+    HZ_40K = "40k"
+    HZ_44K = "44k"
+    HZ_48K = "48k"
 
 
 class TrainingF0Method(StrEnum):
@@ -112,3 +122,30 @@ class AudioSplitMethod(StrEnum):
     SKIP = "Skip"
     SIMPLE = "Simple"
     AUTOMATIC = "Automatic"
+
+
+class Vocoder(StrEnum):
+    """Enumeration of vocoders for training voice models."""
+
+    HIFI_GAN = "HiFi-GAN"
+    MRF_HIFI_GAN = "MRF HiFi-GAN"
+    REFINE_GAN = "RefineGAN"
+
+
+class IndexAlgorithm(StrEnum):
+    """Enumeration of indexing algorithms for training voice models."""
+
+    AUTO = "Auto"
+    FAISS = "Faiss"
+    KMEANS = "KMeans"
+
+
+class PretrainedType(StrEnum):
+    """
+    Enumeration of the possible types of pretrained models to finetune
+    voice models on.
+    """
+
+    NONE = "None"
+    DEFAULT = "Default"
+    CUSTOM = "Custom"

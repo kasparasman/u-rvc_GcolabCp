@@ -24,6 +24,7 @@ from ultimate_rvc.common import RVC_MODELS_DIR, lazy_import
 from ultimate_rvc.rvc.configs.config import Config
 from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
 from ultimate_rvc.rvc.lib.utils import load_audio, load_embedding
+from ultimate_rvc.rvc.train.utils import remove_sox_libmso6_from_ld_preload
 
 if TYPE_CHECKING:
     import static_sox.run as static_sox_run
@@ -52,7 +53,6 @@ class FeatureInput:
         self.model_rmvpe = None
 
     def compute_f0(self, audio_array, method, hop_length):
-        """Extract F0 using the specified method."""
         if method == "crepe":
             return self._get_crepe(audio_array, hop_length, type="full")
         if method == "crepe-tiny":
@@ -62,7 +62,6 @@ class FeatureInput:
         raise ValueError(f"Unknown F0 method: {method}")
 
     def _get_crepe(self, x, hop_length, type):
-        """Extract F0 using CREPE."""
         audio = torch.from_numpy(x.astype(np.float32)).to(self.device)
         audio /= torch.quantile(torch.abs(audio), 0.999)
         audio = audio.unsqueeze(0)
@@ -101,7 +100,6 @@ class FeatureInput:
         return np.rint(f0_mel).astype(int)
 
     def process_file(self, file_info, f0_method, hop_length):
-        """Process a single audio file for F0 extraction."""
         inp_path, opt_path_coarse, opt_path_full, _ = file_info
 
         if os.path.exists(opt_path_coarse) and os.path.exists(opt_path_full):
@@ -126,7 +124,6 @@ class FeatureInput:
         if f0_method == "rmvpe":
             self.model_rmvpe = RMVPE0Predictor(
                 os.path.join(str(RVC_MODELS_DIR), "predictors", "rmvpe.pt"),
-                is_half=False,
                 device=device,
             )
 
@@ -138,32 +135,6 @@ class FeatureInput:
                 futures = [executor.submit(worker, f) for f in files]
                 for _ in concurrent.futures.as_completed(futures):
                     pbar.update(1)
-
-
-def remove_from_ld_preload(prefix: str) -> None:
-    """
-    Remove entries from the LD_PRELOAD environment variable that start
-    with the given prefix.
-
-    Parameters
-    ----------
-    prefix : str
-        The prefix to match entries in LD_PRELOAD.
-
-    """
-    # Get the current LD_PRELOAD value
-    ld_preload = os.environ.get("LD_PRELOAD", "")
-
-    # Split the LD_PRELOAD into a list of entries
-    preload_entries = ld_preload.split(os.pathsep)
-
-    # Remove the entries that start with the given prefix
-    preload_entries = [
-        entry for entry in preload_entries if not entry.startswith(prefix)
-    ]
-
-    # Join the list back into a string and update LD_PRELOAD
-    os.environ["LD_PRELOAD"] = os.pathsep.join(preload_entries)
 
 
 def run_pitch_extraction(
@@ -183,13 +154,7 @@ def run_pitch_extraction(
     start_time = time.time()
     fe = FeatureInput()
 
-    # NOTE On ubuntu 24.04 the static_sox module does not work with
-    # multiprocessing using the spawn method due to a "version
-    # `GLIBC_2.38' not found" error. This is a workaround, which removes
-    # the path to the libm.so.6 library from the LD_PRELOAD environment
-    # variable.
-    sox_exe = static_sox_run.get_or_fetch_platform_executables_else_raise()
-    remove_from_ld_preload(os.path.join(os.path.dirname(sox_exe), "libm.so.6"))
+    remove_sox_libmso6_from_ld_preload()
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=len(devices)) as executor:
         tasks = [
@@ -210,27 +175,24 @@ def run_pitch_extraction(
 
 def process_file_embedding(
     files,
-    version,
     embedder_model,
     embedder_model_custom,
     device_num,
     device,
     n_threads,
 ):
-    dtype = torch.float16 if (config.is_half and "cuda" in device) else torch.float32
-    model = load_embedding(embedder_model, embedder_model_custom).to(dtype).to(device)
+    model = load_embedding(embedder_model, embedder_model_custom).to(device).float()
+    model.eval()
     n_threads = max(1, n_threads)
 
     def worker(file_info):
         wav_file_path, _, _, out_file_path = file_info
         if os.path.exists(out_file_path):
             return
-        feats = torch.from_numpy(load_audio(wav_file_path, 16000)).to(dtype).to(device)
+        feats = torch.from_numpy(load_audio(wav_file_path, 16000)).to(device).float()
         feats = feats.view(1, -1)
         with torch.no_grad():
             result = model(feats)["last_hidden_state"]
-            if version == "v1":
-                result = model.final_proj(result[0]).unsqueeze(0)
         feats_out = result.squeeze(0).float().cpu().numpy()
         if not np.isnan(feats_out).any():
             np.save(out_file_path, feats_out, allow_pickle=False)
@@ -247,7 +209,6 @@ def process_file_embedding(
 def run_embedding_extraction(
     files: list[list[str]],
     devices: list[str],
-    version: str,
     embedder_model: str,
     embedder_model_custom: str | None,
     threads: int,
@@ -264,7 +225,6 @@ def run_embedding_extraction(
             executor.submit(
                 process_file_embedding,
                 files[i :: len(devices)],
-                version,
                 embedder_model,
                 embedder_model_custom,
                 i,
@@ -282,7 +242,6 @@ def run_embedding_extraction(
 
 def initialize_extraction(
     exp_dir: str,
-    version: str,
     f0_method: str,
     embedder_model: str,
 ) -> list[list[str]]:
@@ -290,7 +249,7 @@ def initialize_extraction(
     os.makedirs(os.path.join(exp_dir, f"f0_{f0_method}"), exist_ok=True)
     os.makedirs(os.path.join(exp_dir, f"f0_{f0_method}_voiced"), exist_ok=True)
     os.makedirs(
-        os.path.join(exp_dir, f"{version}_{embedder_model}_extracted"),
+        os.path.join(exp_dir, f"{embedder_model}_extracted"),
         exist_ok=True,
     )
 
@@ -299,11 +258,11 @@ def initialize_extraction(
         file_name = os.path.basename(file)
         file_info = [
             file,
-            os.path.join(exp_dir, f"f0_{f0_method}_voiced", file_name + ".npy"),
             os.path.join(exp_dir, f"f0_{f0_method}", file_name + ".npy"),
+            os.path.join(exp_dir, f"f0_{f0_method}_voiced", file_name + ".npy"),
             os.path.join(
                 exp_dir,
-                f"{version}_{embedder_model}_extracted",
+                f"{embedder_model}_extracted",
                 file_name.replace("wav", "npy"),
             ),
         ]
@@ -312,7 +271,11 @@ def initialize_extraction(
     return files
 
 
-def update_model_info(exp_dir: str, embedder_model: str) -> None:
+def update_model_info(
+    exp_dir: str,
+    embedder_model: str,
+    custom_embedder_model_hash: str | None,
+) -> None:
     file_path = os.path.join(exp_dir, "model_info.json")
     if os.path.exists(file_path):
         with open(file_path) as f:
@@ -320,5 +283,6 @@ def update_model_info(exp_dir: str, embedder_model: str) -> None:
     else:
         data = {}
     data["embedder_model"] = embedder_model
+    data["custom_embedder_model_hash"] = custom_embedder_model_hash
     with open(file_path, "w") as f:
         json.dump(data, f, indent=4)

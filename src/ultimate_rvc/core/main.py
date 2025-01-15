@@ -50,14 +50,7 @@ def download_sample_models() -> None:
 
 def initialize() -> None:
     """Initialize the Ultimate RVC project."""
-    prequisites_download_pipeline(
-        pretraineds_v1_f0=False,
-        pretraineds_v1_nof0=False,
-        pretraineds_v2_f0=False,
-        pretraineds_v2_nof0=False,
-        models=True,
-        exe=False,
-    )
+    prequisites_download_pipeline(exe=False)
     if not FLAG_FILE.is_file():
         # NOTE we only add_paths so that sox
         # binaries are downloaded as part of initialization.

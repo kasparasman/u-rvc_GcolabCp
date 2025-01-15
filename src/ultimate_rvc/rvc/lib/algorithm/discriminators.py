@@ -16,7 +16,6 @@ class MultiPeriodDiscriminator(torch.nn.Module):
     the input signal at different periods.
 
     Args:
-        periods (str): Periods of the discriminator. V1 = [2, 3, 5, 7, 11, 17], V2 = [2, 3, 5, 7, 11, 17, 23, 37].
         use_spectral_norm (bool): Whether to use spectral normalization.
             Defaults to False.
 
@@ -24,14 +23,11 @@ class MultiPeriodDiscriminator(torch.nn.Module):
 
     def __init__(
         self,
-        version: str,
         use_spectral_norm: bool = False,
         checkpointing: bool = False,
     ):
         super(MultiPeriodDiscriminator, self).__init__()
-        periods = (
-            [2, 3, 5, 7, 11, 17] if version == "v1" else [2, 3, 5, 7, 11, 17, 23, 37]
-        )
+        periods = [2, 3, 5, 7, 11, 17, 23, 37]
         self.checkpointing = checkpointing
         self.discriminators = torch.nn.ModuleList(
             [
@@ -51,14 +47,6 @@ class MultiPeriodDiscriminator(torch.nn.Module):
         )
 
     def forward(self, y, y_hat):
-        """
-        Forward pass of the multi-period discriminator.
-
-        Args:
-            y (torch.Tensor): Real audio signal.
-            y_hat (torch.Tensor): Fake audio signal.
-
-        """
         y_d_rs, y_d_gs, fmap_rs, fmap_gs = [], [], [], []
         for d in self.discriminators:
             if self.training and self.checkpointing:

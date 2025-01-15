@@ -3,7 +3,12 @@ from typing import TYPE_CHECKING
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-from ultimate_rvc.common import RVC_MODELS_DIR, lazy_import
+from ultimate_rvc.common import (
+    EMBEDDER_MODELS_DIR,
+    PRETRAINED_MODELS_DIR,
+    RVC_MODELS_DIR,
+    lazy_import,
+)
 
 if TYPE_CHECKING:
     import requests
@@ -15,37 +20,12 @@ else:
     tqdm = lazy_import("tqdm")
 
 
-url_base = "https://huggingface.co/IAHispano/Applio/resolve/main/Resources"
+url_base = "https://huggingface.co/JackismyShephard/ultimate-rvc/resolve/main/Resources"
 
-pretraineds_v1_list = [
-    (
-        "pretrained_v1/",
-        [
-            "D32k.pth",
-            "D40k.pth",
-            "D48k.pth",
-            "G32k.pth",
-            "G40k.pth",
-            "G48k.pth",
-            "f0D32k.pth",
-            "f0D40k.pth",
-            "f0D48k.pth",
-            "f0G32k.pth",
-            "f0G40k.pth",
-            "f0G48k.pth",
-        ],
-    ),
-]
-pretraineds_v2_list = [
+pretraineds_hifigan_list = [
     (
         "pretrained_v2/",
         [
-            "D32k.pth",
-            "D40k.pth",
-            "D48k.pth",
-            "G32k.pth",
-            "G40k.pth",
-            "G48k.pth",
             "f0D32k.pth",
             "f0D40k.pth",
             "f0D48k.pth",
@@ -67,17 +47,16 @@ executables_list = [
 ]
 
 folder_mapping_list = {
-    "pretrained_v1/": str(RVC_MODELS_DIR / "pretraineds/pretrained_v1/"),
-    "pretrained_v2/": str(RVC_MODELS_DIR / "pretraineds/pretrained_v2/"),
-    "embedders/contentvec/": str(RVC_MODELS_DIR / "embedders/contentvec/"),
+    "pretrained_v2/": str(PRETRAINED_MODELS_DIR / "hifi-gan/"),
+    "embedders/contentvec/": str(EMBEDDER_MODELS_DIR / "contentvec/"),
     "embedders/chinese_hubert_base/": str(
-        RVC_MODELS_DIR / "embedders/chinese_hubert_base/",
+        EMBEDDER_MODELS_DIR / "chinese_hubert_base/",
     ),
     "embedders/japanese_hubert_base/": str(
-        RVC_MODELS_DIR / "embedders/japanese_hubert_base/",
+        EMBEDDER_MODELS_DIR / "japanese_hubert_base/",
     ),
     "embedders/korean_hubert_base/": str(
-        RVC_MODELS_DIR / "embedders/korean_hubert_base/",
+        EMBEDDER_MODELS_DIR / "korean_hubert_base/",
     ),
     "predictors/": str(RVC_MODELS_DIR / "predictors/"),
     "formant/": str(RVC_MODELS_DIR / "formant/"),
@@ -154,19 +133,11 @@ def split_pretraineds(pretrained_list):
     return f0_list, non_f0_list
 
 
-pretraineds_v1_f0_list, pretraineds_v1_nof0_list = split_pretraineds(
-    pretraineds_v1_list,
-)
-pretraineds_v2_f0_list, pretraineds_v2_nof0_list = split_pretraineds(
-    pretraineds_v2_list,
-)
+pretraineds_hifigan_list, _ = split_pretraineds(pretraineds_hifigan_list)
 
 
 def calculate_total_size(
-    pretraineds_v1_f0,
-    pretraineds_v1_nof0,
-    pretraineds_v2_f0,
-    pretraineds_v2_nof0,
+    pretraineds_hifigan,
     models,
     exe,
 ):
@@ -179,18 +150,12 @@ def calculate_total_size(
         total_size += get_file_size_if_missing(embedders_list)
     if exe and os.name == "nt":
         total_size += get_file_size_if_missing(executables_list)
-    total_size += get_file_size_if_missing(pretraineds_v1_f0)
-    total_size += get_file_size_if_missing(pretraineds_v1_nof0)
-    total_size += get_file_size_if_missing(pretraineds_v2_f0)
-    total_size += get_file_size_if_missing(pretraineds_v2_nof0)
+    total_size += get_file_size_if_missing(pretraineds_hifigan)
     return total_size
 
 
 def prequisites_download_pipeline(
-    pretraineds_v1_f0: bool = True,
-    pretraineds_v1_nof0: bool = False,
-    pretraineds_v2_f0: bool = True,
-    pretraineds_v2_nof0: bool = False,
+    pretraineds_hifigan: bool = True,
     models: bool = True,
     exe: bool = True,
 ) -> None:
@@ -198,10 +163,7 @@ def prequisites_download_pipeline(
     Manage the download pipeline for different categories of files.
     """
     total_size = calculate_total_size(
-        pretraineds_v1_f0_list if pretraineds_v1_f0 else [],
-        pretraineds_v1_nof0_list if pretraineds_v1_nof0 else [],
-        pretraineds_v2_f0_list if pretraineds_v2_f0 else [],
-        pretraineds_v2_nof0_list if pretraineds_v2_nof0 else [],
+        pretraineds_hifigan_list if pretraineds_hifigan else [],
         models,
         exe,
     )
@@ -221,13 +183,7 @@ def prequisites_download_pipeline(
                     download_mapping_files(executables_list, global_bar)
                 else:
                     print("No executables needed")
-            if pretraineds_v1_f0:
-                download_mapping_files(pretraineds_v1_f0_list, global_bar)
-            if pretraineds_v1_nof0:
-                download_mapping_files(pretraineds_v1_nof0_list, global_bar)
-            if pretraineds_v2_f0:
-                download_mapping_files(pretraineds_v2_f0_list, global_bar)
-            if pretraineds_v2_nof0:
-                download_mapping_files(pretraineds_v2_nof0_list, global_bar)
+            if pretraineds_hifigan:
+                download_mapping_files(pretraineds_hifigan_list, global_bar)
     else:
         pass

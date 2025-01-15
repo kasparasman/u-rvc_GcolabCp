@@ -61,7 +61,7 @@ class VoiceConverter:
         """
         Initializes the VoiceConverter with default configuration, and sets up models and parameters.
         """
-        self.config = Config()  # Load RVC configuration
+        self.config = Config()  # Load configuration
         self.hubert_model = (
             None  # Initialize the Hubert model (for embedding extraction)
         )
@@ -85,12 +85,7 @@ class VoiceConverter:
 
         """
         self.hubert_model = load_embedding(embedder_model, embedder_model_custom)
-        self.hubert_model.to(self.config.device)
-        self.hubert_model = (
-            self.hubert_model.half()
-            if self.config.is_half
-            else self.hubert_model.float()
-        )
+        self.hubert_model = self.hubert_model.to(self.config.device).float()
         self.hubert_model.eval()
 
     @staticmethod
@@ -161,7 +156,7 @@ class VoiceConverter:
         **kwargs,
     ):
         board = Pedalboard()
-        if kwargs.get("reverb", False):
+        if kwargs.get("reverb"):
             reverb = Reverb(
                 room_size=kwargs.get("reverb_room_size", 0.5),
                 damping=kwargs.get("reverb_damping", 0.5),
@@ -171,22 +166,22 @@ class VoiceConverter:
                 freeze_mode=kwargs.get("reverb_freeze_mode", 0),
             )
             board.append(reverb)
-        if kwargs.get("pitch_shift", False):
+        if kwargs.get("pitch_shift"):
             pitch_shift = PitchShift(semitones=kwargs.get("pitch_shift_semitones", 0))
             board.append(pitch_shift)
-        if kwargs.get("limiter", False):
+        if kwargs.get("limiter"):
             limiter = Limiter(
                 threshold_db=kwargs.get("limiter_threshold", -6),
                 release_ms=kwargs.get("limiter_release", 0.05),
             )
             board.append(limiter)
-        if kwargs.get("gain", False):
+        if kwargs.get("gain"):
             gain = Gain(gain_db=kwargs.get("gain_db", 0))
             board.append(gain)
-        if kwargs.get("distortion", False):
+        if kwargs.get("distortion"):
             distortion = Distortion(drive_db=kwargs.get("distortion_gain", 25))
             board.append(distortion)
-        if kwargs.get("chorus", False):
+        if kwargs.get("chorus"):
             chorus = Chorus(
                 rate_hz=kwargs.get("chorus_rate", 1.0),
                 depth=kwargs.get("chorus_depth", 0.25),
@@ -195,13 +190,13 @@ class VoiceConverter:
                 mix=kwargs.get("chorus_mix", 0.5),
             )
             board.append(chorus)
-        if kwargs.get("bitcrush", False):
+        if kwargs.get("bitcrush"):
             bitcrush = Bitcrush(bit_depth=kwargs.get("bitcrush_bit_depth", 8))
             board.append(bitcrush)
-        if kwargs.get("clipping", False):
+        if kwargs.get("clipping"):
             clipping = Clipping(threshold_db=kwargs.get("clipping_threshold", 0))
             board.append(clipping)
-        if kwargs.get("compressor", False):
+        if kwargs.get("compressor"):
             compressor = Compressor(
                 threshold_db=kwargs.get("compressor_threshold", 0),
                 ratio=kwargs.get("compressor_ratio", 1),
@@ -209,7 +204,7 @@ class VoiceConverter:
                 release_ms=kwargs.get("compressor_release", 100),
             )
             board.append(compressor)
-        if kwargs.get("delay", False):
+        if kwargs.get("delay"):
             delay = Delay(
                 delay_seconds=kwargs.get("delay_seconds", 0.5),
                 feedback=kwargs.get("delay_feedback", 0.0),
@@ -338,7 +333,13 @@ class VoiceConverter:
                 logger.info("Converted audio chunk %d", len(converted_chunks))
 
         if split_audio:
-            audio_opt = merge_audio(converted_chunks, intervals, 16000, self.tgt_sr)
+            audio_opt = merge_audio(
+                chunks,
+                converted_chunks,
+                intervals,
+                16000,
+                self.tgt_sr,
+            )
         else:
             audio_opt = converted_chunks[0]
 
@@ -489,7 +490,7 @@ class VoiceConverter:
 
         """
         self.cpt = (
-            torch.load(weight_root, map_location="cpu")
+            torch.load(weight_root, map_location="cpu", weights_only=False)
             if os.path.isfile(weight_root)
             else None
         )
@@ -510,13 +511,12 @@ class VoiceConverter:
                 *self.cpt["config"],
                 use_f0=self.use_f0,
                 text_enc_hidden_dim=self.text_enc_hidden_dim,
-                is_half=False,
                 vocoder=self.vocoder,
             )
             del self.net_g.enc_q
             self.net_g.load_state_dict(self.cpt["weight"], strict=False)
-            self.net_g.eval().to(self.config.device)
-            self.net_g = self.net_g.float()
+            self.net_g = self.net_g.to(self.config.device).float()
+            self.net_g.eval()
 
     def setup_vc_instance(self):
         """
