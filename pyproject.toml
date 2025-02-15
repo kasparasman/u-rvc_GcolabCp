@@ -20,7 +20,7 @@ dependencies = [
     
     # Networking
     "requests==2.32.3",
-    "yt_dlp==2025.1.12",
+    "yt_dlp>=2025.1.26",
     "nodejs-wheel-binaries==22.11.0",
     "wget",
 
