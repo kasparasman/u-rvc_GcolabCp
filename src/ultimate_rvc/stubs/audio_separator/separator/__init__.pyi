@@ -39,8 +39,18 @@ class ArchSpecificParams(TypedDict):
     Demucs: DemucsParams
     MDXC: MDXCParams
 
+class CommonSeparator:
+    primary_stem_name: str
+    secondary_stem_name: str
+
+class MDXSeparator(CommonSeparator): ...
+class MDXCSeparator(CommonSeparator): ...
+class VRSeparator(CommonSeparator): ...
+class DemucsSeparator(CommonSeparator): ...
+
 class Separator:
     arch_specific_params: ArchSpecificParams
+    model_instance: MDXSeparator | MDXCSeparator | VRSeparator | DemucsSeparator
     def __init__(
         self,
         log_level: int = ...,
@@ -50,10 +60,12 @@ class Separator:
         output_format: str = "WAV",
         output_bitrate: str | None = None,
         normalization_threshold: float = 0.9,
-        amplification_threshold: float = 0.6,
+        amplification_threshold: float = 0.0,
         output_single_stem: str | None = None,
         invert_using_spec: bool = False,
         sample_rate: int = 44100,
+        use_soundfile: bool = False,
+        use_autocast: bool = False,
         mdx_params: MDXParams = {
             "hop_length": 1024,
             "segment_size": 256,
@@ -83,6 +95,7 @@ class Separator:
             "overlap": 8,
             "pitch_shift": 0,
         },
+        info_only: bool = False,
     ) -> None: ...
     def download_model_files(
         self,
@@ -95,6 +108,5 @@ class Separator:
     def separate(
         self,
         audio_file_path: str,
-        primary_output_name: str | None = None,
-        secondary_output_name: str | None = None,
+        custom_output_names: dict[str, str] | None = None,
     ) -> list[str]: ...

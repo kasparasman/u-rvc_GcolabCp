@@ -1,5 +1,8 @@
 # TODO
 
+* fix problem with vocal conversion becoming slow after running multiple times
+* fix typing of gradio app.load function
+  * make pr for gradio fixing it
 ## Project/task management
 
 * Should find tool for project/task management
@@ -90,6 +93,16 @@
 
 ### Common
 
+* redesign/simplify ui using new side-bar component from gradio
+* redesign/simplify ui using new support for multi-page apps in gradio (https://github.com/gradio-app/gradio/pull/10433)
+* consider using the new search bar functionality for gradio dataframe component instaed of having custom functionality for filtering
+* simplify and extend progress bar functionality by using the new show_progress_on and show_progress paramters on event listeners (https://github.com/gradio-app/gradio/pull/10492)
+* optimize rendering speed using new js=True parameter (https://github.com/gradio-app/gradio/pull/10500)
+* optimize rendering colab notebook
+* utilize new settings link in the gradio app footer (https://github.com/gradio-app/gradio/pull/10254)
+* utilize new gr.success pop up message (https://github.com/gradio-app/gradio/pull/10254)
+
+
 * fix problem with audio components restarting if play button is pressed too fast after loading new audio
   * this is a gradio bug so report?
 * fix new problem with hot reload:
@@ -114,7 +127,7 @@
   * knowing this, simplify event listener code in the web package.
 
 * Remove reset button on slider components
-  * change "visibility" parameter
+  * use new show_reset_button parameter on slider components
 
 * add something like an agreement to the top of the readme that says that the user agrees to the terms and conditions
   * something like:
@@ -213,6 +226,7 @@
 
 ### Audio separation
 
+* use the new autocast parameter to speed up separation process.
 * support using multiple models in parallel and combining results
   * median, mean, min, maxx
 * expand back-end function(s) so that they are parametrized by both model type as well as model settings
@@ -452,18 +466,10 @@
 
 ## python package management
 
-* upgrade gradio to latest
-  * also remove gradio stub files as they are no longer needed
-  * but then need to make updates to gradio imports in web package
-
-* upgrade audio-separator to latest version
-  * then also update documentation as downloading diffq manually is no longer needed on windows
-
-* update dependencies in pyproject.toml
-  * use latest compatible version of all packages
-
-* once diffq-fixed is used by audio-separator we can remove the url dependency on windows
-  * we will still need to wait for uv to make it easy to install package with torch dependency
+* update torch to 2.6.0 once audio-separator supports it
+* add support for python 3.13 once torch 2.6.0 is supported.
+* update numpy to latest
+* need to wait for uv to make it easy to install package with torch dependency
   * also it is still necessary to install pytorch first as it is not on pypi index
 
 * need to make project version (in `pyproject.toml`) dynamic so that it is updated automatically when a new release is made
