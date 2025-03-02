@@ -31,4 +31,6 @@ def write(
     endian: Literal["FILE", "LITTLE", "BIG", "CPU"] | None = None,
     format: str | None = None,  # noqa: A002
     closefd: bool | None = True,
+    compression_level: float | None = None,
+    bitrate_mode: Literal["CONSTANT", "AVERAGE", "VARIABLE"] | None = None,
 ) -> None: ...

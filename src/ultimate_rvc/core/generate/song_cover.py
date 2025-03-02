@@ -44,7 +44,6 @@ from ultimate_rvc.core.generate.common import (
     mix_audio,
     validate_audio_dir_exists,
     validate_audio_file_exists,
-    validate_model_exists,
     wavify,
 )
 from ultimate_rvc.core.generate.typing_extra import (
@@ -655,8 +654,14 @@ def separate_audio(
         audio_separator.load_model(model_name)
         audio_separator.separate(
             str(audio_path),
-            primary_output_name=primary_path.stem,
-            secondary_output_name=secondary_path.stem,
+            custom_output_names={
+                audio_separator.model_instance.primary_stem_name: str(
+                    primary_path.with_suffix(""),
+                ),
+                audio_separator.model_instance.secondary_stem_name: str(
+                    secondary_path.with_suffix(""),
+                ),
+            },
         )
         json_dump(args_dict, primary_json_path)
         json_dump(args_dict, secondary_json_path)

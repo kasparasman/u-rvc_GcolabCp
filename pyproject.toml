@@ -4,63 +4,59 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ultimate-rvc"
-version = "0.4.1"
+version = "0.4.3"
 description = "Ultimate RVC"
 readme = "README.md"
 requires-python = "==3.12.*"
 dependencies = [
-    # General
-    "lib==4.0.0",
-
     #Validation
-    "pydantic==2.9.2",
+    "pydantic==2.10.6",
 
     # CLI
-    "typer==0.14.0",
+    "typer==0.15.2",
     
     # Networking
     "requests==2.32.3",
     "yt_dlp>=2025.1.26",
-    "nodejs-wheel-binaries==22.11.0",
-    "wget",
+    "nodejs-wheel-binaries==22.14.0",
+    "wget==3.2",
 
     # Data science
     "numpy==1.26.4",
-    "scipy==1.14.1",
-    "matplotlib==3.9.2",
-    "tqdm==4.66.6",
-    "gradio==5.7.1",
+    "scipy==1.15.2",
+    "matplotlib==3.10.1",
+    "tqdm==4.67.1",
+    "gradio==5.20.0",
     
     # Machine learning
-    "torch==2.5.1+cu124",
-    "torchaudio==2.5.1+cu124",
+    "torch==2.4.1+cu124",
+    "torchaudio==2.4.1+cu124",
     "torchcrepe==0.0.23",
-    "faiss-cpu==1.9.0",
+    "faiss-cpu==1.10.0",
     # Version of onnxruntime-gpu needs to align with what 
     # version audio-separator package uses.
-    "onnxruntime-gpu==1.19.2",
-    "local-attention",
-    "einops",
-    "transformers==4.48.0",
-    "diffq==0.2.4",
+    "onnxruntime-gpu==1.20.1",
+    "local-attention==1.11.1",
+    "einops==0.8.1",
+    "transformers==4.49.0",
     "tensorboardX==2.6.2.2",
-    "tensorboard",
+    "tensorboard==2.19.0",
     "torch-tb-profiler==0.4.3",
     
     # Audio
-    "static-ffmpeg==2.7",
+    "static-ffmpeg==2.8",
     "static-sox==1.0.1",
-    "typed-ffmpeg==2.1.0",
-    "soundfile==0.12.1",
+    "typed-ffmpeg==2.6.2",
+    "soundfile==0.13.1",
     "librosa==0.10.2",
     "sox==1.5.0",
     "soxr==0.5.0.post1",
     "pydub==0.25.1",
     "pydub-stubs==0.25.1.2",
     "pedalboard==0.9.16",
-    "audio-separator[gpu]==0.24.1",
-    "noisereduce",
-    "edge-tts==6.1.19",
+    "audio-separator[gpu]==0.30.0",
+    "noisereduce==3.0.3",
+    "edge-tts==7.0.0",
     # TODO potentially add these later
     # below package outcommented until we use dio,pm and harvest
     #"pyworld-fixed==0.3.8",
@@ -81,8 +77,6 @@ compile-bytecode = true
 [tool.uv.sources]
 torch = { index = "torch-cu124"}
 torchaudio = { index = "torch-cu124"}
-diffq = { url = "https://huggingface.co/JackismyShephard/ultimate-rvc/resolve/main/diffq-0.2.4-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'"}
-
 [[tool.uv.index]]
 name = "torch-cu124"
 url = "https://download.pytorch.org/whl/cu124"

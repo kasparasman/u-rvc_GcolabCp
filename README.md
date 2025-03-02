@@ -1,6 +1,8 @@
 # Ultimate RVC
 
+[![PyPI version](https://badge.fury.io/py/ultimate-rvc.svg)](https://badge.fury.io/py/ultimate-rvc)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/JackismyShephard/ultimate-rvc/blob/main/notebooks/ultimate_rvc_colab.ipynb)
+[![Open In Huggingface](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md.svg)](https://huggingface.co/spaces/JackismyShephard/ultimate-rvc)
 
 An extension of [AiCoverGen](https://github.com/SociallyIneptWeeb/AICoverGen), which provides several new features and improvements, enabling users to generate audio-related content using RVC with ease. Ideal for people who want to incorporate singing functionality into their AI assistant/chatbot/vtuber, hear their favourite characters sing their favourite song or have their favorite character read their favorite books aloud.
 
@@ -22,11 +24,11 @@ Ultimate RVC is under constant development and testing, but you can try it out r
 * Lots of visual and performance improvements resulting from updating from Gradio 3 to Gradio 5 and from python 3.9 to python 3.12
 * A redistributable package on PyPI, which allows you to easily access the Ultimate RVC project from any python 3.12 environment.
 
-## Colab notebook
+## Online Platforms
 
-For those without a powerful enough NVIDIA GPU, you may try Ultimate RVC out using [Google Colab](https://colab.research.google.com/github/JackismyShephard/ultimate-rvc/blob/main/notebooks/ultimate_rvc_colab.ipynb). For those who want to run the Ultimate RVC project locally, follow the setup guide below.
+For those without a powerful enough NVIDIA GPU, you may try out Ultimate RV using [Google Colab](https://colab.research.google.com/github/JackismyShephard/ultimate-rvc/blob/main/notebooks/ultimate_rvc_colab.ipynb). Additionally, Ultimate RVC is also hosted on [Huggingface Spaces](https://huggingface.co/spaces/JackismyShephard/ultimate-rvc), although GPU acceleration is not available there. For those who want to run Ultimate RVC locally, follow the setup guide below.
 
-## Setup
+## Local Setup
 
 The Ultimate RVC project currently supports Windows and Debian-based Linux distributions, namely Ubuntu 22.04 and Ubuntu 24.04. Support for other platforms is not guaranteed.
 
@@ -60,8 +62,6 @@ cd ultimate-rvc
 
 Note that on Linux, this command will install the CUDA 12.5 toolkit system-wide, if it is not already available. In case you have problems, you may need to install the toolkit manually.
 
-## Usage
-
 ### Start the app
 
 ```console
@@ -69,6 +69,22 @@ Note that on Linux, this command will install the CUDA 12.5 toolkit system-wide,
 ```
 
 Once the output message `Running on local URL:  http://127.0.0.1:7860` appears, you can click on the link to open a tab with the web app.
+
+### Update to latest version
+
+```console
+./urvc update
+```
+
+### Development mode
+
+When developing new features or debugging, it is recommended to run the app in development mode. This enables hot reloading, which means that the app will automatically reload when changes are made to the code.
+
+```console
+./urvc dev
+```
+
+## Usage
 
 ### Manage models
 
@@ -104,20 +120,6 @@ Once the output message says `Model with name [NAME] successfully uploaded!`, yo
 
 Once all options are filled in, click `Generate` and the AI generated song cover should appear in less than a few minutes, depending on your GPU.
 
-## Update to latest version
-
-```console
-./urvc update
-```
-
-## Development mode
-
-When developing new features or debugging, it is recommended to run the app in development mode. This enables hot reloading, which means that the app will automatically reload when changes are made to the code.
-
-```console
-./urvc dev
-```
-
 ## PyPI package
 
 The Ultimate RVC project is also available as a [distributable package](https://pypi.org/project/ultimate-rvc/) on [PyPI](https://pypi.org/).
@@ -128,12 +130,6 @@ The package can be installed with pip in a **Python 3.12**-based environment. To
 
 ```console
 pip install torch==2.5.1+cu124 torchaudio==2.5.1+cu124 --index-url https://download.pytorch.org/whl/cu124
-```
-
-Additionally, on Windows the `diffq` package must be installed manually as follows:
-
-```console
-pip install https://huggingface.co/JackismyShephard/ultimate-rvc/resolve/main/diffq-0.2.4-cp312-cp312-win_amd64.whl
 ```
 
 The Ultimate RVC project package can then be installed as follows:

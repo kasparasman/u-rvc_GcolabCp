@@ -101,7 +101,7 @@ def _autofill_model_name_and_url(
         If the index in the provided event is not a sequence.
 
     """
-    event_index = select_event.index
+    event_index: int | Sequence[int] = select_event.index
     if not isinstance(event_index, Sequence):
         err_msg = (
             f"Expected a sequence of indices but got {type(event_index)} from the"
