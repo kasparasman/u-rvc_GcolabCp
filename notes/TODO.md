@@ -466,8 +466,7 @@
 
 ## python package management
 
-* update torch to 2.6.0 once audio-separator supports it
-* add support for python 3.13 once torch 2.6.0 is supported.
+* add support for python 3.13.
 * update numpy to latest
 * need to wait for uv to make it easy to install package with torch dependency
   * also it is still necessary to install pytorch first as it is not on pypi index
