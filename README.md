@@ -129,7 +129,7 @@ The Ultimate RVC project is also available as a [distributable package](https://
 The package can be installed with pip in a **Python 3.12**-based environment. To do so requires first installing PyTorch with Cuda support:
 
 ```console
-pip install torch==2.5.1+cu124 torchaudio==2.5.1+cu124 --index-url https://download.pytorch.org/whl/cu124
+pip install torch==2.6.0+cu124 torchaudio==2.6.0+cu124 --index-url https://download.pytorch.org/whl/cu124
 ```
 
 The Ultimate RVC project package can then be installed as follows:
