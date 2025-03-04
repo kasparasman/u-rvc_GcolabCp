@@ -126,9 +126,6 @@
   * like if we have click_event = some_component.click(...) then we can have several click.then event listeners.
   * knowing this, simplify event listener code in the web package.
 
-* Remove reset button on slider components
-  * use new show_reset_button parameter on slider components
-
 * add something like an agreement to the top of the readme that says that the user agrees to the terms and conditions
   * something like:
   "This software is open source under the MIT license. The author does not have any control over the software. Users who use the software and distribute the sounds exported by the software are solely responsible.If you do not agree with this clause, you cannot use or reference any codes and files within the software package. See the root directory Agreement-LICENSE.txt for details."

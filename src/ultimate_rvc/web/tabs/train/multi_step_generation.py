@@ -255,7 +255,7 @@ def render(
                             label="Clean audio",
                             info=(
                                 "Whether to clean the audio files in the provided"
-                                " dataset using noise reduction algorithms.<br><br>"
+                                " dataset using noise reduction algorithms.<br><br><br>"
                             ),
                         )
                         clean_strength = gr.Slider(
@@ -266,6 +266,7 @@ def render(
                             label="Clean strength",
                             info="The strength of the audio cleaning process.",
                             visible=False,
+                            show_reset_button=False,
                         )
                         clean_audio.change(
                             partial(toggle_visibility, targets={True}, default=0.7),
@@ -297,6 +298,7 @@ def render(
                         label="Chunk length",
                         info="Length of split audio chunks.",
                         visible=False,
+                        show_reset_button=False,
                     )
                     overlap_len = gr.Slider(
                         0.0,
@@ -306,6 +308,7 @@ def render(
                         label="Overlap length",
                         info="Length of overlap between split audio chunks.",
                         visible=False,
+                        show_reset_button=False,
                     )
                 split_method.change(
                     partial(
@@ -325,6 +328,7 @@ def render(
                         step=1,
                         label="CPU cores",
                         info="The number of CPU cores to use for preprocessing.",
+                        show_reset_button=False,
                     )
             with gr.Row(equal_height=True):
                 reset_preprocess_btn = gr.Button(
@@ -431,6 +435,7 @@ def render(
                                 " features.<br><br>"
                             ),
                             visible=False,
+                            show_reset_button=False,
                         )
                     f0_method.change(
                         partial(
@@ -474,6 +479,7 @@ def render(
                             " files. If the preprocessed audio dataset already contains"
                             " segments of pure silence, set this to 0."
                         ),
+                        show_reset_button=False,
                     )
                 with gr.Row():
                     with gr.Column():
@@ -485,8 +491,9 @@ def render(
                             label="CPU cores",
                             info=(
                                 "The number of CPU cores to use for feature"
-                                " extraction.<br><br><br>"
+                                " extraction.<br><br>"
                             ),
+                            show_reset_button=False,
                         )
                     with gr.Column():
                         gpu_choices = get_gpu_info()
@@ -604,6 +611,7 @@ def render(
                             " number can improve voice model performance but may lead"
                             " to overtraining."
                         ),
+                        show_reset_button=False,
                     )
                     batch_size = gr.Slider(
                         1,
@@ -616,6 +624,7 @@ def render(
                             " advisable to align this value with the available VRAM of"
                             " your GPU."
                         ),
+                        show_reset_button=False,
                     )
                 with gr.Column():
                     detect_overtraining = gr.Checkbox(
@@ -637,6 +646,7 @@ def render(
                             " any observed improvement in voice model performance."
                         ),
                         visible=False,
+                        show_reset_button=False,
                     )
                 detect_overtraining.change(
                     partial(toggle_visibility, targets={True}, default=50),
@@ -662,7 +672,7 @@ def render(
                             info=(
                                 "The method to use for generating an index file for the"
                                 " trained voice model. KMeans is particularly useful"
-                                " for large datasets.<br><br>"
+                                " for large datasets."
                             ),
                             value=IndexAlgorithm.AUTO,
                         )
@@ -703,6 +713,7 @@ def render(
                                 " weights and checkpoints. The best model weights are"
                                 " always saved regardless of this setting."
                             ),
+                            show_reset_button=False,
                         )
                     with gr.Row():
 
@@ -711,7 +722,7 @@ def render(
                             info=(
                                 "Whether to save a unique checkpoint at each save"
                                 " interval. If not enabled, only the latest checkpoint"
-                                " will be saved at each interval.<br><br>"
+                                " will be saved at each interval."
                             ),
                         )
                         save_all_weights = gr.Checkbox(
@@ -719,7 +730,7 @@ def render(
                             info=(
                                 "Whether to save unique voice model weights at each"
                                 " save interval. If not enabled, only the best voice"
-                                " model weights will be saved.<br><br>"
+                                " model weights will be saved."
                             ),
                         )
 

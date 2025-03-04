@@ -116,8 +116,6 @@ def render(
                     show_progress="hidden",
                 )
             with gr.Row():
-                if voice_model.info:
-                    voice_model.info += "<br><br>"
                 voice_model.render()
                 n_octaves = gr.Slider(
                     -3,
@@ -126,9 +124,10 @@ def render(
                     step=1,
                     label="Vocal pitch shift",
                     info=(
-                        "The number of octaves to pitch-shift converted vocals by."
-                        " Use 1 for male-to-female and -1 for vice-versa."
+                        "The number of octaves to shift the pitch of the converted"
+                        " vocals by. Use 1 for male-to-female and -1 for vice-versa."
                     ),
+                    show_reset_button=False,
                 )
                 n_semitones = gr.Slider(
                     -12,
@@ -137,9 +136,10 @@ def render(
                     step=1,
                     label="Overall pitch shift",
                     info=(
-                        "The number of semi-tones to pitch-shift converted vocals,"
-                        " instrumentals, and backup vocals by."
+                        "The number of semi-tones to shift the pitch of the converted"
+                        " vocals, instrumentals and backup vocals by."
                     ),
+                    show_reset_button=False,
                 )
 
         with gr.Accordion("Vocal conversion options", open=False):
@@ -166,8 +166,9 @@ def render(
                     info=(
                         "Increase to bias the conversion towards the accent of the"
                         " voice model. Decrease to potentially reduce artifacts"
-                        " coming from the voice model.<br><br>"
+                        " coming from the voice model."
                     ),
+                    show_reset_button=False,
                 )
                 filter_radius = gr.Slider(
                     0,
@@ -180,6 +181,7 @@ def render(
                         " Can help reduce breathiness in the converted"
                         " vocals.<br><br>"
                     ),
+                    show_reset_button=False,
                 )
             with gr.Row():
                 rms_mix_rate = gr.Slider(
@@ -189,8 +191,10 @@ def render(
                     label="RMS mix rate",
                     info=(
                         "How much to mimic the loudness (0) of the input vocals or"
-                        " a fixed loudness (1).<br><br><br>"
+                        " a fixed loudness (1). A value of 0.25 is recommended for"
+                        " most cases."
                     ),
+                    show_reset_button=False,
                 )
                 protect_rate = gr.Slider(
                     0,
@@ -201,8 +205,9 @@ def render(
                         "Controls the extent to which consonants and breathing"
                         " sounds are protected from artifacts. A higher value"
                         " offers more protection but may worsen the indexing"
-                        " effect.<br><br>"
+                        " effect."
                     ),
+                    show_reset_button=False,
                 )
                 hop_length = gr.Slider(
                     1,
@@ -216,6 +221,7 @@ def render(
                         " lead to longer conversion times and a higher risk of"
                         " voice cracks, but better pitch accuracy."
                     ),
+                    show_reset_button=False,
                 )
             gr.Markdown("**Vocal enrichment settings**")
             with gr.Row():
@@ -245,6 +251,7 @@ def render(
                             " grid and artifacting."
                         ),
                         visible=False,
+                        show_reset_button=False,
                     )
                 with gr.Column():
                     clean_vocals = gr.Checkbox(
@@ -264,6 +271,7 @@ def render(
                             " a more compressed sound."
                         ),
                         visible=False,
+                        show_reset_button=False,
                     )
             autotune_vocals.change(
                 partial(toggle_visibility, targets={True}, default=1.0),
@@ -311,6 +319,7 @@ def render(
                         "Size of the room which reverb effect simulates. Increase for"
                         " longer reverb time."
                     ),
+                    show_reset_button=False,
                 )
             with gr.Row():
                 wet_level = gr.Slider(
@@ -319,6 +328,7 @@ def render(
                     value=0.2,
                     label="Wetness level",
                     info="Loudness of converted vocals with reverb effect applied.",
+                    show_reset_button=False,
                 )
                 dry_level = gr.Slider(
                     0,
@@ -326,6 +336,7 @@ def render(
                     value=0.8,
                     label="Dryness level",
                     info="Loudness of converted vocals without reverb effect applied.",
+                    show_reset_button=False,
                 )
                 damping = gr.Slider(
                     0,
@@ -333,13 +344,35 @@ def render(
                     value=0.7,
                     label="Damping level",
                     info="Absorption of high frequencies in reverb effect.",
+                    show_reset_button=False,
                 )
 
             gr.Markdown("**Volume controls (dB)**")
             with gr.Row():
-                main_gain = gr.Slider(-20, 20, value=0, step=1, label="Main vocals")
-                inst_gain = gr.Slider(-20, 20, value=0, step=1, label="Instrumentals")
-                backup_gain = gr.Slider(-20, 20, value=0, step=1, label="Backup vocals")
+                main_gain = gr.Slider(
+                    -20,
+                    20,
+                    value=0,
+                    step=1,
+                    label="Main vocals",
+                    show_reset_button=False,
+                )
+                inst_gain = gr.Slider(
+                    -20,
+                    20,
+                    value=0,
+                    step=1,
+                    label="Instrumentals",
+                    show_reset_button=False,
+                )
+                backup_gain = gr.Slider(
+                    -20,
+                    20,
+                    value=0,
+                    step=1,
+                    label="Backup vocals",
+                    show_reset_button=False,
+                )
         with gr.Accordion("Audio output options", open=False):
             with gr.Row():
                 output_name = gr.Textbox(
