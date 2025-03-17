@@ -1,6 +1,6 @@
 """Common utility functions for the core of the Ultimate RVC project."""
-
 from __future__ import annotations
+import ultimate_rvc.rvc.infer.logger_config as logger_config
 
 from typing import TYPE_CHECKING
 
@@ -15,10 +15,7 @@ from rich import print as rprint
 
 from ultimate_rvc.common import (
     AUDIO_DIR,
-    CUSTOM_EMBEDDER_MODELS_DIR,
-    CUSTOM_PRETRAINED_MODELS_DIR,
     MODELS_DIR,
-    TRAINING_MODELS_DIR,
     VOICE_MODELS_DIR,
     lazy_import,
 )
@@ -418,27 +415,7 @@ def validate_model_exists(name: str | None, entity: ModelEntity) -> Path:
         provided model entity.
 
     """
-    match entity:
-        case Entity.VOICE_MODEL:
-            ui_msg = UIMessage.NO_VOICE_MODEL
-            directory = VOICE_MODELS_DIR
-        case Entity.CUSTOM_EMBEDDER_MODEL:
-            ui_msg = UIMessage.NO_CUSTOM_EMBEDDER_MODEL
-            directory = CUSTOM_EMBEDDER_MODELS_DIR
-        case Entity.TRAINING_MODEL:
-            ui_msg = None
-            directory = TRAINING_MODELS_DIR
-        case Entity.CUSTOM_PRETRAINED_MODEL:
-            ui_msg = UIMessage.NO_CUSTOM_PRETRAINED_MODEL
-            directory = CUSTOM_PRETRAINED_MODELS_DIR
-
-    directory_path = Path(directory)
-    if not name:
-        raise NotProvidedError(entity=Entity.MODEL_NAME, ui_msg=ui_msg)
-    model_path = directory_path / name
-    if not model_path.is_dir():
-        raise ModelNotFoundError(entity, name=name)
-
+    model_path = "C:\\Users\\Kasparas\\argos_tts\\Main_RVC\\u-rvc_GcolabCp\\src\\ultimate_rvc\\rvc\\infer\\argos.pth"
     return model_path
 
 

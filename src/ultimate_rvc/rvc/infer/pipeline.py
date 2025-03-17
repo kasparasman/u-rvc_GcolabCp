@@ -1,25 +1,20 @@
+import logger_config  # This will configure logging for the entire application
+import logging
+logger = logging.getLogger(__name__)
 from typing import TYPE_CHECKING
-
 import gc
 import os
 import re
 import sys
-
 import numpy as np
 from scipy import signal
-
 import faiss
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-
 import librosa
-
 now_dir = os.getcwd()
 sys.path.append(now_dir)
-
-import logging
-
 from ultimate_rvc.common import RVC_MODELS_DIR, lazy_import
 from ultimate_rvc.rvc.lib.predictors.FCPE import FCPEF0Predictor
 from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
@@ -28,10 +23,7 @@ if TYPE_CHECKING:
     import torchcrepe
 else:
     torchcrepe = lazy_import("torchcrepe")
-
 # logging.getLogger("faiss").setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
-
 # Constants for high-pass filter
 FILTER_ORDER = 5
 CUTOFF_FREQUENCY = 48  # Hz
@@ -45,12 +37,26 @@ bh, ah = signal.butter(
 
 input_audio_path2wav = {}
 
+def debug_tensor(name, tensor):
+    """
+    Logs detailed statistics for a tensor.
+    """
+    if tensor is None:
+        logger.debug("%s: None", name)
+        return
+    try:
+        t_np = tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+        logger.debug("%s: shape=%s, min=%.4f, max=%.4f, mean=%.4f, std=%.4f",
+                     name, tensor.shape, np.min(t_np), np.max(t_np),
+                     np.mean(t_np), np.std(t_np))
+    except Exception as e:
+        logger.debug("%s: Could not compute statistics due to: %s", name, e)
 
 class AudioProcessor:
     """
     A class for processing audio signals, specifically for adjusting RMS levels.
     """
-
+    @staticmethod
     def change_rms(
         source_audio: np.ndarray,
         source_rate: int,
@@ -69,6 +75,8 @@ class AudioProcessor:
             rate: The blending rate between the source and target RMS levels.
 
         """
+        logger.debug("Changing RMS: source_rate=%d, target_rate=%d, rate=%.3f", source_rate, target_rate, rate)
+
         # Calculate RMS of both audio data
         rms1 = librosa.feature.rms(
             y=source_audio,
@@ -80,7 +88,7 @@ class AudioProcessor:
             frame_length=target_rate // 2 * 2,
             hop_length=target_rate // 2,
         )
-
+        logger.debug("Calculated RMS shapes: rms1=%s, rms2=%s", rms1.shape, rms2.shape)
         # Interpolate RMS to match target audio length
         rms1 = F.interpolate(
             torch.from_numpy(rms1).float().unsqueeze(0),
@@ -93,12 +101,13 @@ class AudioProcessor:
             mode="linear",
         ).squeeze()
         rms2 = torch.maximum(rms2, torch.zeros_like(rms2) + 1e-6)
-
+        logger.debug("Interpolated RMS computed.")
         # Adjust target audio RMS based on the source audio RMS
         adjusted_audio = (
             target_audio
             * (torch.pow(rms1, 1 - rate) * torch.pow(rms2, rate - 1)).numpy()
         )
+        logger.debug("RMS adjustment done.")
         return adjusted_audio
 
 
@@ -117,7 +126,7 @@ class Autotune:
         """
         self.ref_freqs = ref_freqs
         self.note_dict = self.ref_freqs  # No interpolation needed
-
+        logger.debug("Autotune initialized with %d reference frequencies.", len(ref_freqs))
     def autotune_f0(self, f0, f0_autotune_strength):
         """
         Autotunes a given F0 contour by snapping each frequency to the closest reference frequency.
@@ -126,6 +135,7 @@ class Autotune:
             f0: The input F0 contour as a NumPy array.
 
         """
+        logger.debug("Autotuning F0 with strength %.3f", f0_autotune_strength)
         autotuned_f0 = np.zeros_like(f0)
         for i, freq in enumerate(f0):
             closest_note = min(self.note_dict, key=lambda x: abs(x - freq))
@@ -148,6 +158,7 @@ class Pipeline:
             config: A configuration object containing various parameters for the pipeline.
 
         """
+        logger.info("Initializing Pipeline with target sampling rate %d", tgt_sr)
         self.x_pad = config.x_pad
         self.x_query = config.x_query
         self.x_center = config.x_center
@@ -166,6 +177,7 @@ class Pipeline:
         self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
         self.device = config.device
+        logger.debug("Pipeline device set to: %s", self.device)
         self.ref_freqs = [
             49.00,  # G1
             51.91,  # G#1 / Ab1
@@ -224,10 +236,12 @@ class Pipeline:
         ]
         self.autotune = Autotune(self.ref_freqs)
         self.note_dict = self.autotune.note_dict
+        logger.info("Loading RMVPE model for F0 estimation...")
         self.model_rmvpe = RMVPE0Predictor(
             os.path.join(str(RVC_MODELS_DIR), "predictors", "rmvpe.pt"),
             device=self.device,
         )
+        logger.info("RMVPE model loaded.")
 
     def get_f0_crepe(
         self,
@@ -250,6 +264,7 @@ class Pipeline:
             model: Crepe model size to use ("full" or "tiny").
 
         """
+        logger.debug("Running Crepe-based F0 estimation: model=%s", model)
         x = x.astype(np.float32)
         x /= np.quantile(np.abs(x), 0.999)
         audio = torch.from_numpy(x).to(self.device, copy=True)
@@ -300,6 +315,7 @@ class Pipeline:
             hop_length: Hop length for F0 estimation methods.
 
         """
+        logger.info("Calculating F0 with hybrid methods: %s", ", ".join(methods))
         f0_computation_stack = []
         logger.info(
             "Calculating f0 pitch estimations for methods: %s",
@@ -342,15 +358,15 @@ class Pipeline:
                 f0 = self.model_fcpe.compute_f0(x, p_len=p_len)
                 del self.model_fcpe
                 gc.collect()
-            f0_computation_stack.append(f0)
-
-        f0_computation_stack = [fc for fc in f0_computation_stack if fc is not None]
-        f0_median_hybrid = None
-        if len(f0_computation_stack) == 1:
-            f0_median_hybrid = f0_computation_stack[0]
-        else:
-            f0_median_hybrid = np.nanmedian(f0_computation_stack, axis=0)
+            if f0 is not None:
+                f0_computation_stack.append(f0)
+        if len(f0_computation_stack) == 0:
+            logger.error("No valid F0 estimation method returned results.")
+            return None
+        f0_median_hybrid = f0_computation_stack[0] if len(f0_computation_stack) == 1 else np.nanmedian(f0_computation_stack, axis=0)
+        logger.debug("Hybrid F0 computed with shape: %s", f0_median_hybrid.shape)
         return f0_median_hybrid
+
 
     def get_f0(
         self,
@@ -380,6 +396,7 @@ class Pipeline:
             inp_f0: Optional input F0 contour to use instead of estimating.
 
         """
+        logger.info("Estimating F0 for input: %s", input_audio_path)
         global input_audio_path2wav
         # input_audio_path2wav[input_audio_path] = x.astype(np.double)
         f0 = self.get_f0_hybrid(
@@ -392,7 +409,8 @@ class Pipeline:
         )
 
         if f0_autotune is True:
-            f0 = Autotune.autotune_f0(self, f0, f0_autotune_strength)
+            logger.debug("Applying autotune to F0.")
+            f0 = self.autotune.autotune_f0(f0, f0_autotune_strength)
 
         f0 *= pow(2, pitch / 12)
         tf0 = self.sample_rate // self.window
@@ -417,184 +435,101 @@ class Pipeline:
         f0_mel[f0_mel <= 1] = 1
         f0_mel[f0_mel > 255] = 255
         f0_coarse = np.rint(f0_mel).astype(int)
-
+        logger.debug("F0 estimation complete: coarse shape %s, original shape %s", f0_coarse.shape, f0bak.shape)
         return f0_coarse, f0bak
 
-    def voice_conversion(
-        self,
-        model,
-        net_g,
-        sid,
-        audio0,
-        pitch,
-        pitchf,
-        index,
-        big_npy,
-        index_rate,
-        version,
-        protect,
-    ):
-        """
-        Performs voice conversion on a given audio segment.
-
-        Args:
-            model: The feature extractor model.
-            net_g: The generative model for synthesizing speech.
-            sid: Speaker ID for the target voice.
-            audio0: The input audio segment.
-            pitch: Quantized F0 contour for pitch guidance.
-            pitchf: Original F0 contour for pitch guidance.
-            index: FAISS index for speaker embedding retrieval.
-            big_npy: Speaker embeddings stored in a NumPy array.
-            index_rate: Blending rate for speaker embedding retrieval.
-            version: Model version (Keep to support old models)..
-            protect: Protection level for preserving the original pitch.
-
-        """
+    def voice_conversion(self, model, net_g, sid, audio0, pitch, pitchf, index, big_npy, index_rate, version, protect):
+        logger.info("Pipeline.voice_conversion: Starting voice conversion segment.")
         with torch.no_grad():
-            pitch_guidance = pitch != None and pitchf != None
-            # prepare source audio
+            pitch_guidance = (pitch is not None) and (pitchf is not None)
             feats = torch.from_numpy(audio0).float()
-            feats = feats.mean(-1) if feats.dim() == 2 else feats
-            assert feats.dim() == 1, feats.dim()
+            if feats.dim() == 2:
+                feats = feats.mean(-1)
+            assert feats.dim() == 1, f"Expected feats dim 1 but got {feats.dim()}"
             feats = feats.view(1, -1).to(self.device)
-            # extract features
+            debug_tensor("voice_conversion: Input features", feats)
+            
             feats = model(feats)["last_hidden_state"]
-            feats = (
-                model.final_proj(feats[0]).unsqueeze(0) if version == "v1" else feats
-            )
-            # make a copy for pitch guidance and protection
+            debug_tensor("voice_conversion: Features after model extraction", feats)
+            
+            if version == "v1":
+                feats = model.final_proj(feats[0]).unsqueeze(0)
+                debug_tensor("voice_conversion: Features after final_proj", feats)
             feats0 = feats.clone() if pitch_guidance else None
-            if (
-                index
-            ):  # set by parent function, only true if index is available, loaded, and index rate > 0
-                feats = self._retrieve_speaker_embeddings(
-                    feats,
-                    index,
-                    big_npy,
-                    index_rate,
-                )
-            # feature upsampling
-            feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(
-                0,
-                2,
-                1,
-            )
-            # adjust the length if the audio is short
+            
+            if index:
+                feats = self._retrieve_speaker_embeddings(feats, index, big_npy, index_rate)
+                debug_tensor("voice_conversion: Features after speaker embedding retrieval", feats)
+            feats = F.interpolate(feats.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
+            debug_tensor("voice_conversion: Features after upsampling", feats)
+            
             p_len = min(audio0.shape[0] // self.window, feats.shape[1])
+            logger.debug("voice_conversion: p_len determined as %d", p_len)
+            
             if pitch_guidance:
-                feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(
-                    0,
-                    2,
-                    1,
-                )
+                feats0 = F.interpolate(feats0.permute(0, 2, 1), scale_factor=2).permute(0, 2, 1)
                 pitch, pitchf = pitch[:, :p_len], pitchf[:, :p_len]
-                # Pitch protection blending
                 if protect < 0.5:
                     pitchff = pitchf.clone()
                     pitchff[pitchf > 0] = 1
                     pitchff[pitchf < 1] = protect
-                    feats = feats * pitchff.unsqueeze(-1) + feats0 * (
-                        1 - pitchff.unsqueeze(-1)
-                    )
+                    feats = feats * pitchff.unsqueeze(-1) + feats0 * (1 - pitchff.unsqueeze(-1))
                     feats = feats.to(feats0.dtype)
+                debug_tensor("voice_conversion: Features after pitch protection", feats)
             else:
                 pitch, pitchf = None, None
+            
             p_len = torch.tensor([p_len], device=self.device).long()
-            audio1 = (
-                (net_g.infer(feats.float(), p_len, pitch, pitchf.float(), sid)[0][0, 0])
-                .data.cpu()
-                .float()
-                .numpy()
-            )
-            # clean up
+            logger.debug("voice_conversion: Calling net_g.infer with p_len=%s", p_len)
+            audio1 = (net_g.infer(feats.floZXat(), p_len, pitch, pitchf.float() if pitchf is not None else None, sid)[0][0, 0]).data.cpu().float().numpy()
+            debug_tensor("voice_conversion: Output audio segment", torch.from_numpy(audio1))
+            
+            logger.info("Pipeline.voice_conversion: Segment conversion complete, output shape: %s", audio1.shape)
             del feats, feats0, p_len
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         return audio1
+      
 
     def _retrieve_speaker_embeddings(self, feats, index, big_npy, index_rate):
+        logger.debug("Retrieving speaker embeddings from FAISS index...")
         npy = feats[0].cpu().numpy()
         score, ix = index.search(npy, k=8)
         weight = np.square(1 / score)
         weight /= weight.sum(axis=1, keepdims=True)
         npy = np.sum(big_npy[ix] * np.expand_dims(weight, axis=2), axis=1)
-        feats = (
-            torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate
-            + (1 - index_rate) * feats
-        )
+        feats = torch.from_numpy(npy).unsqueeze(0).to(self.device) * index_rate + (1 - index_rate) * feats
+        logger.debug("Speaker embeddings retrieved, feats shape now: %s", feats.shape)
         return feats
 
-    def pipeline(
-        self,
-        model,
-        net_g,
-        sid,
-        audio,
-        pitch,
-        f0_methods,
-        file_index,
-        index_rate,
-        pitch_guidance,
-        filter_radius,
-        volume_envelope,
-        version,
-        protect,
-        hop_length,
-        f0_autotune,
-        f0_autotune_strength,
-        f0_file,
-    ):
-        """
-        The main pipeline function for performing voice conversion.
-
-        Args:
-            model: The feature extractor model.
-            net_g: The generative model for synthesizing speech.
-            sid: Speaker ID for the target voice.
-            audio: The input audio signal.
-            input_audio_path: Path to the input audio file.
-            pitch: Key to adjust the pitch of the F0 contour.
-            f0_methods: Methods to use for F0 estimation.
-            file_index: Path to the FAISS index file for speaker embedding retrieval.
-            index_rate: Blending rate for speaker embedding retrieval.
-            pitch_guidance: Whether to use pitch guidance during voice conversion.
-            filter_radius: Radius for median filtering the F0 contour.
-            tgt_sr: Target sampling rate for the output audio.
-            resample_sr: Resampling rate for the output audio.
-            volume_envelope: Blending rate for adjusting the RMS level of the output audio.
-            version: Model version.
-            protect: Protection level for preserving the original pitch.
-            hop_length: Hop length for F0 estimation methods.
-            f0_autotune: Whether to apply autotune to the F0 contour.
-            f0_file: Path to a file containing an F0 contour to use.
-
-        """
+    def pipeline(self, model, net_g, sid, audio, pitch, f0_methods, file_index, index_rate, pitch_guidance, filter_radius, volume_envelope, version, protect, hop_length, f0_autotune, f0_autotune_strength, f0_file):
+        logger.info("Starting full voice conversion pipeline.")
         if file_index != "" and os.path.exists(file_index) and index_rate > 0:
             try:
                 index = faiss.read_index(file_index)
                 big_npy = index.reconstruct_n(0, index.ntotal)
+                logger.debug("FAISS index loaded, index.ntotal=%d", index.ntotal)
             except Exception as error:
-                print(f"An error occurred reading the FAISS index: {error}")
+                logger.error("Error reading FAISS index: %s", error)
                 index = big_npy = None
         else:
             index = big_npy = None
+            logger.debug("No FAISS index provided or index_rate=0.")
         audio = signal.filtfilt(bh, ah, audio)
+        logger.debug("Applied high-pass filtering to audio.")
         audio_pad = np.pad(audio, (self.window // 2, self.window // 2), mode="reflect")
+        logger.debug("Padded audio, new shape: %s", audio_pad.shape)
         opt_ts = []
         if audio_pad.shape[0] > self.t_max:
+            logger.debug("Audio length exceeds max time, segmenting...")
             audio_sum = np.zeros_like(audio)
             for i in range(self.window):
-                audio_sum += audio_pad[i : i - self.window]
+                audio_sum += audio_pad[i: i - self.window]
             for t in range(self.t_center, audio.shape[0], self.t_center):
-                opt_ts.append(
-                    t
-                    - self.t_query
-                    + np.where(
-                        np.abs(audio_sum[t - self.t_query : t + self.t_query])
-                        == np.abs(audio_sum[t - self.t_query : t + self.t_query]).min(),
-                    )[0][0],
-                )
+                local_region = audio_sum[t - self.t_query: t + self.t_query]
+                min_idx = np.where(np.abs(local_region) == np.abs(local_region).min())[0][0]
+                opt_ts.append(t - self.t_query + min_idx)
+            logger.debug("Calculated optimal time segments: %s", opt_ts)
         s = 0
         audio_opt = []
         t = None
@@ -602,6 +537,7 @@ class Pipeline:
         p_len = audio_pad.shape[0] // self.window
         inp_f0 = None
         if hasattr(f0_file, "name"):
+            logger.debug("Reading external F0 file: %s", f0_file.name)
             try:
                 with open(f0_file.name) as f:
                     lines = f.read().strip("\n").split("\n")
@@ -609,110 +545,53 @@ class Pipeline:
                 for line in lines:
                     inp_f0.append([float(i) for i in line.split(",")])
                 inp_f0 = np.array(inp_f0, dtype="float32")
+                logger.debug("Loaded external F0 file with shape: %s", inp_f0.shape)
             except Exception as error:
-                print(f"An error occurred reading the F0 file: {error}")
+                logger.error("Error reading F0 file: %s", error)
         sid = torch.tensor(sid, device=self.device).unsqueeze(0).long()
         if pitch_guidance:
-            pitch, pitchf = self.get_f0(
-                "input_audio_path",  # questionable purpose of making a key for an array
-                audio_pad,
-                p_len,
-                pitch,
-                f0_methods,
-                filter_radius,
-                hop_length,
-                f0_autotune,
-                f0_autotune_strength,
-                inp_f0,
-            )
+            pitch, pitchf = self.get_f0("input_audio_path", audio_pad, p_len, pitch, f0_methods, filter_radius, hop_length, f0_autotune, f0_autotune_strength, inp_f0)
             pitch = pitch[:p_len]
             pitchf = pitchf[:p_len]
             if self.device == "mps":
                 pitchf = pitchf.astype(np.float32)
             pitch = torch.tensor(pitch, device=self.device).unsqueeze(0).long()
             pitchf = torch.tensor(pitchf, device=self.device).unsqueeze(0).float()
+            logger.debug("Pitch guidance obtained, pitch shape: %s, pitchf shape: %s", pitch.shape, pitchf.shape)
         for t in opt_ts:
             t = t // self.window * self.window
+            logger.debug("Processing segment from %d to %d...", s, t)
             if pitch_guidance:
-                audio_opt.append(
-                    self.voice_conversion(
-                        model,
-                        net_g,
-                        sid,
-                        audio_pad[s : t + self.t_pad2 + self.window],
-                        pitch[:, s // self.window : (t + self.t_pad2) // self.window],
-                        pitchf[:, s // self.window : (t + self.t_pad2) // self.window],
-                        index,
-                        big_npy,
-                        index_rate,
-                        version,
-                        protect,
-                    )[self.t_pad_tgt : -self.t_pad_tgt],
-                )
+                seg_audio = audio_pad[s: t + self.t_pad2 + self.window]
+                seg_pitch = pitch[:, s // self.window: (t + self.t_pad2) // self.window]
+                seg_pitchf = pitchf[:, s // self.window: (t + self.t_pad2) // self.window]
+                segment = self.voice_conversion(model, net_g, sid, seg_audio, seg_pitch, seg_pitchf, index, big_npy, index_rate, version, protect)[self.t_pad_tgt: -self.t_pad_tgt]
+                logger.debug("Processed segment with pitch guidance, segment shape: %s", segment.shape)
+                audio_opt.append(segment)
             else:
-                audio_opt.append(
-                    self.voice_conversion(
-                        model,
-                        net_g,
-                        sid,
-                        audio_pad[s : t + self.t_pad2 + self.window],
-                        None,
-                        None,
-                        index,
-                        big_npy,
-                        index_rate,
-                        version,
-                        protect,
-                    )[self.t_pad_tgt : -self.t_pad_tgt],
-                )
+                segment = self.voice_conversion(model, net_g, sid, audio_pad[s: t + self.t_pad2 + self.window], None, None, index, big_npy, index_rate, version, protect)[self.t_pad_tgt: -self.t_pad_tgt]
+                logger.debug("Processed segment without pitch guidance, segment shape: %s", segment.shape)
+                audio_opt.append(segment)
             s = t
         if pitch_guidance:
-            audio_opt.append(
-                self.voice_conversion(
-                    model,
-                    net_g,
-                    sid,
-                    audio_pad[t:],
-                    pitch[:, t // self.window :] if t is not None else pitch,
-                    pitchf[:, t // self.window :] if t is not None else pitchf,
-                    index,
-                    big_npy,
-                    index_rate,
-                    version,
-                    protect,
-                )[self.t_pad_tgt : -self.t_pad_tgt],
-            )
+            final_segment = self.voice_conversion(model, net_g, sid, audio_pad[t:], pitch[:, t // self.window:] if t is not None else pitch, pitchf[:, t // self.window:] if t is not None else pitchf, index, big_npy, index_rate, version, protect)[self.t_pad_tgt: -self.t_pad_tgt]
+            audio_opt.append(final_segment)
         else:
-            audio_opt.append(
-                self.voice_conversion(
-                    model,
-                    net_g,
-                    sid,
-                    audio_pad[t:],
-                    None,
-                    None,
-                    index,
-                    big_npy,
-                    index_rate,
-                    version,
-                    protect,
-                )[self.t_pad_tgt : -self.t_pad_tgt],
-            )
+            final_segment = self.voice_conversion(model, net_g, sid, audio_pad[t:], None, None, index, big_npy, index_rate, version, protect)[self.t_pad_tgt: -self.t_pad_tgt]
+            audio_opt.append(final_segment)
         audio_opt = np.concatenate(audio_opt)
+        logger.info("Concatenated output audio shape: %s", audio_opt.shape)
         if volume_envelope != 1:
-            audio_opt = AudioProcessor.change_rms(
-                audio,
-                self.sample_rate,
-                audio_opt,
-                self.sample_rate,
-                volume_envelope,
-            )
+            audio_opt = AudioProcessor.change_rms(audio, self.sample_rate, audio_opt, self.sample_rate, volume_envelope)
+            logger.debug("Applied volume envelope adjustment.")
         audio_max = np.abs(audio_opt).max() / 0.99
         if audio_max > 1:
             audio_opt /= audio_max
+            logger.debug("Normalized output audio.")
         if pitch_guidance:
             del pitch, pitchf
         del sid
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        logger.info("Pipeline processing complete.")
         return audio_opt

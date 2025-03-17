@@ -13,11 +13,11 @@ import torchfcpe
 
 import librosa
 
-from ultimate_rvc.common import RVC_MODELS_DIR
-from ultimate_rvc.rvc.configs.config import Config
+from src.ultimate_rvc.common import RVC_MODELS_DIR
+from src.ultimate_rvc.rvc.configs.config import Config
 
 # from tools.anyf0.rmvpe import RMVPE
-from ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
+from src.ultimate_rvc.rvc.lib.predictors.RMVPE import RMVPE0Predictor
 
 config = Config()
 

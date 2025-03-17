@@ -3,7 +3,6 @@ import os
 
 import torch
 
-from ultimate_rvc.rvc.common import RVC_CONFIGS_DIR
 
 version_config_paths = [
     os.path.join("48000.json"),
@@ -23,7 +22,7 @@ def singleton(cls):
 
     return get_instance
 
-
+config_pathvar = "C:\\Users\\Kasparas\\argos_tts\\Main_RVC\\u-rvc_GcolabCp\\src\\ultimate_rvc\\rvc\\configs"
 @singleton
 class Config:
     def __init__(self):
@@ -40,7 +39,7 @@ class Config:
     def load_config_json(self) -> dict:
         configs = {}
         for config_file in version_config_paths:
-            config_path = os.path.join(str(RVC_CONFIGS_DIR), config_file)
+            config_path = os.path.join(config_pathvar, config_file)
             with open(config_path) as f:
                 configs[config_file] = json.load(f)
         return configs

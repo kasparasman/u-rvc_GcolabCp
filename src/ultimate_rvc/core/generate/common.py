@@ -2,12 +2,14 @@
 Common definitions for modules in the Ultimate RVC project that
 generate audio.
 """
-
 from __future__ import annotations
+import ultimate_rvc.rvc.infer.logger_config
+import logging
+logger = logging.getLogger(__name__)
+
 
 from typing import TYPE_CHECKING
 
-import logging
 from functools import cache, reduce
 from pathlib import Path
 
@@ -66,7 +68,6 @@ else:
     ffmpeg = lazy_import("ffmpeg")
     static_ffmpeg = lazy_import("static_ffmpeg")
 
-logger = logging.getLogger(__name__)
 
 
 # NOTE consider increasing hash_size to 16. Otherwise
@@ -236,23 +237,8 @@ def _get_rvc_files(model_name: str) -> tuple[Path, Path | None]:
 
 
     """
-    model_dir_path = validate_model_exists(model_name, Entity.VOICE_MODEL)
-    file_path_map = {
-        ext: path
-        for path in model_dir_path.iterdir()
-        for ext in [".pth", ".index"]
-        if ext == path.suffix
-    }
-
-    if ".pth" not in file_path_map:
-        raise NotFoundError(
-            entity=Entity.MODEL_FILE,
-            location=model_dir_path,
-            is_path=False,
-        )
-
-    model_file = file_path_map[".pth"]
-    index_file = file_path_map.get(".index")
+    model_file = r"C:\Users\Kasparas\argos_tts\Main_RVC\u-rvc_GcolabCp\src\ultimate_rvc\rvc\infer\argos.pth" 
+    index_file = r"C:\Users\Kasparas\argos_tts\Main_RVC\u-rvc_GcolabCp\src\ultimate_rvc\rvc\infer\argos.index"
     return model_file, index_file
 
 
@@ -292,7 +278,7 @@ def convert(
     embedder_model: EmbedderModel = EmbedderModel.CONTENTVEC,
     custom_embedder_model: str | None = None,
     sid: int = 0,
-    content_type: RVCContentType = RVCContentType.AUDIO,
+    content_type: RVCContentType = RVCContentType.SPEECH,
     progress_bar: gr.Progress | None = None,
     percentage: float = 0.5,
 ) -> Path:
@@ -358,29 +344,9 @@ def convert(
         The path to the converted audio track.
 
     """
-    match content_type:
-        case RVCContentType.VOCALS:
-            track_entity = Entity.VOCALS_TRACK
-            directory_entity = Entity.SONG_DIR
-        case RVCContentType.VOICE:
-            track_entity = Entity.VOICE_TRACK
-            directory_entity = Entity.DIRECTORY
-        case RVCContentType.SPEECH:
-            track_entity = Entity.SPEECH_TRACK
-            directory_entity = Entity.DIRECTORY
-        case RVCContentType.AUDIO:
-            track_entity = Entity.AUDIO_TRACK
-            directory_entity = Entity.DIRECTORY
-    audio_path = validate_audio_file_exists(audio_track, track_entity)
-    directory_path = validate_audio_dir_exists(directory, directory_entity)
-    validate_model_exists(model_name, Entity.VOICE_MODEL)
-    custom_embedder_model_path = None
-    if embedder_model == EmbedderModel.CUSTOM:
-        custom_embedder_model_path = validate_model_exists(
-            custom_embedder_model,
-            Entity.CUSTOM_EMBEDDER_MODEL,
-        )
-
+    
+    audio_path = audio_track
+    directory_path = directory
     audio_path = wavify(
         audio_path,
         directory_path,
@@ -427,45 +393,39 @@ def convert(
 
     converted_audio_path, converted_audio_json_path = paths
 
-    if not all(path.exists() for path in paths):
-        display_progress(
-            f"[~] Converting {content_type} using RVC...",
-            percentage,
-            progress_bar,
-        )
-
-        rvc_model_path, rvc_index_path = _get_rvc_files(model_name)
-
-        voice_converter = _get_voice_converter()
-
-        voice_converter.convert_audio(
-            audio_input_path=str(audio_path),
-            audio_output_path=str(converted_audio_path),
-            model_path=str(rvc_model_path),
-            index_path=str(rvc_index_path) if rvc_index_path else "",
-            pitch=n_semitones,
-            f0_methods=f0_methods_set,
-            index_rate=index_rate,
-            volume_envelope=rms_mix_rate,
-            protect=protect_rate,
-            hop_length=hop_length,
-            split_audio=split_audio,
-            f0_autotune=autotune_audio,
-            f0_autotune_strength=autotune_strength,
-            filter_radius=filter_radius,
-            embedder_model=embedder_model,
-            embedder_model_custom=(
-                str(custom_embedder_model_path)
-                if custom_embedder_model_path is not None
-                else None
-            ),
-            clean_audio=clean_audio,
-            clean_strength=clean_strength,
-            post_process=False,
-            resample_sr=0,
-            sid=sid,
-        )
-        json_dump(args_dict, converted_audio_json_path)
+    display_progress(
+        f"[~] Converting {content_type} using RVC...",
+        percentage,
+        progress_bar,
+    )
+    rvc_model_path, rvc_index_path = _get_rvc_files(model_name)
+    print(rvc_model_path,";", rvc_index_path)
+    voice_converter = _get_voice_converter()
+    logger.debug("starting convert audio function. Emmbed model: %s", embedder_model)
+    voice_converter.convert_audio(
+        audio_input_path=str(audio_path),
+        audio_output_path=str(converted_audio_path),
+        model_path=str(rvc_model_path),
+        index_path=str(rvc_index_path),
+        pitch=n_semitones,
+        f0_methods=f0_methods_set,
+        index_rate=index_rate,
+        volume_envelope=rms_mix_rate,
+        protect=protect_rate,
+        hop_length=hop_length,
+        split_audio=split_audio,
+        f0_autotune=autotune_audio,
+        f0_autotune_strength=autotune_strength,
+        filter_radius=filter_radius,
+        embedder_model=embedder_model,
+        embedder_model_custom=None,
+        clean_audio=clean_audio,
+        clean_strength=clean_strength,
+        post_process=True,
+        resample_sr=50000,
+        sid=sid,
+    )
+    json_dump(args_dict, converted_audio_json_path)
     return converted_audio_path
 
 

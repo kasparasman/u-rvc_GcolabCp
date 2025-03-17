@@ -5,7 +5,6 @@ models/*
 temp/*
 uv/*
 uv.lock
-!src/ultimate_rvc/rvc/lib/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -144,11 +143,24 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+.urcv
+.urvc.ps1
+.pyproject.toml
+.notes/
+.notebooks/
 # Pyre type checker
 .pyre/
 
 # pytype static type analyzer
 .pytype/
+# Ignore all .h5, .pth, .ckpt, .pt, .onnx, .tflite, etc.
+*.h5
+*.pth
+*.ckpt
+*.pt
+*.onnx
+*.tflite
+*.pb
 
 # Cython debug symbols
 cython_debug/

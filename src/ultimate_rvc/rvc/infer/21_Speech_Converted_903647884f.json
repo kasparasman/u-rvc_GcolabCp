@@ -1,0 +1,24 @@
+{
+    "audio_track": {
+        "name": "input.wav",
+        "hash_id": "0b5ab147e0"
+    },
+    "model_name": "argos",
+    "n_semitones": -17,
+    "f0_methods": [
+        "rmvpe"
+    ],
+    "index_rate": 1.0,
+    "filter_radius": 5,
+    "rms_mix_rate": 1.0,
+    "protect_rate": 0.5,
+    "hop_length": 128,
+    "split_audio": false,
+    "autotune_audio": false,
+    "autotune_strength": 1.0,
+    "clean_audio": false,
+    "clean_strength": 0.5,
+    "embedder_model": "contentvec",
+    "custom_embedder_model": null,
+    "sid": 0
+}

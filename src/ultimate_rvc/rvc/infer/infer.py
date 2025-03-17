@@ -1,19 +1,23 @@
+import logger_config  # This will configure logging for the entire application
+import logging
+logger = logging.getLogger(__name__)
 from typing import TYPE_CHECKING, Unpack
 
-import logging
 import os
 import sys
 import time
 import traceback
 
 import soxr
-
+import json
 import numpy as np
-
+print("Numpy version:", np.__version__)
 import torch
-
+print("Torch version:", torch.__version__)
 import librosa
+print("Librosa version:", librosa.__version__)
 import soundfile as sf
+print("Soundfile version:", sf.__version__)
 from pedalboard import (
     Bitcrush,
     Chorus,
@@ -27,7 +31,6 @@ from pedalboard import (
     PitchShift,
     Reverb,
 )
-
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
@@ -49,7 +52,6 @@ else:
 # logging.getLogger("httpcore").setLevel(logging.WARNING)
 # logging.getLogger("faiss").setLevel(logging.WARNING)
 # logging.getLogger("faiss.loader").setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
 
 
 class VoiceConverter:
@@ -212,7 +214,6 @@ class VoiceConverter:
             )
             board.append(delay)
         return board(audio_input, sample_rate)
-
     def convert_audio(
         self,
         audio_input_path: str,
@@ -222,7 +223,7 @@ class VoiceConverter:
         pitch: int = 0,
         f0_file: str | None = None,
         f0_methods: set[F0Method] | None = None,
-        index_rate: float = 0.75,
+        index_rate: float = 1.0,
         volume_envelope: float = 1,
         protect: float = 0.5,
         hop_length: int = 128,
@@ -240,10 +241,9 @@ class VoiceConverter:
         resample_sr: int = 0,
         sid: int = 0,
         **kwargs: Unpack[ConvertAudioKwArgs],
-    ):
+    ) -> str:
         """
         Performs voice conversion on the input audio.
-
         Args:
             pitch (int): Key for F0 up-sampling.
             filter_radius (int): Radius for filtering.
@@ -268,25 +268,44 @@ class VoiceConverter:
             resample_sr (int, optional): Resample sampling rate. Default is 0.
             sid (int, optional): Speaker ID. Default is 0.
             **kwargs: Additional keyword arguments.
-
+        Returns:
+            str: The path to the converted audio file.
         """
+        logger.debug("Starting convert_audio with parameters:")
+        logger.debug("  audio_input_path: %s", audio_input_path)
+        logger.debug("  audio_output_path: %s", audio_output_path)
+        logger.debug("  model_path: %s", model_path)
+        logger.debug("  index_path: %s", index_path)
+        logger.debug("  pitch: %d, f0_methods: %s, index_rate: %.2f", pitch, f0_methods, index_rate)
+        logger.debug("  split_audio: %s, f0_autotune: %s, clean_audio: %s, post_process: %s",
+                     split_audio, f0_autotune, clean_audio, post_process)
+        logger.debug("  Additional kwargs: %s", kwargs)
         self.get_vc(model_path, sid)
         start_time = time.time()
         logger.info("Converting audio '%s'...", audio_input_path)
-
-        audio = load_audio_infer(
-            audio_input_path,
-            16000,
-            **kwargs,
-        )
+        try:
+            audio = load_audio_infer(
+                audio_input_path,
+                16000,
+                **kwargs,
+            )
+            logger.info("Audio loaded. Shape: %s, max amplitude: %f", audio.shape, np.max(np.abs(audio)))
+        except Exception as e:
+            logger.exception("Failed to load audio from '%s': %s", audio_input_path, e)
+            raise
+        logger.info("Audio loaded. Shape: %s, max amplitude: %f", audio.shape, np.max(np.abs(audio)))
         audio_max = np.abs(audio).max() / 0.95
-
+        logger.info("Computed normalization factor: %f", audio_max)
         if audio_max > 1:
             audio /= audio_max
-
+            logger.info("Audio normalized.")
+        else:
+            logger.info("Audio normalization not required.")
         if not self.hubert_model or embedder_model != self.last_embedder_model:
-            self.load_hubert(embedder_model, embedder_model_custom)
+            logger.info("Loading embedder model: %s", embedder_model)
+            self.load_hubert(embedder_model)
             self.last_embedder_model = embedder_model
+            logger.info("Embedder model loaded.")
 
         file_index = (
             index_path.strip()
@@ -296,9 +315,11 @@ class VoiceConverter:
             .strip()
             .replace("trained", "added")
         )
+        logger.info("Processed file index: %s", file_index)
 
         if self.tgt_sr != resample_sr >= 16000:
             self.tgt_sr = resample_sr
+            logger.info("Updated target sampling rate: %s", self.tgt_sr)
 
         if split_audio:
             chunks, intervals = process_audio(audio, 16000)
@@ -306,9 +327,12 @@ class VoiceConverter:
         else:
             chunks = []
             chunks.append(audio)
+            logger.info("Processing audio as a single chunk.")
 
         converted_chunks = []
-        for c in chunks:
+        for i, c in enumerate(chunks):  # Use enumerate to get an index
+            logger.info("Processing chunk %d with shape: %s", i, c.shape)
+            logger.debug("vc attribute: %s", self.vc)
             audio_opt = self.vc.pipeline(
                 model=self.hubert_model,
                 net_g=self.net_g,
@@ -328,10 +352,10 @@ class VoiceConverter:
                 f0_autotune_strength=f0_autotune_strength,
                 f0_file=f0_file,
             )
+            logger.info("Chunk %d conversion complete. Output shape: %s", i, audio_opt.shape)
             converted_chunks.append(audio_opt)
             if split_audio:
                 logger.info("Converted audio chunk %d", len(converted_chunks))
-
         if split_audio:
             audio_opt = merge_audio(
                 chunks,
@@ -342,8 +366,8 @@ class VoiceConverter:
             )
         else:
             audio_opt = converted_chunks[0]
-
         if clean_audio:
+            logger.info("Cleaning audio with strength: %f", clean_strength)
             cleaned_audio = self.remove_audio_noise(
                 audio_opt,
                 self.tgt_sr,
@@ -351,15 +375,18 @@ class VoiceConverter:
             )
             if cleaned_audio is not None:
                 audio_opt = cleaned_audio
-
+                logger.info("Audio cleaning applied.")
         if post_process:
+            logger.info("Post-processing audio...")
             audio_opt = self.post_process_audio(
                 audio_input=audio_opt,
                 sample_rate=self.tgt_sr,
                 **kwargs,
             )
+            logger.info("Post-processing complete.")
 
         sf.write(audio_output_path, audio_opt, self.tgt_sr, format="WAV")
+        logger.info("Output audio written to: %s", audio_output_path)
         output_path_format = audio_output_path.replace(
             ".wav",
             f".{export_format.lower()}",
@@ -369,13 +396,13 @@ class VoiceConverter:
             output_path_format,
             export_format,
         )
-
         elapsed_time = time.time() - start_time
         logger.info(
             "Conversion completed at '%s' in %.2f seconds.",
             audio_output_path,
             elapsed_time,
         )
+        return audio_output_path
 
     def convert_audio_batch(
         self,
@@ -458,7 +485,7 @@ class VoiceConverter:
             self.cleanup_model()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-
+        print("Loading model...", weight_root, sid)
         if not self.loaded_model or self.loaded_model != weight_root:
             self.load_model(weight_root)
             if self.cpt is not None:
@@ -495,33 +522,139 @@ class VoiceConverter:
             else None
         )
 
+
+
     def setup_network(self):
         """
-        Sets up the network configuration based on the loaded checkpoint.
+        Sets up the network configuration using the correct configuration from config.json,
+        merging it with dynamic values from the loaded checkpoint.
         """
-        if self.cpt is not None:
-            self.tgt_sr = self.cpt["config"][-1]
-            self.cpt["config"][-3] = self.cpt["weight"]["emb_g.weight"].shape[0]
-            self.use_f0 = self.cpt.get("f0", 1)
+        if self.cpt is None:
+            logger.error("Checkpoint (cpt) is None. Cannot setup network.")
+            return
 
+        logger.info("Starting network setup...")
+
+        try:
+            # Load the original configuration from config.json
+            config_path = r"C:\Users\Kasparas\argos_tts\Main_RVC\u-rvc_GcolabCp\src\ultimate_rvc\rvc\infer\config.json"  # Update this path as needed.
+            with open(config_path, "r") as f:
+                full_config = json.load(f)
+            data_config = full_config["data"]
+            model_config = full_config["model"]
+            train_config = full_config["train"]
+
+            logger.debug("Loaded original config.json:")
+            logger.debug("Data config: %s", data_config)
+            logger.debug("Model config: %s", model_config)
+            logger.debug("Train config: %s", train_config)
+
+            # Map training parameters to the network's expected parameters.
+            spec_channels = data_config["n_mel_channels"]             # e.g., 125
+            segment_size = train_config["segment_size"]                # e.g., 12800
+            inter_channels = model_config["inter_channels"]            # e.g., 192
+            hidden_channels = model_config["hidden_channels"]          # e.g., 192
+            filter_channels = model_config["filter_channels"]          # e.g., 768
+            n_heads = model_config["n_heads"]                          # e.g., 2
+            n_layers = model_config["n_layers"]                        # e.g., 6
+            kernel_size = model_config["kernel_size"]                  # e.g., 3
+            p_dropout = model_config["p_dropout"]                      # e.g., 0
+            resblock = model_config["resblock"]                        # e.g., "1"
+            resblock_kernel_sizes = model_config["resblock_kernel_sizes"]          # e.g., [3, 7, 11]
+            resblock_dilation_sizes = model_config["resblock_dilation_sizes"]      # e.g., [[1,3,5],[1,3,5],[1,3,5]]
+            upsample_rates = model_config["upsample_rates"]            # e.g., [10, 10, 2, 2]
+            upsample_initial_channel = model_config["upsample_initial_channel"]  # e.g., 512
+            upsample_kernel_sizes = model_config["upsample_kernel_sizes"]            # e.g., [16, 16, 4, 4]
+
+            # Update speaker embedding dimension dynamically from the checkpoint weights
+            spk_embed_dim = self.cpt["weight"]["emb_g.weight"].shape[0]
+            gin_channels = model_config["gin_channels"]                # e.g., 256
+            sr = data_config["sampling_rate"]                          # e.g., 40000
+
+            logger.debug("Dynamic spk_embed_dim from weights: %d", spk_embed_dim)
+            logger.debug("Using sampling rate (sr): %d", sr)
+
+            # Set additional dynamic parameters from the checkpoint
+            self.tgt_sr = sr
+            self.use_f0 = bool(self.cpt.get("f0", 1))
             self.version = self.cpt.get("version", "v1")
             self.text_enc_hidden_dim = 768 if self.version == "v2" else 256
             self.vocoder = self.cpt.get("vocoder", "HiFi-GAN")
+
+            logger.info("Dynamic parameters: use_f0=%s, version=%s, text_enc_hidden_dim=%d, vocoder=%s",
+                        self.use_f0, self.version, self.text_enc_hidden_dim, self.vocoder)
+
+            # Construct the full configuration list in the expected order:
+            # Expected order for Synthesizer:
+            # spec_channels, segment_size, inter_channels, hidden_channels, filter_channels,
+            # n_heads, n_layers, kernel_size, p_dropout, resblock, resblock_kernel_sizes,
+            # resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes,
+            # spk_embed_dim, gin_channels, sr, use_f0
+            synthesizer_params = [
+                spec_channels,         # spec_channels (n_mel_channels)
+                segment_size,          # segment_size
+                inter_channels,        # inter_channels
+                hidden_channels,       # hidden_channels
+                filter_channels,       # filter_channels
+                n_heads,               # n_heads
+                n_layers,              # n_layers
+                kernel_size,           # kernel_size
+                p_dropout,             # p_dropout
+                resblock,              # resblock
+                resblock_kernel_sizes, # resblock_kernel_sizes
+                resblock_dilation_sizes,  # resblock_dilation_sizes
+                upsample_rates,        # upsample_rates
+                upsample_initial_channel,  # upsample_initial_channel
+                upsample_kernel_sizes,     # upsample_kernel_sizes
+                spk_embed_dim,         # spk_embed_dim (from weights)
+                gin_channels,          # gin_channels
+                sr                     # sampling rate
+            ]
+
+            logger.debug("Synthesizer parameters: %s", synthesizer_params)
+
+            # Initialize the Synthesizer with the full set of parameters and additional keyword arguments.
             self.net_g = Synthesizer(
-                *self.cpt["config"],
+                *synthesizer_params,
                 use_f0=self.use_f0,
                 text_enc_hidden_dim=self.text_enc_hidden_dim,
-                vocoder=self.vocoder,
+                vocoder=self.vocoder
             )
-            del self.net_g.enc_q
+            logger.info("Synthesizer network initialized successfully.")
+
+            # Remove unused components to free memory.
+            if hasattr(self.net_g, "enc_q"):
+                del self.net_g.enc_q
+                logger.debug("Removed enc_q from the network.")
+
+            # Load the pre-trained weights
             self.net_g.load_state_dict(self.cpt["weight"], strict=False)
+            logger.info("Model weights loaded successfully.")
+
+            # Move the model to the configured device and set to eval mode.
             self.net_g = self.net_g.to(self.config.device).float()
             self.net_g.eval()
+            logger.info("Synthesizer moved to device: %s and set to evaluation mode.", self.config.device)
+
+        except Exception as e:
+            logger.exception("Exception occurred during network setup: %s", e)
 
     def setup_vc_instance(self):
         """
         Sets up the voice conversion pipeline instance based on the target sampling rate and configuration.
         """
-        if self.cpt is not None:
+        if self.cpt is None:
+            logger.error("Checkpoint (cpt) is None. Cannot setup voice conversion instance.")
+            return
+
+        try:
+            logger.info("Initializing voice conversion pipeline instance (VC).")
+            # Create the VC pipeline using the target sampling rate and overall configuration.
             self.vc = VC(self.tgt_sr, self.config)
+            logger.debug("VC instance created with target sampling rate: %d and config: %s", self.tgt_sr, self.config)
+
+            # Set the number of speakers based on the configuration (dynamic value from weights).
             self.n_spk = self.cpt["config"][-3]
+            logger.info("Number of speakers set to: %d", self.n_spk)
+        except Exception as e:
+            logger.exception("Exception occurred during VC instance setup: %s", e)

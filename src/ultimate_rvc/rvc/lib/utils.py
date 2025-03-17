@@ -1,4 +1,6 @@
+import ultimate_rvc.rvc.infer.logger_config
 import logging
+logger = logging.getLogger(__name__)
 import os
 import re
 import sys
@@ -22,10 +24,6 @@ from ultimate_rvc.common import RVC_MODELS_DIR
 # Remove this to see warnings about transformers models
 warnings.filterwarnings("ignore")
 
-logging.getLogger("fairseq").setLevel(logging.ERROR)
-logging.getLogger("faiss.loader").setLevel(logging.ERROR)
-logging.getLogger("transformers").setLevel(logging.ERROR)
-logging.getLogger("torch").setLevel(logging.ERROR)
 
 now_dir = os.getcwd()
 sys.path.append(now_dir)
@@ -108,47 +106,19 @@ def format_title(title):
 
 
 def load_embedding(embedder_model, custom_embedder=None):
-    embedder_root = os.path.join(str(RVC_MODELS_DIR), "embedders")
-    embedding_list = {
-        "contentvec": os.path.join(embedder_root, "contentvec"),
-        "chinese-hubert-base": os.path.join(embedder_root, "chinese_hubert_base"),
-        "japanese-hubert-base": os.path.join(embedder_root, "japanese_hubert_base"),
-        "korean-hubert-base": os.path.join(embedder_root, "korean_hubert_base"),
-    }
-
-    online_embedders = {
-        "contentvec": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/contentvec/pytorch_model.bin",
-        "chinese-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/chinese_hubert_base/pytorch_model.bin",
-        "japanese-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/japanese_hubert_base/pytorch_model.bin",
-        "korean-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/korean_hubert_base/pytorch_model.bin",
-    }
-
-    config_files = {
-        "contentvec": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/contentvec/config.json",
-        "chinese-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/chinese_hubert_base/config.json",
-        "japanese-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/japanese_hubert_base/config.json",
-        "korean-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/korean_hubert_base/config.json",
-    }
-
-    if embedder_model == "custom":
-        if os.path.exists(custom_embedder):
-            model_path = custom_embedder
-        else:
-            print(f"Custom embedder not found: {custom_embedder}, using contentvec")
-            model_path = embedding_list["contentvec"]
+    import os
+    
+    # If embedder_model is "contentvec", use the custom folder path.
+    if embedder_model.lower() == "contentvec":
+        model_path = r"C:\Users\Kasparas\argos_tts\Main_RVC\u-rvc_GcolabCp\src\ultimate_rvc\rvc\infer\models\rvc\embedders\contentvec"
     else:
-        model_path = embedding_list[embedder_model]
-        bin_file = os.path.join(model_path, "pytorch_model.bin")
-        json_file = os.path.join(model_path, "config.json")
-        os.makedirs(model_path, exist_ok=True)
-        if not os.path.exists(bin_file):
-            url = online_embedders[embedder_model]
-            print(f"Downloading {url} to {model_path}...")
-            wget.download(url, out=bin_file)
-        if not os.path.exists(json_file):
-            url = config_files[embedder_model]
-            print(f"Downloading {url} to {model_path}...")
-            wget.download(url, out=json_file)
+        raise ValueError(f"Embedder model '{embedder_model}' not supported. Only 'contentvec' is supported.")
+    
+    bin_file = os.path.join(model_path, "pytorch_model.bin")
+    json_file = os.path.join(model_path, "config.json")
+    os.makedirs(model_path, exist_ok=True)
+    if not os.path.exists(bin_file) or not os.path.exists(json_file):
+        raise FileNotFoundError(f"Required embedder files not found in {model_path}")
 
     models = HubertModelWithFinalProj.from_pretrained(model_path)
     return models
