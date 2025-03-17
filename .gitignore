@@ -161,7 +161,8 @@ dmypy.json
 *.onnx
 *.tflite
 *.pb
-
+*.wav
+*.mp3
 # Cython debug symbols
 cython_debug/
 
